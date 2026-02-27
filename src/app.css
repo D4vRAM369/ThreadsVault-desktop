@@ -1,0 +1,27 @@
+@import "tailwindcss";
+
+:root {
+  --vault-primary:   #7C4DFF;
+  --vault-secondary: #00BCD4;
+  --vault-tertiary:  #26A69A;
+  --vault-bg:        #0F0F0F;
+  --vault-surface:   #1A1A2E;
+  --vault-on-bg:     #E8E8F0;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--vault-bg);
+  color: var(--vault-on-bg);
+  font-family: system-ui, sans-serif;
+  min-height: 100vh;
+}
+
+#app {
+  min-height: 100vh;
+}
