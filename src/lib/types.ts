@@ -4,6 +4,8 @@ export interface PostMedia {
   id: string
   type: PostMediaType
   url: string
+  cachedDataUrl?: string
+  cachedAt?: number
 }
 
 export interface Post {

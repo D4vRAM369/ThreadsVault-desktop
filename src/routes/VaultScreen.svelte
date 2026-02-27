@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { posts, categories, appState, filteredPosts, allHashtags,
+  import { posts, categories, appState, filteredPosts, hashtagStats,
            searchQuery, activeCategory, activeHashtag, deletePost } from '../lib/stores/vault'
   import PostCard from '../components/PostCard.svelte'
   import EmptyState from '../components/EmptyState.svelte'
@@ -7,6 +7,90 @@
 
   function getCategoryById(id: string) {
     return $categories.find(c => c.id === id)
+  }
+
+  function getCategoryLabel(name: string): string {
+    const value = name?.trim()
+    return value ? value : 'Sin nombre'
+  }
+
+  function getCategoryPostCount(categoryId: string): number {
+    return $posts.filter((p) => p.categoryId === categoryId).length
+  }
+
+  function toggleCategory(id: string | null) {
+    if ($activeCategory === id) {
+      activeCategory.set(null)
+      return
+    }
+    activeCategory.set(id)
+  }
+
+  function toggleHashtag(tag: string) {
+    if ($activeHashtag === tag) {
+      activeHashtag.set(null)
+      return
+    }
+    activeHashtag.set(tag)
+  }
+
+  function handleHorizontalWheel(e: WheelEvent) {
+    const el = e.currentTarget as HTMLElement
+    if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return
+    e.preventDefault()
+    el.scrollLeft += e.deltaY
+  }
+
+  function horizontalDrag(node: HTMLElement) {
+    let isDown = false
+    let startX = 0
+    let startLeft = 0
+    let moved = false
+
+    function onPointerDown(e: PointerEvent) {
+      if (e.pointerType === 'mouse' && e.button !== 0) return
+      isDown = true
+      moved = false
+      startX = e.clientX
+      startLeft = node.scrollLeft
+      node.style.cursor = 'grabbing'
+    }
+
+    function onPointerMove(e: PointerEvent) {
+      if (!isDown) return
+      const delta = e.clientX - startX
+      if (Math.abs(delta) > 4) moved = true
+      node.scrollLeft = startLeft - delta
+    }
+
+    function onPointerUp() {
+      isDown = false
+      node.style.cursor = 'grab'
+    }
+
+    function onClickCapture(e: MouseEvent) {
+      if (!moved) return
+      e.preventDefault()
+      e.stopPropagation()
+      moved = false
+    }
+
+    node.style.cursor = 'grab'
+    node.addEventListener('pointerdown', onPointerDown)
+    node.addEventListener('pointermove', onPointerMove)
+    node.addEventListener('pointerup', onPointerUp)
+    node.addEventListener('pointerleave', onPointerUp)
+    node.addEventListener('click', onClickCapture, true)
+
+    return {
+      destroy() {
+        node.removeEventListener('pointerdown', onPointerDown)
+        node.removeEventListener('pointermove', onPointerMove)
+        node.removeEventListener('pointerup', onPointerUp)
+        node.removeEventListener('pointerleave', onPointerUp)
+        node.removeEventListener('click', onClickCapture, true)
+      },
+    }
   }
 
   /*
@@ -118,22 +202,62 @@
     </div>
 
     <!--
-      PBL: pl-10 (40px) deja espacio para el icono.
-      Icono en left:14px + width:14px = ocupa hasta 28px.
-      Con 40px de padding el texto empieza con 12px de separación. ✓
+      PBL: Dashboard de hashtags.
+      Muestra top tags extraídos de notas + texto extraído.
+      click = filtra por hashtag; segundo click = limpia filtro.
     -->
-    <div class="relative mb-2.5">
+    <div class="rounded-2xl p-3 mb-2.5" style="
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.10);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.22);
+    ">
+      <div class="flex items-center justify-between mb-2">
+        <p class="text-xs font-semibold" style="
+          color: #7ae9ff;
+          font-family: var(--font-display);
+          letter-spacing: 0.03em;
+        "># Hashtags guardados</p>
+        <span class="text-xs px-2 py-0.5 rounded-full" style="
+          background: rgba(124,77,255,0.2);
+          border: 1px solid rgba(124,77,255,0.35);
+          color: #d8c8ff;
+          font-family: var(--font-display);
+        ">{$hashtagStats.length}</span>
+      </div>
+
+      {#if $hashtagStats.length === 0}
+        <p class="text-xs" style="color: var(--vault-on-bg-muted)">
+          Aún no hay hashtags. Añade `#tags` en tus notas o guarda posts con texto extraído.
+        </p>
+      {:else}
+        <div class="flex gap-1.5 overflow-x-auto no-scrollbar pb-1" onwheel={handleHorizontalWheel} use:horizontalDrag>
+          {#each $hashtagStats.slice(0, 24) as item (item.tag)}
+            <button
+              class="shrink-0 px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-200"
+              style="
+                font-family: var(--font-display);
+                line-height: 1.2;
+                {$activeHashtag === item.tag
+                  ? 'background: rgba(0,188,212,0.22); color: #d6f9ff; border: 1px solid rgba(0,188,212,0.45); box-shadow: 0 0 14px rgba(0,188,212,0.2);'
+                  : 'background: rgba(0,188,212,0.09); color: #8befff; border: 1px solid rgba(0,188,212,0.22);'}
+              "
+              onclick={() => toggleHashtag(item.tag)}
+            >
+              {item.tag}
+              <span style="opacity:0.8"> {item.count}</span>
+            </button>
+          {/each}
+        </div>
+      {/if}
+    </div>
+
+    <!-- Campo de búsqueda principal -->
+    <div class="relative mb-2">
       <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
            width="14" height="14" viewBox="0 0 24 24" fill="none"
            stroke="rgba(232,232,240,0.3)" stroke-width="2">
         <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
       </svg>
-      <!--
-        PBL: Usamos padding-left inline (no clase Tailwind) para garantizar
-        que el texto no solape con el ícono.
-        left:14px + width:14px = ícono ocupa hasta 28px.
-        padding-left:44px = 28px + 16px de margen → sin solapamiento.
-      -->
       <input
         type="search"
         placeholder="Buscar posts, autores, notas…"
@@ -151,15 +275,22 @@
       />
     </div>
 
-    <!--
-      PBL: Chips de categoría.
-      padding-top/bottom: 5px + line-height:1.2 = altura controlada.
-      Con line-height:1.6 (heredado de body) y text-xs, las letras con tilde
-      como "ó" pueden salirse. line-height:1.2 lo previene.
-      whitespace-nowrap evita que el texto se parta en varias líneas.
-    -->
+    <div class="flex items-center justify-between mb-1.5">
+      <p class="text-xs font-semibold" style="
+        color: #64deff;
+        font-family: var(--font-display);
+        letter-spacing: 0.04em;
+      ">Filtros rápidos</p>
+      <span class="text-xs px-2 py-0.5 rounded-full" style="
+        background: rgba(124,77,255,0.25);
+        border: 1px solid rgba(124,77,255,0.4);
+        color: #dfd3ff;
+        font-family: var(--font-display);
+      ">{$filteredPosts.length}</span>
+    </div>
+
     {#if $categories.length > 0}
-      <div class="flex gap-1.5 overflow-x-auto no-scrollbar" style="padding-bottom: 2px">
+      <div class="flex gap-1.5 overflow-x-auto no-scrollbar" style="padding-bottom: 2px" onwheel={handleHorizontalWheel} use:horizontalDrag>
         <button
           class="shrink-0 px-3 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-200"
           style="
@@ -167,10 +298,10 @@
             line-height: 1.2;
             font-family: var(--font-display);
             {$activeCategory === null
-              ? 'background: var(--vault-primary); color: white; box-shadow: 0 0 14px var(--vault-primary-glow);'
+              ? 'background: linear-gradient(135deg, #7C4DFF, #8d5dff); color: white; box-shadow: 0 0 14px var(--vault-primary-glow);'
               : 'background: var(--vault-surface); color: var(--vault-on-bg-muted); border: 1px solid var(--vault-border);'}
           "
-          onclick={() => activeCategory.set(null)}
+          onclick={() => toggleCategory(null)}
         >Todos</button>
 
         {#each $categories as cat}
@@ -181,43 +312,11 @@
               line-height: 1.2;
               font-family: var(--font-display);
               background: {cat.color};
-              opacity: {$activeCategory === cat.id ? '1' : '0.38'};
+              opacity: {$activeCategory === cat.id ? '1' : '0.42'};
               box-shadow: {$activeCategory === cat.id ? `0 0 14px ${cat.color}55` : 'none'};
             "
-            onclick={() => activeCategory.set(cat.id)}
-          >{cat.name}</button>
-        {/each}
-      </div>
-    {/if}
-
-    {#if $allHashtags.length > 0}
-      <div class="flex gap-1.5 overflow-x-auto no-scrollbar mt-2.5" style="padding-bottom: 2px">
-        <button
-          class="shrink-0 px-3 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-200"
-          style="
-            padding-top: 5px; padding-bottom: 5px;
-            line-height: 1.2;
-            font-family: var(--font-display);
-            {$activeHashtag === null
-              ? 'background: rgba(0,188,212,0.2); color: #c9f7ff; border: 1px solid rgba(0,188,212,0.3);'
-              : 'background: var(--vault-surface); color: var(--vault-on-bg-muted); border: 1px solid var(--vault-border);'}
-          "
-          onclick={() => activeHashtag.set(null)}
-        >#Todos</button>
-
-        {#each $allHashtags as tag}
-          <button
-            class="shrink-0 px-3 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-200"
-            style="
-              padding-top: 5px; padding-bottom: 5px;
-              line-height: 1.2;
-              font-family: var(--font-display);
-              {$activeHashtag === tag
-                ? 'background: rgba(0,188,212,0.22); color: #d9fbff; border: 1px solid rgba(0,188,212,0.4);'
-                : 'background: rgba(255,255,255,0.04); color: var(--vault-on-bg-muted); border: 1px solid rgba(255,255,255,0.1);'}
-            "
-            onclick={() => activeHashtag.set(tag)}
-          >{tag}</button>
+            onclick={() => toggleCategory(cat.id)}
+          >{cat.emoji ?? '📌'} {getCategoryLabel(cat.name)} ({getCategoryPostCount(cat.id)})</button>
         {/each}
       </div>
     {/if}

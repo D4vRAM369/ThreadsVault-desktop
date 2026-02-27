@@ -1,5 +1,7 @@
 // Mismo regex que Android PostRepository.kt — compatibilidad garantizada
 const THREADS_AUTHOR_REGEX = /threads(?:\.net|\.com)\/@([A-Za-z0-9._]+)/
+const THREADS_HOST_REGEX = /^https?:\/\/(?:www\.)?threads\.(?:net|com)\//i
+const THREADS_POST_PATH_REGEX = /\/(?:@[\w.]+\/post\/|post\/|t\/)[A-Za-z0-9_-]+/i
 const THREADS_POST_ID_REGEX = /\/post\/([A-Za-z0-9_-]+)/
 
 export function parseThreadsAuthor(url: string): string {
@@ -9,7 +11,8 @@ export function parseThreadsAuthor(url: string): string {
 
 export function isValidThreadsUrl(url: string): boolean {
   if (!url) return false
-  return THREADS_AUTHOR_REGEX.test(url)
+  if (!THREADS_HOST_REGEX.test(url)) return false
+  return THREADS_POST_PATH_REGEX.test(url) || THREADS_AUTHOR_REGEX.test(url)
 }
 
 /**

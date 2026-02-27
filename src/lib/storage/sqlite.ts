@@ -1,6 +1,7 @@
 import Database from '@tauri-apps/plugin-sql'
 import type { StorageAdapter } from './adapter'
 import type { Post, Category } from '../types'
+import { normalizeBackupPayload } from './backup-normalizer'
 
 const SCHEMA_VERSION = 2
 const DEFAULT_CATEGORIES: Category[] = [
@@ -194,10 +195,7 @@ export class SqliteStorage implements StorageAdapter {
   }
 
   async importBackup(json: string): Promise<void> {
-    const data = JSON.parse(json)
-    if (!data.schemaVersion || !data.posts || !data.categories) {
-      throw new Error('Formato de backup invalido')
-    }
+    const data = normalizeBackupPayload(JSON.parse(json))
     await this.db.execute('DELETE FROM posts')
     await this.db.execute('DELETE FROM categories')
     for (const post of data.posts as Post[]) await this.savePost(post)

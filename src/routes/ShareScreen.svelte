@@ -1,8 +1,10 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { categories, savePost } from '../lib/stores/vault'
+  import { getStorage } from '../lib/storage/index'
   import { parseThreadsAuthor, isValidThreadsUrl } from '../lib/utils/url-parser'
   import { extractPostData } from '../lib/utils/post-extractor'
+  import { cachePostMediaLocally } from '../lib/utils/media-cache'
   import type { Post } from '../lib/types'
 
   let url           = $state('')
@@ -11,6 +13,16 @@
   let error         = $state('')
   let saving        = $state(false)
   let extracting    = $state(false)
+
+  async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => resolve(null), ms)
+      promise
+        .then((value) => resolve(value))
+        .catch(() => resolve(null))
+        .finally(() => clearTimeout(timer))
+    })
+  }
 
   onMount(() => {
     const params = new URLSearchParams(window.location.search)
@@ -34,13 +46,8 @@
     const cleanUrl = url.trim()
     let extracted: Awaited<ReturnType<typeof extractPostData>> | null = null
     extracting = true
-    try {
-      extracted = await extractPostData(cleanUrl)
-    } catch (extractionError) {
-      console.warn('No se pudo extraer metadata del post', extractionError)
-    } finally {
-      extracting = false
-    }
+    extracted = await withTimeout(extractPostData(cleanUrl), 7000)
+    extracting = false
 
     const author = extracted?.author || parseThreadsAuthor(cleanUrl) || '@desconocido'
     const post: Post = {
@@ -59,6 +66,20 @@
     }
 
     await savePost(post)
+    void (async () => {
+      try {
+        const cachedPost = await cachePostMediaLocally(post, {
+          maxItems: 4,
+          maxVideoBytes: 120 * 1024 * 1024,
+        })
+        if (cachedPost === post) return
+        const storage = await getStorage()
+        await storage.savePost(cachedPost)
+      } catch (cacheError) {
+        console.warn('No se pudo cachear media en background', cacheError)
+      }
+    })()
+
     window.location.hash = '#/'
   }
 </script>

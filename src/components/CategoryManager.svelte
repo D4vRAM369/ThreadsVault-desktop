@@ -88,6 +88,11 @@
   function handleDragEnd() {
     draggingId = null
   }
+
+  function getCategoryLabel(cat: Category): string {
+    const label = cat.name?.trim()
+    return label ? label : 'Sin nombre'
+  }
 </script>
 
 <p class="text-xs font-semibold uppercase mb-2.5 px-1" style="
@@ -302,7 +307,7 @@
             <p class="flex-1 text-sm font-semibold truncate" style="
               font-family: var(--font-display);
               color: var(--vault-on-bg);
-            ">{cat.name}</p>
+            ">{getCategoryLabel(cat)}</p>
 
             <div class="w-3 h-3 rounded-full shrink-0" style="
               background: {cat.color};

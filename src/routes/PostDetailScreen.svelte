@@ -4,6 +4,8 @@
   import { getStorage } from '../lib/storage/index'
   import CategoryBadge from '../components/CategoryBadge.svelte'
   import { cleanThreadsUrl, getPostShortId } from '../lib/utils/url-parser'
+  import { extractPostData } from '../lib/utils/post-extractor'
+  import { cachePostMediaLocally } from '../lib/utils/media-cache'
   import type { Post, PostMedia } from '../lib/types'
 
   let { postId }: { postId: string } = $props()
@@ -11,6 +13,12 @@
   let post          = $state<Post | null>(null)
   let loading       = $state(true)
   let confirmDelete = $state(false)
+  let refreshingMedia = $state(false)
+  let mediaRefreshError = $state('')
+  let failedMediaIds = $state<Set<string>>(new Set())
+  let mediaSourceIndex = $state<Record<string, number>>({})
+  let showFailedMedia = $state(false)
+  let refreshedMediaOnce = $state(false)
   let category      = $derived($categories.find(c => c.id === post?.categoryId))
 
   onMount(async () => {
@@ -43,11 +51,116 @@
 
   function downloadMedia(media: PostMedia) {
     const a = document.createElement('a')
-    a.href = media.url
+    a.href = getMediaSource(media)
     a.download = fileNameFromUrl(media.url)
     a.target = '_blank'
     a.rel = 'noopener noreferrer'
     a.click()
+  }
+
+  function toImageProxyUrl(url: string): string {
+    return `https://images.weserv.nl/?url=${encodeURIComponent(url.replace(/^https?:\/\//i, ''))}`
+  }
+
+  function getMediaCandidates(media: PostMedia): string[] {
+    const candidates = [media.cachedDataUrl, media.url]
+    if (media.type === 'image') {
+      candidates.push(toImageProxyUrl(media.url))
+    }
+
+    const unique = new Set<string>()
+    return candidates.filter((candidate): candidate is string => {
+      if (!candidate || unique.has(candidate)) return false
+      unique.add(candidate)
+      return true
+    })
+  }
+
+  function getCurrentSourceIndex(media: PostMedia): number {
+    return mediaSourceIndex[media.id] ?? 0
+  }
+
+  function markMediaFailed(media: PostMedia) {
+    if (failedMediaIds.has(media.id)) return
+    const next = new Set(failedMediaIds)
+    next.add(media.id)
+    failedMediaIds = next
+    if (!refreshedMediaOnce) {
+      void refreshMedia('auto')
+    }
+  }
+
+  function handleMediaError(media: PostMedia) {
+    const candidates = getMediaCandidates(media)
+    const index = getCurrentSourceIndex(media)
+    if (index < candidates.length - 1) {
+      mediaSourceIndex = { ...mediaSourceIndex, [media.id]: index + 1 }
+      return
+    }
+    markMediaFailed(media)
+  }
+
+  function hasVideoMedia(): boolean {
+    return Boolean(post?.media?.some((media) => media.type === 'video'))
+  }
+
+  function getMediaSource(media: PostMedia): string {
+    const candidates = getMediaCandidates(media)
+    const index = getCurrentSourceIndex(media)
+    return candidates[Math.min(index, Math.max(candidates.length - 1, 0))] ?? media.url
+  }
+
+  function areAllMediaFailed(): boolean {
+    if (!post?.media?.length) return false
+    return post.media.every((media) => failedMediaIds.has(media.id))
+  }
+
+  function failedMediaCount(): number {
+    return failedMediaIds.size
+  }
+
+  function visibleMedia(): PostMedia[] {
+    if (!post?.media?.length) return []
+    if (showFailedMedia) return post.media
+    return post.media.filter((media) => !failedMediaIds.has(media.id))
+  }
+
+  async function refreshMedia(mode: 'auto' | 'manual' = 'manual') {
+    if (!post || refreshingMedia) return
+    refreshingMedia = true
+    mediaRefreshError = ''
+
+    try {
+      const extracted = await extractPostData(post.canonicalUrl ?? post.url)
+      const merged: Post = {
+        ...post,
+        url: extracted.canonicalUrl || post.url,
+        canonicalUrl: extracted.canonicalUrl || post.canonicalUrl || post.url,
+        author: post.author || extracted.author || '@desconocido',
+        previewTitle: post.previewTitle ?? extracted.title,
+        previewImage: extracted.previewImage ?? post.previewImage,
+        previewVideo: extracted.previewVideo ?? post.previewVideo,
+        extractedText: post.extractedText ?? extracted.text,
+        media: extracted.media?.length ? extracted.media : (post.media ?? []),
+      }
+
+      const withCachedMedia = await cachePostMediaLocally(merged, { maxItems: 12 })
+
+      const storage = await getStorage()
+      await storage.savePost(withCachedMedia)
+      post = withCachedMedia
+      failedMediaIds = new Set()
+      mediaSourceIndex = {}
+      showFailedMedia = false
+      refreshedMediaOnce = true
+    } catch (error) {
+      mediaRefreshError = mode === 'manual'
+        ? 'No se pudo actualizar media ahora. Abre el post en Threads y vuelve a intentar.'
+        : ''
+      console.warn('Error refrescando media', error)
+    } finally {
+      refreshingMedia = false
+    }
   }
 </script>
 
@@ -222,35 +335,90 @@
 
       {#if post.media?.length}
         <div class="mb-4">
-          <p class="text-xs font-semibold uppercase mb-2" style="
-            color: var(--vault-on-bg-muted);
-            font-family: var(--font-display);
-            letter-spacing: 0.08em;
-          ">Media del post</p>
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <p class="text-xs font-semibold uppercase" style="
+              color: var(--vault-on-bg-muted);
+              font-family: var(--font-display);
+              letter-spacing: 0.08em;
+            ">Media del post</p>
+            <button
+              onclick={() => refreshMedia('manual')}
+              class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all duration-200"
+              style="
+                background: rgba(0,188,212,0.14);
+                border: 1px solid rgba(0,188,212,0.32);
+                color: #baf5ff;
+                font-family: var(--font-display);
+              "
+            >{refreshingMedia ? 'Actualizando...' : 'Actualizar media'}</button>
+          </div>
+
+          {#if !hasVideoMedia()}
+            <p class="text-xs mb-2" style="color: var(--vault-on-bg-muted)">
+              Este post no incluye video detectado. El reproductor se muestra solo cuando hay URL de video.
+            </p>
+          {/if}
+
+          {#if mediaRefreshError}
+            <p class="text-xs mb-2" style="color: #fbbf24">{mediaRefreshError}</p>
+          {/if}
+
+          {#if failedMediaCount() > 0}
+            <div class="rounded-lg px-3 py-2 mb-2 flex items-center justify-between gap-2" style="
+              background: rgba(239,68,68,0.08);
+              border: 1px solid rgba(239,68,68,0.2);
+            ">
+              <p class="text-xs" style="color: #fca5a5">
+                {failedMediaCount()} recurso(s) no visible(s) por bloqueo/caducidad del CDN.
+              </p>
+              <button
+                onclick={() => showFailedMedia = !showFailedMedia}
+                class="px-2 py-1 rounded-md text-xs font-semibold"
+                style="
+                  background: rgba(255,255,255,0.08);
+                  border: 1px solid rgba(255,255,255,0.16);
+                  color: var(--vault-on-bg);
+                  font-family: var(--font-display);
+                "
+              >{showFailedMedia ? 'Ocultar fallidos' : 'Mostrar fallidos'}</button>
+            </div>
+          {/if}
 
           <div class="flex flex-col gap-3">
-            {#each post.media as media (media.id)}
+            {#each visibleMedia() as media (media.id)}
               <div class="rounded-xl p-2.5" style="
                 background: rgba(255,255,255,0.04);
                 border: 1px solid rgba(255,255,255,0.1);
               ">
-                {#if media.type === 'video'}
+                {#if failedMediaIds.has(media.id)}
+                  <div class="rounded-lg px-2.5 py-2 mb-2 text-xs" style="
+                    background: rgba(239,68,68,0.08);
+                    border: 1px solid rgba(239,68,68,0.22);
+                    color: #fca5a5;
+                  ">
+                    Recurso no visible en app. Puedes abrir o descargar desde la URL.
+                  </div>
+                {:else if media.type === 'video'}
                   <!-- svelte-ignore a11y_media_has_caption -->
                   <video
-                    src={media.url}
+                    src={getMediaSource(media)}
                     controls
                     playsinline
                     preload="metadata"
                     class="w-full rounded-lg mb-2"
                     style="background: #000; max-height: 360px;"
+                    onerror={() => handleMediaError(media)}
                   ></video>
                 {:else}
                   <img
-                    src={media.url}
+                    src={getMediaSource(media)}
                     alt="Media del post"
                     loading="lazy"
+                    referrerPolicy="no-referrer"
+                    crossorigin="anonymous"
                     class="w-full rounded-lg mb-2"
                     style="max-height: 360px; object-fit: cover;"
+                    onerror={() => handleMediaError(media)}
                   />
                 {/if}
 
@@ -276,6 +444,12 @@
               </div>
             {/each}
           </div>
+
+          {#if areAllMediaFailed()}
+            <p class="text-xs mt-2" style="color: var(--vault-on-bg-muted)">
+              Todas las URLs fallaron. Suele pasar con links firmados caducados de Instagram/Threads.
+            </p>
+          {/if}
         </div>
       {/if}
 

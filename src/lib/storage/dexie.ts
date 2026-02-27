@@ -1,6 +1,7 @@
 import Dexie, { type Table } from 'dexie'
 import type { StorageAdapter } from './adapter'
 import type { Post, Category } from '../types'
+import { normalizeBackupPayload } from './backup-normalizer'
 
 const SCHEMA_VERSION = 2
 const DEFAULT_CATEGORIES: Category[] = [
@@ -84,10 +85,7 @@ export class DexieStorage implements StorageAdapter {
   }
 
   async importBackup(json: string): Promise<void> {
-    const data = JSON.parse(json)
-    if (!data.schemaVersion || !data.posts || !data.categories) {
-      throw new Error('Formato de backup inválido')
-    }
+    const data = normalizeBackupPayload(JSON.parse(json))
     await this.db.transaction('rw', [this.db.posts, this.db.categories], async () => {
       await this.db.posts.clear()
       await this.db.categories.clear()
