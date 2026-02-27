@@ -13,6 +13,8 @@ export interface Category {
   id: string
   name: string
   color: string         // hex: "#7C4DFF"
+  emoji?: string        // opcional: "📌", "🔥", etc.
+  order?: number        // posición para drag & drop
 }
 
 export type AppState = 'loading' | 'success' | 'empty' | 'error'

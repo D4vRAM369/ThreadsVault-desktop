@@ -45,6 +45,11 @@
       <ShareScreen />
     {/await}
 
+  {:else if currentRoute === '#/categories'}
+    {#await import('./routes/CategoryScreen.svelte') then { default: CategoryScreen }}
+      <CategoryScreen />
+    {/await}
+
   {:else}
     <div class="flex items-center justify-center h-screen" style="color: var(--vault-on-bg-muted)">
       <p>Ruta no encontrada</p>
