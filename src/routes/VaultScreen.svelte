@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { posts, categories, appState, filteredPosts,
-           searchQuery, activeCategory, deletePost } from '../lib/stores/vault'
+  import { posts, categories, appState, filteredPosts, allHashtags,
+           searchQuery, activeCategory, activeHashtag, deletePost } from '../lib/stores/vault'
   import PostCard from '../components/PostCard.svelte'
   import EmptyState from '../components/EmptyState.svelte'
   import LoadingSpinner from '../components/LoadingSpinner.svelte'
@@ -189,6 +189,38 @@
         {/each}
       </div>
     {/if}
+
+    {#if $allHashtags.length > 0}
+      <div class="flex gap-1.5 overflow-x-auto no-scrollbar mt-2.5" style="padding-bottom: 2px">
+        <button
+          class="shrink-0 px-3 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-200"
+          style="
+            padding-top: 5px; padding-bottom: 5px;
+            line-height: 1.2;
+            font-family: var(--font-display);
+            {$activeHashtag === null
+              ? 'background: rgba(0,188,212,0.2); color: #c9f7ff; border: 1px solid rgba(0,188,212,0.3);'
+              : 'background: var(--vault-surface); color: var(--vault-on-bg-muted); border: 1px solid var(--vault-border);'}
+          "
+          onclick={() => activeHashtag.set(null)}
+        >#Todos</button>
+
+        {#each $allHashtags as tag}
+          <button
+            class="shrink-0 px-3 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-200"
+            style="
+              padding-top: 5px; padding-bottom: 5px;
+              line-height: 1.2;
+              font-family: var(--font-display);
+              {$activeHashtag === tag
+                ? 'background: rgba(0,188,212,0.22); color: #d9fbff; border: 1px solid rgba(0,188,212,0.4);'
+                : 'background: rgba(255,255,255,0.04); color: var(--vault-on-bg-muted); border: 1px solid rgba(255,255,255,0.1);'}
+            "
+            onclick={() => activeHashtag.set(tag)}
+          >{tag}</button>
+        {/each}
+      </div>
+    {/if}
   </header>
 
   <!-- Contenido principal -->
@@ -227,7 +259,7 @@
             style="border: 1px solid rgba(124,77,255,0.35); color: var(--vault-primary); font-family: var(--font-display)"
             onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(124,77,255,0.08)'}
             onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'transparent'}
-            onclick={() => { searchQuery.set(''); activeCategory.set(null) }}
+            onclick={() => { searchQuery.set(''); activeCategory.set(null); activeHashtag.set(null) }}
           >Limpiar filtros</button>
         </div>
       {/if}

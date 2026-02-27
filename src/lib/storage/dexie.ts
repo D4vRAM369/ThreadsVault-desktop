@@ -2,11 +2,11 @@ import Dexie, { type Table } from 'dexie'
 import type { StorageAdapter } from './adapter'
 import type { Post, Category } from '../types'
 
-const SCHEMA_VERSION = 1
+const SCHEMA_VERSION = 2
 const DEFAULT_CATEGORIES: Category[] = [
-  { id: 'cat-default-1', name: 'General',     color: '#7C4DFF' },
-  { id: 'cat-default-2', name: 'Inspiración', color: '#00BCD4' },
-  { id: 'cat-default-3', name: 'Trabajo',     color: '#26A69A' },
+  { id: 'cat-default-1', name: 'General', color: '#7C4DFF', emoji: '📌', order: 0 },
+  { id: 'cat-default-2', name: 'Inspiracion', color: '#00BCD4', emoji: '💡', order: 1 },
+  { id: 'cat-default-3', name: 'Trabajo', color: '#26A69A', emoji: '💼', order: 2 },
 ]
 
 class VaultDatabase extends Dexie {
@@ -60,7 +60,8 @@ export class DexieStorage implements StorageAdapter {
   }
 
   async getCategories(): Promise<Category[]> {
-    return this.db.categories.toArray()
+    const rows = await this.db.categories.toArray()
+    return rows.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
   }
 
   async saveCategory(cat: Category): Promise<void> {

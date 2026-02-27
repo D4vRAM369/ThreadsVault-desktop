@@ -1,6 +1,7 @@
 <script lang="ts">
   import { getStorage } from '../lib/storage/index'
   import { loadVault } from '../lib/stores/vault'
+  import CategoryManager from '../components/CategoryManager.svelte'
 
   let exportStatus = $state<'idle' | 'success' | 'error'>('idle')
   let importStatus = $state<'idle' | 'success' | 'error'>('idle')
@@ -37,10 +38,10 @@
   }
 </script>
 
-<div class="max-w-lg mx-auto px-4 py-6 animate-fade-up">
+<div class="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8 animate-fade-up">
 
   <!-- Header navegación — mismo patrón que ShareScreen -->
-  <div class="flex items-center gap-3 mb-8">
+  <div class="flex items-center gap-3 mb-6 sm:mb-8">
     <button
       onclick={() => window.location.hash = '#/'}
       class="w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-200"
@@ -57,8 +58,12 @@
       <h1 style="font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; color: var(--vault-on-bg)">
         Ajustes
       </h1>
-      <p class="text-xs" style="color: var(--vault-on-bg-muted)">Backup · Privacidad</p>
+      <p class="text-xs" style="color: var(--vault-on-bg-muted)">Categorias · Backup · Privacidad</p>
     </div>
+  </div>
+
+  <div class="mb-6 sm:mb-7">
+    <CategoryManager compact={true} />
   </div>
 
   <!-- ── Sección: Backup & Restore ─────────────────────── -->
@@ -67,20 +72,20 @@
     para crear jerarquía visual tipo "settings iOS".
     El truco es: sección header pequeño + contenido debajo.
   -->
-  <p class="text-xs font-semibold uppercase mb-2 px-1" style="
+  <p class="text-xs font-semibold uppercase mb-2.5 px-1" style="
     color: var(--vault-on-bg-muted);
     font-family: var(--font-display);
     letter-spacing: 0.12em;
   ">Datos</p>
 
-  <div class="rounded-2xl overflow-hidden mb-6" style="
+  <div class="rounded-2xl sm:rounded-3xl overflow-hidden mb-6 sm:mb-7" style="
     border: 1px solid rgba(255,255,255,0.11);
     box-shadow: 0 4px 24px rgba(0,0,0,0.28);
   ">
     <!-- Fila: Exportar -->
     <button
       onclick={handleExport}
-      class="w-full flex items-center gap-3.5 px-4 py-3.5 transition-all duration-200 text-left"
+      class="w-full flex items-center gap-3.5 px-4 sm:px-5 py-3.5 sm:py-4 transition-all duration-200 text-left"
       style="background: rgba(255,255,255,0.06)"
       onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.09)'}
       onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)'}
@@ -118,7 +123,7 @@
 
     <!-- Fila: Importar -->
     <label
-      class="w-full flex items-center gap-3.5 px-4 py-3.5 transition-all duration-200 cursor-pointer"
+      class="w-full flex items-center gap-3.5 px-4 sm:px-5 py-3.5 sm:py-4 transition-all duration-200 cursor-pointer"
       style="background: rgba(255,255,255,0.06); display:flex"
       onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.09)'}
       onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)'}
@@ -169,13 +174,13 @@
   {/if}
 
   <!-- ── Sección: Privacidad ──────────────────────────── -->
-  <p class="text-xs font-semibold uppercase mb-2 px-1" style="
+  <p class="text-xs font-semibold uppercase mb-2.5 px-1" style="
     color: var(--vault-on-bg-muted);
     font-family: var(--font-display);
     letter-spacing: 0.12em;
   ">Privacidad</p>
 
-  <div class="rounded-2xl overflow-hidden mb-6" style="
+  <div class="rounded-2xl sm:rounded-3xl overflow-hidden mb-6 sm:mb-7" style="
     border: 1px solid rgba(255,255,255,0.11);
     box-shadow: 0 4px 24px rgba(0,0,0,0.28);
   ">
@@ -187,7 +192,7 @@
       {#if i > 0}
         <div style="height: 1px; background: rgba(255,255,255,0.07); margin: 0 16px"></div>
       {/if}
-      <div class="flex items-center gap-3.5 px-4 py-3" style="background: rgba(255,255,255,0.04)">
+      <div class="flex items-center gap-3.5 px-4 sm:px-5 py-3.5" style="background: rgba(255,255,255,0.04)">
         <span style="font-size: 1.1rem; line-height: 1">{item.icon}</span>
         <div class="flex-1 min-w-0">
           <p class="text-sm font-semibold" style="font-family: var(--font-display); color: var(--vault-on-bg)">{item.label}</p>
@@ -198,13 +203,13 @@
   </div>
 
   <!-- ── Acerca de ──────────────────────────────────── -->
-  <p class="text-xs font-semibold uppercase mb-2 px-1" style="
+  <p class="text-xs font-semibold uppercase mb-2.5 px-1" style="
     color: var(--vault-on-bg-muted);
     font-family: var(--font-display);
     letter-spacing: 0.12em;
   ">Acerca de</p>
 
-  <div class="rounded-2xl p-4 flex items-center gap-3.5" style="
+  <div class="rounded-2xl sm:rounded-3xl p-4 sm:p-5 flex items-center gap-3.5" style="
     background: rgba(255,255,255,0.04);
     border: 1px solid rgba(255,255,255,0.09);
   ">

@@ -2,6 +2,65 @@ import { writable, derived } from 'svelte/store'
 import type { Post, Category, AppState } from '../types'
 import { getStorage } from '../storage/index'
 
+const HASHTAG_RE = /\B#[\wáéíóúüñÁÉÍÓÚÜÑ]+/gi
+
+function getPostText(post: Post): string {
+  return `${post.note ?? ''}\n${post.extractedText ?? ''}\n${post.previewTitle ?? ''}`
+}
+
+function extractHashtagsFromText(text: string): string[] {
+  return text.match(HASHTAG_RE)?.map((item) => item.toLowerCase()) ?? []
+}
+
+function normalizeText(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+}
+
+function tokenizeQuery(query: string): string[] {
+  return normalizeText(query)
+    .split(/\s+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function scorePostAgainstTerms(post: Post, terms: string[]): number {
+  const tags = extractHashtagsFromText(getPostText(post)).map(normalizeText)
+  const title = normalizeText(post.previewTitle ?? '')
+  const extracted = normalizeText(post.extractedText ?? '')
+  const note = normalizeText(post.note ?? '')
+  const author = normalizeText(post.author ?? '')
+  const canonical = normalizeText(post.canonicalUrl ?? '')
+  const url = normalizeText(post.url ?? '')
+
+  let totalScore = 0
+  let matchedTerms = 0
+
+  for (const term of terms) {
+    const plainTerm = term.startsWith('#') ? term.slice(1) : term
+    if (!plainTerm) continue
+
+    let termScore = 0
+
+    const exactTag = `#${plainTerm}`
+    if (tags.includes(exactTag)) termScore += 100
+    else if (tags.some((tag) => tag.includes(plainTerm))) termScore += 70
+
+    if (title.includes(plainTerm)) termScore += 60
+    if (extracted.includes(plainTerm)) termScore += 55
+    if (note.includes(plainTerm)) termScore += 45
+    if (author.includes(plainTerm)) termScore += author.startsWith(plainTerm) ? 35 : 30
+    if (canonical.includes(plainTerm) || url.includes(plainTerm)) termScore += 15
+
+    if (termScore > 0) matchedTerms += 1
+    totalScore += termScore
+  }
+
+  return matchedTerms === terms.length ? totalScore : 0
+}
+
 // ── Estado global reactivo ────────────────────────────────
 export const posts          = writable<Post[]>([])
 export const categories     = writable<Category[]>([])
@@ -22,11 +81,23 @@ export const activeHashtag  = writable<string | null>(null)
 export const allHashtags = derived(posts, ($posts) => {
   const set = new Set<string>()
   $posts.forEach(p => {
-    // PBL: \B#[\w...] = boundary no-inicial + # + caracteres con tildes.
-    const matches = (p.note ?? '').match(/\B#[\wáéíóúüñÁÉÍÓÚÜÑ]+/gi) ?? []
+    const matches = extractHashtagsFromText(getPostText(p))
     matches.forEach(tag => set.add(tag.toLowerCase()))
   })
   return Array.from(set).sort()
+})
+
+/** Hashtags con conteo para pintar dashboard estilo Android */
+export const hashtagStats = derived(posts, ($posts) => {
+  const counts = new Map<string, number>()
+  $posts.forEach((post) => {
+    const unique = new Set(extractHashtagsFromText(getPostText(post)))
+    unique.forEach((tag) => counts.set(tag, (counts.get(tag) ?? 0) + 1))
+  })
+
+  return Array.from(counts.entries())
+    .map(([tag, count]) => ({ tag, count }))
+    .sort((a, b) => (b.count - a.count) || a.tag.localeCompare(b.tag))
 })
 
 /** Posts filtrados por categoría, hashtag y búsqueda de texto */
@@ -40,18 +111,16 @@ export const filteredPosts = derived(
     }
 
     if ($hashtag) {
-      result = result.filter(p =>
-        (p.note ?? '').toLowerCase().includes($hashtag.toLowerCase())
-      )
+      result = result.filter((p) => extractHashtagsFromText(getPostText(p)).includes($hashtag.toLowerCase()))
     }
 
     if ($query.trim()) {
-      const q = $query.toLowerCase()
-      result = result.filter(p =>
-        p.url.toLowerCase().includes(q)    ||
-        p.author.toLowerCase().includes(q) ||
-        (p.note ?? '').toLowerCase().includes(q)
-      )
+      const terms = tokenizeQuery($query)
+      result = result
+        .map((post) => ({ post, score: scorePostAgainstTerms(post, terms) }))
+        .filter((entry) => entry.score > 0)
+        .sort((a, b) => (b.score - a.score) || (b.post.savedAt - a.post.savedAt))
+        .map((entry) => entry.post)
     }
 
     return result

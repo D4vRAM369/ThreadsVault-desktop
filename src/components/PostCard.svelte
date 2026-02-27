@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Post, Category } from '../lib/types'
   import CategoryBadge from './CategoryBadge.svelte'
-  import { cleanThreadsUrl, getPostDisplayPath } from '../lib/utils/url-parser'
+  import { getPostDisplayPath } from '../lib/utils/url-parser'
 
   let {
     post,
@@ -59,7 +59,10 @@
   Sin overflow:hidden el span del ripple se saldría de la card.
   Sin position:relative el span no podría usar left/top absolutos.
 -->
+<!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
 <article
+  role="button"
+  aria-label="Abrir detalle del post"
   class="rounded-2xl p-4 mb-3 cursor-pointer group relative overflow-hidden"
   style="
     background: rgba(255,255,255,0.06);
@@ -136,13 +139,26 @@
           {post.note}
         </p>
       {/if}
+
+      {#if post.media?.length}
+        <div class="mt-2.5 inline-flex items-center gap-1.5 px-2 py-1 rounded-full" style="
+          background: rgba(0,188,212,0.12);
+          border: 1px solid rgba(0,188,212,0.25);
+          color: #b8f5ff;
+          font-size: 10px;
+          letter-spacing: 0.04em;
+          font-family: var(--font-display);
+        ">
+          <span>{post.media.some((item) => item.type === 'video') ? '🎬' : '🖼️'}</span>
+          <span>{post.media.length} media</span>
+        </div>
+      {/if}
     </div>
 
     <!-- Zona de confirmación/borrado -->
     {#if confirmingDelete}
       <div
         class="flex items-center gap-1.5 shrink-0"
-        onclick={(e) => e.stopPropagation()}
       >
         <span class="text-xs whitespace-nowrap" style="color: var(--vault-on-bg-muted)">¿Eliminar?</span>
         <button

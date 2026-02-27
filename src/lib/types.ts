@@ -1,3 +1,11 @@
+export type PostMediaType = 'image' | 'video'
+
+export interface PostMedia {
+  id: string
+  type: PostMediaType
+  url: string
+}
+
 export interface Post {
   id: string            // crypto.randomUUID()
   url: string
@@ -7,6 +15,10 @@ export interface Post {
   savedAt: number       // Date.now() — timestamp Unix ms
   previewTitle?: string
   previewImage?: string
+  previewVideo?: string
+  extractedText?: string
+  canonicalUrl?: string
+  media?: PostMedia[]
 }
 
 export interface Category {

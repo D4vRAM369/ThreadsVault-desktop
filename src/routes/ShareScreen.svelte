@@ -2,6 +2,7 @@
   import { onMount } from 'svelte'
   import { categories, savePost } from '../lib/stores/vault'
   import { parseThreadsAuthor, isValidThreadsUrl } from '../lib/utils/url-parser'
+  import { extractPostData } from '../lib/utils/post-extractor'
   import type { Post } from '../lib/types'
 
   let url           = $state('')
@@ -9,6 +10,7 @@
   let selectedCatId = $state('')
   let error         = $state('')
   let saving        = $state(false)
+  let extracting    = $state(false)
 
   onMount(() => {
     const params = new URLSearchParams(window.location.search)
@@ -28,14 +30,34 @@
     }
     saving = true
     error  = ''
-    const post: Post = {
-      id:         crypto.randomUUID(),
-      url:        url.trim(),
-      author:     parseThreadsAuthor(url),
-      note:       note.trim(),
-      categoryId: selectedCatId,
-      savedAt:    Date.now(),
+
+    const cleanUrl = url.trim()
+    let extracted: Awaited<ReturnType<typeof extractPostData>> | null = null
+    extracting = true
+    try {
+      extracted = await extractPostData(cleanUrl)
+    } catch (extractionError) {
+      console.warn('No se pudo extraer metadata del post', extractionError)
+    } finally {
+      extracting = false
     }
+
+    const author = extracted?.author || parseThreadsAuthor(cleanUrl) || '@desconocido'
+    const post: Post = {
+      id: crypto.randomUUID(),
+      url: extracted?.canonicalUrl ?? cleanUrl,
+      author,
+      note: note.trim(),
+      categoryId: selectedCatId,
+      savedAt: Date.now(),
+      previewTitle: extracted?.title,
+      previewImage: extracted?.previewImage,
+      previewVideo: extracted?.previewVideo,
+      extractedText: extracted?.text,
+      canonicalUrl: extracted?.canonicalUrl ?? cleanUrl,
+      media: extracted?.media ?? [],
+    }
+
     await savePost(post)
     window.location.hash = '#/'
   }
@@ -177,7 +199,7 @@
         el.style.boxShadow = '0 4px 20px var(--vault-primary-glow)'
       }}
     >
-      {saving ? '⏳ Guardando...' : '🔒 Guardar en bóveda'}
+      {saving ? (extracting ? 'Analizando y guardando...' : 'Guardando...') : '🔒 Guardar en bóveda'}
     </button>
   </div>
 </div>

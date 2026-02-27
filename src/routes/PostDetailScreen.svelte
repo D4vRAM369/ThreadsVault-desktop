@@ -4,7 +4,7 @@
   import { getStorage } from '../lib/storage/index'
   import CategoryBadge from '../components/CategoryBadge.svelte'
   import { cleanThreadsUrl, getPostShortId } from '../lib/utils/url-parser'
-  import type { Post } from '../lib/types'
+  import type { Post, PostMedia } from '../lib/types'
 
   let { postId }: { postId: string } = $props()
 
@@ -29,6 +29,25 @@
     return new Date(ts).toLocaleDateString('es', {
       weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
     })
+  }
+
+  function fileNameFromUrl(url: string): string {
+    try {
+      const pathname = new URL(url).pathname
+      const name = pathname.split('/').pop()
+      return name && name.length > 3 ? name : `media-${Date.now()}`
+    } catch {
+      return `media-${Date.now()}`
+    }
+  }
+
+  function downloadMedia(media: PostMedia) {
+    const a = document.createElement('a')
+    a.href = media.url
+    a.download = fileNameFromUrl(media.url)
+    a.target = '_blank'
+    a.rel = 'noopener noreferrer'
+    a.click()
   }
 </script>
 
@@ -128,6 +147,10 @@
         letter-spacing: 0.01em;
       ">{post.author || 'Autor desconocido'}</p>
 
+      {#if post.previewTitle}
+        <p class="text-sm mb-2.5" style="color: var(--vault-on-bg); opacity: 0.9">{post.previewTitle}</p>
+      {/if}
+
       <!--
         PBL: Mostramos el shortId del post en lugar de la URL completa.
         getPostShortId() extrae los primeros 11 chars del identificador base64.
@@ -178,6 +201,81 @@
           border-left: 3px solid var(--vault-primary);
         ">
           <p class="text-sm leading-relaxed" style="color: var(--vault-on-bg)">{post.note}</p>
+        </div>
+      {/if}
+
+      {#if post.extractedText}
+        <div class="rounded-xl p-4 mb-4" style="
+          background: rgba(0,188,212,0.08);
+          border: 1px solid rgba(0,188,212,0.24);
+        ">
+          <p class="text-xs font-semibold uppercase mb-1.5" style="
+            color: rgba(188,248,255,0.85);
+            font-family: var(--font-display);
+            letter-spacing: 0.08em;
+          ">Texto extraido</p>
+          <p class="text-sm leading-relaxed" style="color: var(--vault-on-bg); opacity: 0.9">
+            {post.extractedText}
+          </p>
+        </div>
+      {/if}
+
+      {#if post.media?.length}
+        <div class="mb-4">
+          <p class="text-xs font-semibold uppercase mb-2" style="
+            color: var(--vault-on-bg-muted);
+            font-family: var(--font-display);
+            letter-spacing: 0.08em;
+          ">Media del post</p>
+
+          <div class="flex flex-col gap-3">
+            {#each post.media as media (media.id)}
+              <div class="rounded-xl p-2.5" style="
+                background: rgba(255,255,255,0.04);
+                border: 1px solid rgba(255,255,255,0.1);
+              ">
+                {#if media.type === 'video'}
+                  <!-- svelte-ignore a11y_media_has_caption -->
+                  <video
+                    src={media.url}
+                    controls
+                    playsinline
+                    preload="metadata"
+                    class="w-full rounded-lg mb-2"
+                    style="background: #000; max-height: 360px;"
+                  ></video>
+                {:else}
+                  <img
+                    src={media.url}
+                    alt="Media del post"
+                    loading="lazy"
+                    class="w-full rounded-lg mb-2"
+                    style="max-height: 360px; object-fit: cover;"
+                  />
+                {/if}
+
+                <div class="flex items-center gap-2">
+                  <button
+                    onclick={() => downloadMedia(media)}
+                    class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200"
+                    style="
+                      background: rgba(124,77,255,0.16);
+                      border: 1px solid rgba(124,77,255,0.35);
+                      color: #e4d6ff;
+                      font-family: var(--font-display);
+                    "
+                  >Descargar</button>
+                  <a
+                    href={media.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="text-xs truncate"
+                    style="color: var(--vault-on-bg-muted)"
+                  >{media.url}</a>
+                </div>
+              </div>
+            {/each}
+          </div>
         </div>
       {/if}
 
