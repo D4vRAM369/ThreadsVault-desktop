@@ -22,6 +22,7 @@ const IMAGE_RE = /\.(png|jpe?g|gif|webp|avif)(\?.*)?$/i
 const VIDEO_RE = /\.(mp4|mov|webm|m3u8)(\?.*)?$/i
 const ABSOLUTE_URL_RE = /^https?:\/\//i
 const THREADS_POST_PATH_RE = /\/(?:@[\w.]+\/post\/|post\/|t\/)[A-Za-z0-9_-]+/i
+const AVATAR_CDN_RE = /\/t51\.2885-19\//i
 // PBL: t51.71878 = tipo CDN de Meta para thumbnails de vídeo (preview image del vídeo)
 const VIDEO_THUMB_CDN_RE = /\/t51\.71878[-_]/
 
@@ -48,6 +49,24 @@ function extractCanonical(html: string): string | undefined {
   const pattern = /<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["'][^>]*>/i
   const match = pattern.exec(html)
   return match?.[1] ? decodeHtml(match[1]) : undefined
+}
+
+function normalizeExtractedUrl(value: string): string {
+  return decodeHtml(
+    value
+      .replace(/\\u002F/gi, '/')
+      .replace(/\\u0026/gi, '&')
+      .replace(/\\\//g, '/')
+      .replace(/\\\\/g, '\\')
+  )
+}
+
+function isLikelyAvatarUrl(url: string): boolean {
+  const value = url.toLowerCase()
+  return AVATAR_CDN_RE.test(url)
+    || /profile(?:_pic|pic)|avatar/i.test(value)
+    || /[?&](?:stp|set)=dst-jpg_s(?:72|96|100|120|150|180|200|240|320)x(?:72|96|100|120|150|180|200|240|320)/i.test(value)
+    || /[?&]type=profile/i.test(value)
 }
 
 function inferMediaType(url: string): PostMediaType | null {
@@ -90,6 +109,13 @@ function extractMediaFromText(text: string): string[] {
   return matches.filter((url) => inferMediaType(url) !== null)
 }
 
+function extractEscapedMediaFromText(text: string): string[] {
+  const matches = text.match(/https?:\\u002F\\u002F[^"'\\\s<>()]+/gi) ?? []
+  return matches
+    .map(normalizeExtractedUrl)
+    .filter((url) => inferMediaType(url) !== null)
+}
+
 /*
   PBL: Extrae media SOLO de la sección del post en la respuesta markdown de Jina.
   Jina devuelve la página completa (post + posts relacionados/sugeridos).
@@ -101,7 +127,10 @@ function extractPostSectionMedia(jinaMarkdown: string): string[] {
   const contentMatch = /Markdown Content:\s*/i.exec(jinaMarkdown)
   const start = contentMatch ? contentMatch.index + contentMatch[0].length : 0
   const postSection = jinaMarkdown.slice(start, start + 3000)
-  return extractMediaFromText(postSection)
+  return [
+    ...extractMediaFromText(postSection),
+    ...extractEscapedMediaFromText(postSection),
+  ]
 }
 
 /*
@@ -112,9 +141,58 @@ function forceMediaEntries(urls: Array<string | undefined>, type: PostMediaType)
   const result: PostMedia[] = []
   for (const url of urls) {
     if (!url || !ABSOLUTE_URL_RE.test(url)) continue
+    if (type === 'image' && isLikelyAvatarUrl(url)) continue
     result.push({ id: crypto.randomUUID(), type, url })
   }
   return result
+}
+
+function extractPlayableVideoUrls(source: string): string[] {
+  if (!source) return []
+  const urls = [
+    ...extractMediaFromText(source),
+    ...extractEscapedMediaFromText(source),
+  ]
+
+  const unique = new Set<string>()
+  return urls.filter((url) => {
+    if (inferMediaType(url) !== 'video') return false
+    if (unique.has(url)) return false
+    unique.add(url)
+    return true
+  })
+}
+
+function extractJsonValue(source: string, key: string): string[] {
+  if (!source) return []
+  const pattern = new RegExp(`"${key}"\\s*:\\s*"([^"]+)"`, 'gi')
+  const results: string[] = []
+  let match: RegExpExecArray | null = null
+
+  while ((match = pattern.exec(source)) !== null) {
+    const value = normalizeExtractedUrl(match[1])
+    if (value) results.push(value)
+  }
+
+  return results
+}
+
+function extractQuotedPlayableVideoUrls(source: string): string[] {
+  const quoted = [
+    ...extractJsonValue(source, 'video_url'),
+    ...extractJsonValue(source, 'playback_video_url'),
+    ...extractJsonValue(source, 'video_versions'),
+    ...extractJsonValue(source, 'content_url'),
+  ]
+
+  const unique = new Set<string>()
+  return quoted.filter((url) => {
+    if (!ABSOLUTE_URL_RE.test(url)) return false
+    if (inferMediaType(url) !== 'video') return false
+    if (unique.has(url)) return false
+    unique.add(url)
+    return true
+  })
 }
 
 // PBL: timeout individual por fetch — si un origen falla lento no bloquea a los demás
@@ -248,9 +326,14 @@ export async function extractPostData(rawUrl: string): Promise<ExtractedPostData
   const twitterDesc    = extractMetaTag(source, 'twitter:description')
   const ogImage        = extractMetaTag(source, 'og:image')
   const ogVideo        = extractMetaTag(source, 'og:video')
+  const ogVideoSecure  = extractMetaTag(source, 'og:video:secure_url')
   const twitterImage   = extractMetaTag(source, 'twitter:image')
   const twitterVideo   = extractMetaTag(source, 'twitter:player:stream')
   const canonicalFromHtml = extractCanonical(source)
+  const playableVideoUrls = [
+    ...extractPlayableVideoUrls(directHtml ?? source),
+    ...extractQuotedPlayableVideoUrls(directHtml ?? source),
+  ]
 
   /*
     PBL: Construcción de media con tipos correctos y sin imágenes ajenas.
@@ -269,6 +352,7 @@ export async function extractPostData(rawUrl: string): Promise<ExtractedPostData
   const media: PostMedia[] = []
   const addMedia = (items: PostMedia[]) => {
     for (const item of items) {
+      if (item.type === 'image' && isLikelyAvatarUrl(item.url)) continue
       if (!seenMediaUrls.has(item.url)) {
         seenMediaUrls.add(item.url)
         media.push(item)
@@ -276,7 +360,8 @@ export async function extractPostData(rawUrl: string): Promise<ExtractedPostData
     }
   }
 
-  addMedia(forceMediaEntries([ogVideo, twitterVideo], 'video'))
+  addMedia(forceMediaEntries([ogVideo, ogVideoSecure, twitterVideo], 'video'))
+  addMedia(forceMediaEntries(playableVideoUrls, 'video'))
   addMedia(toMediaEntries(oembed?.thumbnail_url ? [oembed.thumbnail_url] : []))
   addMedia(forceMediaEntries([ogImage, twitterImage], 'image'))
   if (oembed?.html) addMedia(toMediaEntries(extractMediaFromText(oembed.html)))
@@ -316,4 +401,40 @@ export async function extractPostData(rawUrl: string): Promise<ExtractedPostData
     previewVideo,
     media,
   }
+}
+
+export async function resolvePlayableVideoUrl(rawUrl: string): Promise<string | null> {
+  const sourceUrl = rawUrl.trim()
+  const canonicalUrl = cleanThreadsUrl(sourceUrl)
+
+  const [directHtml, canonicalHtml, jinaHtml] = await Promise.all([
+    tryFetchText(sourceUrl),
+    sourceUrl === canonicalUrl ? Promise.resolve<string | null>(null) : tryFetchText(canonicalUrl),
+    tryFetchText(`https://r.jina.ai/${canonicalUrl}`),
+  ])
+
+  const source = directHtml ?? canonicalHtml ?? jinaHtml ?? ''
+  const forced = [
+    extractMetaTag(source, 'og:video'),
+    extractMetaTag(source, 'og:video:secure_url'),
+    extractMetaTag(source, 'twitter:player:stream'),
+  ].filter((value): value is string => Boolean(value))
+
+  const candidates = [
+    ...forced,
+    ...extractPlayableVideoUrls(source),
+    ...extractQuotedPlayableVideoUrls(source),
+  ]
+  const unique = new Set<string>()
+
+  for (const candidate of candidates) {
+    const url = normalizeExtractedUrl(candidate)
+    if (!ABSOLUTE_URL_RE.test(url)) continue
+    if (inferMediaType(url) !== 'video') continue
+    if (unique.has(url)) continue
+    unique.add(url)
+    return url
+  }
+
+  return null
 }

@@ -1,6 +1,8 @@
 import { writable, derived } from 'svelte/store'
 import type { Post, Category, AppState } from '../types'
 import { getStorage } from '../storage/index'
+import { extractPostData } from '../utils/post-extractor'
+import { cachePostMediaLocally } from '../utils/media-cache'
 
 const HASHTAG_RE = /\B#[\wáéíóúüñÁÉÍÓÚÜÑ]+/gi
 
@@ -68,6 +70,8 @@ export const appState       = writable<AppState>('loading')
 export const searchQuery    = writable<string>('')
 export const activeCategory = writable<string | null>(null)
 export const activeHashtag  = writable<string | null>(null)
+
+let refreshingStaleMedia = false
 
 /*
   PBL: derived() crea stores de solo-lectura que se recalculan
@@ -142,6 +146,55 @@ export async function loadVault() {
   } catch (e) {
     console.error(e)
     appState.set('error')
+  }
+}
+
+function needsMediaRefresh(post: Post): boolean {
+  const hasImageMedia = Boolean(post.media?.some((media) => media.type === 'image'))
+  const hasVideoFallback = Boolean(post.media?.some((media) => media.type === 'video-link'))
+  return !post.previewImage || !hasImageMedia || hasVideoFallback
+}
+
+export async function refreshStalePostMedia(limit: number = 6) {
+  if (refreshingStaleMedia) return
+  refreshingStaleMedia = true
+
+  try {
+    const storage = await getStorage()
+    const loadedPosts = await storage.getPosts()
+    const stalePosts = loadedPosts.filter(needsMediaRefresh).slice(0, limit)
+
+    for (const post of stalePosts) {
+      try {
+        const extracted = await extractPostData(post.canonicalUrl ?? post.url)
+        const merged: Post = {
+          ...post,
+          url: extracted.canonicalUrl || post.url,
+          canonicalUrl: extracted.canonicalUrl || post.canonicalUrl || post.url,
+          author: post.author || extracted.author || '@desconocido',
+          previewTitle: post.previewTitle ?? extracted.title,
+          previewImage: extracted.previewImage ?? post.previewImage,
+          previewVideo: extracted.previewVideo ?? post.previewVideo,
+          extractedText: post.extractedText ?? extracted.text,
+          media: extracted.media?.length ? extracted.media : (post.media ?? []),
+        }
+
+        const withCachedMedia = await cachePostMediaLocally(merged, {
+          maxItems: 4,
+          maxVideoBytes: 120 * 1024 * 1024,
+        })
+
+        await storage.savePost(withCachedMedia)
+      } catch (error) {
+        console.warn('No se pudo refrescar media antigua', post.url, error)
+      }
+    }
+
+    const refreshedPosts = await storage.getPosts()
+    posts.set(refreshedPosts)
+    appState.set(refreshedPosts.length === 0 ? 'empty' : 'success')
+  } finally {
+    refreshingStaleMedia = false
   }
 }
 

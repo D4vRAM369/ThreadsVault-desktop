@@ -1,10 +1,11 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { categories, deletePost } from '../lib/stores/vault'
+  import { categories, deletePost, loadVault } from '../lib/stores/vault'
   import { getStorage } from '../lib/storage/index'
   import CategoryBadge from '../components/CategoryBadge.svelte'
   import { cleanThreadsUrl, getPostShortId } from '../lib/utils/url-parser'
-  import { extractPostData } from '../lib/utils/post-extractor'
+  import { extractPostData, resolvePlayableVideoUrl } from '../lib/utils/post-extractor'
+  import { resolveDesktopVideo } from '../lib/utils/desktop-video'
   import { cachePostMediaLocally } from '../lib/utils/media-cache'
   import type { Post, PostMedia } from '../lib/types'
 
@@ -17,6 +18,13 @@
   let mediaRefreshError = $state('')
   let failedMediaIds = $state<Set<string>>(new Set())
   let mediaSourceIndex = $state<Record<string, number>>({})
+  let inlineVideoState = $state<Record<string, {
+    status: 'idle' | 'loading' | 'ready' | 'error'
+    src?: string
+    downloadSrc?: string
+    reason?: string
+    source?: 'desktop' | 'web'
+  }>>({})
   let showFailedMedia = $state(false)
   let refreshedMediaOnce = $state(false)
   let category      = $derived($categories.find(c => c.id === post?.categoryId))
@@ -25,6 +33,14 @@
     const storage = await getStorage()
     post    = await storage.getPost(postId)
     loading = false
+
+    if (post?.media?.length) {
+      for (const media of post.media) {
+        if (media.type === 'video-link') {
+          void loadInlineVideo(media)
+        }
+      }
+    }
   })
 
   async function handleDelete() {
@@ -53,6 +69,81 @@
     const a = document.createElement('a')
     a.href = getMediaSource(media)
     a.download = fileNameFromUrl(media.url)
+    a.target = '_blank'
+    a.rel = 'noopener noreferrer'
+    a.click()
+  }
+
+  function getInlineVideoState(media: PostMedia) {
+    return inlineVideoState[media.id] ?? { status: 'idle' as const }
+  }
+
+  async function loadInlineVideo(media: PostMedia) {
+    if (!post) return
+    const current = getInlineVideoState(media)
+    if (current.status === 'loading' || current.status === 'ready') return
+
+    inlineVideoState = {
+      ...inlineVideoState,
+      [media.id]: { status: 'loading' },
+    }
+
+    try {
+      const desktopResolution = await resolveDesktopVideo(post.canonicalUrl ?? post.url)
+      if (desktopResolution?.playableUrl) {
+        inlineVideoState = {
+          ...inlineVideoState,
+          [media.id]: {
+            status: 'ready',
+            src: desktopResolution.playableUrl,
+            downloadSrc: desktopResolution.downloadUrl ?? desktopResolution.playableUrl,
+            source: 'desktop',
+          },
+        }
+        return
+      }
+
+      const resolvedUrl = await resolvePlayableVideoUrl(post.canonicalUrl ?? post.url)
+      if (!resolvedUrl) {
+        inlineVideoState = {
+          ...inlineVideoState,
+          [media.id]: {
+            status: 'error',
+            reason: desktopResolution?.reason ?? 'No se pudo resolver un stream publico para este video.',
+            source: desktopResolution ? 'desktop' : undefined,
+          },
+        }
+        return
+      }
+
+      inlineVideoState = {
+        ...inlineVideoState,
+        [media.id]: {
+          status: 'ready',
+          src: resolvedUrl,
+          downloadSrc: resolvedUrl,
+          source: 'web',
+        },
+      }
+    } catch {
+      inlineVideoState = {
+        ...inlineVideoState,
+        [media.id]: {
+          status: 'error',
+          reason: 'Fallo la resolucion del video en la app.',
+        },
+      }
+    }
+  }
+
+  function downloadInlineVideo(media: PostMedia) {
+    const state = getInlineVideoState(media)
+    const source = state.downloadSrc ?? state.src
+    if (!source) return
+
+    const a = document.createElement('a')
+    a.href = source
+    a.download = fileNameFromUrl(source)
     a.target = '_blank'
     a.rel = 'noopener noreferrer'
     a.click()
@@ -149,6 +240,7 @@
       const storage = await getStorage()
       await storage.savePost(withCachedMedia)
       post = withCachedMedia
+      await loadVault()
       failedMediaIds = new Set()
       mediaSourceIndex = {}
       showFailedMedia = false
@@ -404,51 +496,86 @@
                     onerror={() => handleMediaError(media)}
                   ></video>
                 {:else if media.type === 'video-link'}
-                  <!--
-                    PBL: CDN de Meta usa HLS/DASH con tokens auth → stream no extraíble.
-                    Mostramos card de "Ver vídeo en Threads" que abre el post original.
-                    La URL del post está guardada en media.url (canonicalUrl del post).
-                  -->
-                  <a
-                    href={media.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="flex items-center gap-3 w-full rounded-xl p-3.5 mb-2 transition-all duration-200"
-                    style="
-                      background: rgba(124,77,255,0.10);
-                      border: 1px solid rgba(124,77,255,0.28);
-                      text-decoration: none;
-                    "
-                    onmouseenter={(e) => {
-                      const el = e.currentTarget as HTMLElement
-                      el.style.background = 'rgba(124,77,255,0.18)'
-                      el.style.borderColor = 'rgba(124,77,255,0.45)'
-                    }}
-                    onmouseleave={(e) => {
-                      const el = e.currentTarget as HTMLElement
-                      el.style.background = 'rgba(124,77,255,0.10)'
-                      el.style.borderColor = 'rgba(124,77,255,0.28)'
-                    }}
-                  >
-                    <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                         style="background: rgba(124,77,255,0.22)">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"
-                           style="color: #c8b4ff; margin-left: 2px">
-                        <polygon points="5 3 19 12 5 21 5 3"/>
-                      </svg>
+                  {@const state = getInlineVideoState(media)}
+                  <div class="rounded-xl p-3 mb-2" style="
+                    background: rgba(124,77,255,0.10);
+                    border: 1px solid rgba(124,77,255,0.28);
+                  ">
+                    {#if state.status === 'ready' && state.src}
+                      <!-- svelte-ignore a11y_media_has_caption -->
+                      <video
+                        src={state.src}
+                        controls
+                        playsinline
+                        preload="metadata"
+                        class="w-full rounded-lg mb-3"
+                        style="background: #000; max-height: 360px;"
+                      ></video>
+                    {:else}
+                      <div class="flex items-center gap-3 mb-3">
+                        <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                             style="background: rgba(124,77,255,0.22)">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"
+                               style="color: #c8b4ff; margin-left: 2px">
+                            <polygon points="5 3 19 12 5 21 5 3"/>
+                          </svg>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                          <p class="text-sm font-semibold"
+                             style="color: #e4d6ff; font-family: var(--font-display)">Vídeo embebido</p>
+                          <p class="text-xs" style="color: var(--vault-on-bg-muted)">
+                            {state.status === 'loading'
+                              ? 'Resolviendo fuente de vídeo…'
+                              : state.status === 'error'
+                                ? (state.reason ?? 'No se pudo resolver el stream automáticamente.')
+                                : 'Cargar dentro de la app con controles básicos.'}
+                          </p>
+                        </div>
+                      </div>
+                    {/if}
+
+                    <div class="flex items-center gap-2">
+                      {#if state.status !== 'ready'}
+                        <button
+                          onclick={() => loadInlineVideo(media)}
+                          class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200"
+                          style="
+                            background: rgba(124,77,255,0.18);
+                            border: 1px solid rgba(124,77,255,0.34);
+                            color: #e4d6ff;
+                            font-family: var(--font-display);
+                          "
+                        >{state.status === 'loading' ? 'Cargando…' : state.status === 'error' ? 'Reintentar vídeo' : 'Ver vídeo'}</button>
+                      {/if}
+
+                      {#if state.status === 'ready' && state.src}
+                        <button
+                          onclick={() => downloadInlineVideo(media)}
+                          class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200"
+                          style="
+                            background: rgba(124,77,255,0.16);
+                            border: 1px solid rgba(124,77,255,0.35);
+                            color: #e4d6ff;
+                            font-family: var(--font-display);
+                          "
+                        >Descargar</button>
+                      {/if}
+
+                      <a
+                        href={media.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200"
+                        style="
+                          background: rgba(255,255,255,0.07);
+                          border: 1px solid rgba(255,255,255,0.12);
+                          color: var(--vault-on-bg);
+                          font-family: var(--font-display);
+                          text-decoration: none;
+                        "
+                      >Abrir enlace</a>
                     </div>
-                    <div class="flex-1 min-w-0">
-                      <p class="text-sm font-semibold"
-                         style="color: #e4d6ff; font-family: var(--font-display)">Ver vídeo</p>
-                      <p class="text-xs" style="color: var(--vault-on-bg-muted)">Abrir post en Threads</p>
-                    </div>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                         stroke-width="2.5" style="color: var(--vault-on-bg-muted); flex-shrink: 0">
-                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                      <polyline points="15 3 21 3 21 9"/>
-                      <line x1="10" y1="14" x2="21" y2="3"/>
-                    </svg>
-                  </a>
+                  </div>
                 {:else}
                   <img
                     src={getMediaSource(media)}

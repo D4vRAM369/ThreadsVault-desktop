@@ -16,11 +16,53 @@
   } = $props()
 
   let confirmingDelete = $state(false)
+  let previewSourceIndex = $state(0)
+  let previewCandidates = $derived(getPreviewCandidates())
 
   function formatDate(ts: number): string {
     return new Date(ts).toLocaleDateString('es', {
       day: '2-digit', month: 'short', year: 'numeric'
     })
+  }
+
+  function isAvatarLikeUrl(url?: string): boolean {
+    if (!url) return false
+    return /\/t51\.2885-19\//i.test(url)
+      || /profile(?:_pic|pic)|avatar/i.test(url)
+      || /[?&]type=profile/i.test(url)
+  }
+
+  function getPreviewCandidates(): string[] {
+    const imageMedia = (post.media ?? [])
+      .filter((media) => media.type === 'image')
+      .flatMap((media) => [
+        media.cachedDataUrl,
+        media.url,
+        media.url ? `https://images.weserv.nl/?url=${encodeURIComponent(media.url.replace(/^https?:\/\//i, ''))}` : undefined,
+      ])
+      .filter((candidate): candidate is string => Boolean(candidate))
+
+    const candidates = [
+      ...imageMedia,
+      post.previewImage,
+      post.previewImage ? `https://images.weserv.nl/?url=${encodeURIComponent(post.previewImage.replace(/^https?:\/\//i, ''))}` : undefined,
+    ].filter((candidate): candidate is string => Boolean(candidate))
+
+    const unique = new Set<string>()
+    return candidates.filter((candidate) => {
+      if (unique.has(candidate)) return false
+      unique.add(candidate)
+      return !isAvatarLikeUrl(candidate)
+    })
+  }
+
+  function handlePreviewError() {
+    const candidates = getPreviewCandidates()
+    if (previewSourceIndex < candidates.length - 1) {
+      previewSourceIndex += 1
+    } else {
+      previewSourceIndex = candidates.length
+    }
   }
 
   /*
@@ -180,8 +222,8 @@
       object-fit:cover recorta la imagen para llenar el cuadrado sin deformarla.
       El video badge (▶) se superpone si es un post de vídeo.
     -->
-    {#if post.previewImage || post.media?.[0]?.cachedDataUrl}
-      {@const thumbSrc = post.media?.find(m => m.type === 'image')?.cachedDataUrl ?? post.previewImage}
+    {#if previewCandidates.length}
+      {@const thumbSrc = previewCandidates[previewSourceIndex]}
       {@const hasVideo = post.media?.some(m => m.type === 'video' || m.type === 'video-link')}
       {#if thumbSrc}
         <div class="shrink-0 relative rounded-xl overflow-hidden" style="
@@ -194,6 +236,7 @@
             alt="Preview"
             style="width:100%; height:100%; object-fit:cover; display:block;"
             loading="lazy"
+            onerror={handlePreviewError}
           />
           {#if hasVideo}
             <div class="absolute inset-0 flex items-center justify-center" style="
@@ -203,6 +246,16 @@
             </div>
           {/if}
         </div>
+      {:else}
+        <div class="shrink-0 rounded-xl flex items-center justify-center" style="
+          width: 64px; height: 64px;
+          border: 1px solid rgba(255,255,255,0.10);
+          background: linear-gradient(135deg, rgba(124,77,255,0.16), rgba(0,188,212,0.12));
+          box-shadow: 0 2px 10px rgba(0,0,0,0.28);
+          color: rgba(255,255,255,0.72);
+          font-family: var(--font-display);
+          font-size: 0.75rem;
+        ">{hasVideo ? 'VIDEO' : 'POST'}</div>
       {/if}
     {/if}
 

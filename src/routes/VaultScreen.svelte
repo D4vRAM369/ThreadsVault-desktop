@@ -1,6 +1,7 @@
 <script lang="ts">
+  import { onMount } from 'svelte'
   import { posts, categories, appState, filteredPosts, hashtagStats,
-           searchQuery, activeCategory, activeHashtag, deletePost } from '../lib/stores/vault'
+           searchQuery, activeCategory, activeHashtag, deletePost, refreshStalePostMedia, loadVault } from '../lib/stores/vault'
   import PostCard from '../components/PostCard.svelte'
   import EmptyState from '../components/EmptyState.svelte'
   import LoadingSpinner from '../components/LoadingSpinner.svelte'
@@ -129,6 +130,11 @@
     // cuando Svelte desmonta el componente (filtro, navegación, etc.)
     return { destroy() { observer.disconnect() } }
   }
+
+  onMount(() => {
+    void loadVault()
+    void refreshStalePostMedia()
+  })
 </script>
 
 <div class="w-full max-w-6xl mx-auto px-5 sm:px-6 lg:px-10 pb-24">
