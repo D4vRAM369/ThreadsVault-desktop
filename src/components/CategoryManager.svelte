@@ -99,7 +99,7 @@
   color: var(--vault-on-bg-muted);
   font-family: var(--font-display);
   letter-spacing: 0.12em;
-">Categorias</p>
+">Categorías</p>
 
 <div class="rounded-2xl sm:rounded-3xl p-4 sm:p-5 pt-5 sm:pt-6 mb-4 sm:mb-5 relative overflow-hidden" style="
   background: rgba(255,255,255,0.06);
@@ -121,13 +121,13 @@
         border: 1px solid var(--vault-border);
         line-height: 1;
       "
-      aria-label="Emoji de categoria"
+      aria-label="Emoji de categoría"
     />
 
     <input
       type="text"
       bind:value={newName}
-      placeholder="Nueva categoria"
+      placeholder="Nueva categoría"
       class="h-10 sm:h-11 px-3 rounded-xl text-sm outline-none transition-all"
       style="
         background: var(--vault-surface);
@@ -229,7 +229,7 @@
       const el = e.currentTarget as HTMLElement
       el.style.transform = 'translateY(0) scale(1)'
     }}
-  >{saving ? 'Guardando...' : '+ Agregar categoria'}</button>
+  >{saving ? 'Guardando...' : '+ Agregar categoría'}</button>
 </div>
 
 {#if $categories.length > 0}
@@ -316,12 +316,12 @@
 
             {#if confirmDeleteId === cat.id}
               <div class="flex items-center gap-1.5">
-                <span class="text-xs" style="color: var(--vault-on-bg-muted)">Borrar?</span>
+                <span class="text-xs" style="color: var(--vault-on-bg-muted)">¿Borrar?</span>
                 <button
                   onclick={() => handleDelete(cat.id)}
                   class="px-2 py-0.5 rounded-lg text-xs font-semibold text-white"
                   style="background: rgba(239,68,68,0.75)"
-                >Si</button>
+                >Sí</button>
                 <button
                   onclick={() => confirmDeleteId = null}
                   class="px-2 py-0.5 rounded-lg text-xs"
@@ -366,7 +366,7 @@
   </div>
 {:else}
   <div class="flex flex-col items-center justify-center py-8 gap-2" style="opacity: 0.45">
-    <p class="text-sm" style="font-family: var(--font-display); color: var(--vault-on-bg-muted)">Sin categorias todavia</p>
+    <p class="text-sm" style="font-family: var(--font-display); color: var(--vault-on-bg-muted)">Sin categorías todavía</p>
   </div>
 {/if}
 

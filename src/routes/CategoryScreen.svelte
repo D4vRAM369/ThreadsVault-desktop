@@ -19,10 +19,10 @@
     </button>
     <div>
       <h1 style="font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; color: var(--vault-on-bg)">
-        Categorias
+        Categorías
       </h1>
       <p class="text-xs" style="color: var(--vault-on-bg-muted)">
-        Arrastra para reordenar · {$categories.length} categorias
+        Arrastra para reordenar · {$categories.length} categorías
       </p>
     </div>
   </div>

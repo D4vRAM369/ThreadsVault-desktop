@@ -1,4 +1,6 @@
-export type PostMediaType = 'image' | 'video'
+// PBL: 'video-link' = post tiene vídeo pero el CDN de Meta usa auth firmada —
+// no podemos extraer el stream. Guardamos la URL del post original para abrir en Threads.
+export type PostMediaType = 'image' | 'video' | 'video-link'
 
 export interface PostMedia {
   id: string

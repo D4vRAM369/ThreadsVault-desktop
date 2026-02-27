@@ -64,6 +64,8 @@ async function downloadMediaBlob(url: string, mediaType: PostMedia['type']): Pro
 
 async function cacheMediaItem(media: PostMedia, options: Required<CacheOptions>): Promise<PostMedia> {
   if (media.cachedDataUrl) return media
+  // PBL: video-link no es un archivo — es la URL del post original. No se descarga.
+  if (media.type === 'video-link') return media
 
   const blob = await downloadMediaBlob(media.url, media.type)
   if (!blob) return media

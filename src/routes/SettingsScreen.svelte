@@ -58,7 +58,7 @@
       <h1 style="font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; color: var(--vault-on-bg)">
         Ajustes
       </h1>
-      <p class="text-xs" style="color: var(--vault-on-bg-muted)">Categorias · Backup · Privacidad</p>
+      <p class="text-xs" style="color: var(--vault-on-bg-muted)">Categorías · Backup · Privacidad</p>
     </div>
   </div>
 

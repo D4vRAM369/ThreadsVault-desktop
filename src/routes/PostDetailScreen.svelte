@@ -326,7 +326,7 @@
             color: rgba(188,248,255,0.85);
             font-family: var(--font-display);
             letter-spacing: 0.08em;
-          ">Texto extraido</p>
+          ">Texto extraído</p>
           <p class="text-sm leading-relaxed" style="color: var(--vault-on-bg); opacity: 0.9">
             {post.extractedText}
           </p>
@@ -352,12 +352,6 @@
               "
             >{refreshingMedia ? 'Actualizando...' : 'Actualizar media'}</button>
           </div>
-
-          {#if !hasVideoMedia()}
-            <p class="text-xs mb-2" style="color: var(--vault-on-bg-muted)">
-              Este post no incluye video detectado. El reproductor se muestra solo cuando hay URL de video.
-            </p>
-          {/if}
 
           {#if mediaRefreshError}
             <p class="text-xs mb-2" style="color: #fbbf24">{mediaRefreshError}</p>
@@ -409,6 +403,52 @@
                     style="background: #000; max-height: 360px;"
                     onerror={() => handleMediaError(media)}
                   ></video>
+                {:else if media.type === 'video-link'}
+                  <!--
+                    PBL: CDN de Meta usa HLS/DASH con tokens auth → stream no extraíble.
+                    Mostramos card de "Ver vídeo en Threads" que abre el post original.
+                    La URL del post está guardada en media.url (canonicalUrl del post).
+                  -->
+                  <a
+                    href={media.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="flex items-center gap-3 w-full rounded-xl p-3.5 mb-2 transition-all duration-200"
+                    style="
+                      background: rgba(124,77,255,0.10);
+                      border: 1px solid rgba(124,77,255,0.28);
+                      text-decoration: none;
+                    "
+                    onmouseenter={(e) => {
+                      const el = e.currentTarget as HTMLElement
+                      el.style.background = 'rgba(124,77,255,0.18)'
+                      el.style.borderColor = 'rgba(124,77,255,0.45)'
+                    }}
+                    onmouseleave={(e) => {
+                      const el = e.currentTarget as HTMLElement
+                      el.style.background = 'rgba(124,77,255,0.10)'
+                      el.style.borderColor = 'rgba(124,77,255,0.28)'
+                    }}
+                  >
+                    <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                         style="background: rgba(124,77,255,0.22)">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"
+                           style="color: #c8b4ff; margin-left: 2px">
+                        <polygon points="5 3 19 12 5 21 5 3"/>
+                      </svg>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                      <p class="text-sm font-semibold"
+                         style="color: #e4d6ff; font-family: var(--font-display)">Ver vídeo</p>
+                      <p class="text-xs" style="color: var(--vault-on-bg-muted)">Abrir post en Threads</p>
+                    </div>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2.5" style="color: var(--vault-on-bg-muted); flex-shrink: 0">
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                      <polyline points="15 3 21 3 21 9"/>
+                      <line x1="10" y1="14" x2="21" y2="3"/>
+                    </svg>
+                  </a>
                 {:else}
                   <img
                     src={getMediaSource(media)}
@@ -422,25 +462,27 @@
                   />
                 {/if}
 
-                <div class="flex items-center gap-2">
-                  <button
-                    onclick={() => downloadMedia(media)}
-                    class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200"
-                    style="
-                      background: rgba(124,77,255,0.16);
-                      border: 1px solid rgba(124,77,255,0.35);
-                      color: #e4d6ff;
-                      font-family: var(--font-display);
-                    "
-                  >Descargar</button>
-                  <a
-                    href={media.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="text-xs truncate"
-                    style="color: var(--vault-on-bg-muted)"
-                  >{media.url}</a>
-                </div>
+                {#if media.type !== 'video-link'}
+                  <div class="flex items-center gap-2">
+                    <button
+                      onclick={() => downloadMedia(media)}
+                      class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200"
+                      style="
+                        background: rgba(124,77,255,0.16);
+                        border: 1px solid rgba(124,77,255,0.35);
+                        color: #e4d6ff;
+                        font-family: var(--font-display);
+                      "
+                    >Descargar</button>
+                    <a
+                      href={media.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="text-xs truncate"
+                      style="color: var(--vault-on-bg-muted)"
+                    >{media.url}</a>
+                  </div>
+                {/if}
               </div>
             {/each}
           </div>

@@ -21,7 +21,9 @@
 }
 
 /* ─── Reset base ──────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+/* PBL: No repetimos el reset aquí — Tailwind v4 lo incluye en   */
+/* @layer base. Un reset unlayered sobreescribiría @layer        */
+/* utilities (mx-auto, px-*, etc.) por el CSS Cascade Level 5.   */
 
 body {
   background-color: var(--vault-bg);

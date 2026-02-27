@@ -134,14 +134,33 @@
         letter-spacing: 0.01em;
       ">{getPostDisplayPath(post.url)}</p>
 
+      <!--
+        PBL: Mostramos texto extraído del post como preview.
+        Preferimos la nota del usuario; si no hay, el texto extraído.
+        line-clamp: limita a 2 líneas para no ocupar demasiado espacio.
+      -->
       {#if post.note}
-        <p class="text-sm mt-2.5 leading-relaxed" style="color: var(--vault-on-bg); opacity: 0.88">
-          {post.note}
-        </p>
+        <p class="text-sm mt-2 leading-relaxed" style="
+          color: var(--vault-on-bg);
+          opacity: 0.88;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        ">{post.note}</p>
+      {:else if post.extractedText}
+        <p class="text-sm mt-2 leading-relaxed" style="
+          color: var(--vault-on-bg-muted);
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+          font-style: italic;
+        ">{post.extractedText}</p>
       {/if}
 
       {#if post.media?.length}
-        <div class="mt-2.5 inline-flex items-center gap-1.5 px-2 py-1 rounded-full" style="
+        <div class="mt-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-full" style="
           background: rgba(0,188,212,0.12);
           border: 1px solid rgba(0,188,212,0.25);
           color: #b8f5ff;
@@ -149,11 +168,43 @@
           letter-spacing: 0.04em;
           font-family: var(--font-display);
         ">
-          <span>{post.media.some((item) => item.type === 'video') ? '🎬' : '🖼️'}</span>
-          <span>{post.media.length} media</span>
+          <span>{post.media.some((item) => item.type === 'video' || item.type === 'video-link') ? '🎬' : '🖼️'}</span>
+          <span>{post.media.filter(m => m.type !== 'video-link').length || post.media.length} media</span>
         </div>
       {/if}
     </div>
+
+    <!--
+      PBL: Thumbnail de previsualización.
+      Usamos cachedDataUrl si existe (data: URL local), sino previewImage (URL remota).
+      object-fit:cover recorta la imagen para llenar el cuadrado sin deformarla.
+      El video badge (▶) se superpone si es un post de vídeo.
+    -->
+    {#if post.previewImage || post.media?.[0]?.cachedDataUrl}
+      {@const thumbSrc = post.media?.find(m => m.type === 'image')?.cachedDataUrl ?? post.previewImage}
+      {@const hasVideo = post.media?.some(m => m.type === 'video' || m.type === 'video-link')}
+      {#if thumbSrc}
+        <div class="shrink-0 relative rounded-xl overflow-hidden" style="
+          width: 64px; height: 64px;
+          border: 1px solid rgba(255,255,255,0.10);
+          box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+        ">
+          <img
+            src={thumbSrc}
+            alt="Preview"
+            style="width:100%; height:100%; object-fit:cover; display:block;"
+            loading="lazy"
+          />
+          {#if hasVideo}
+            <div class="absolute inset-0 flex items-center justify-center" style="
+              background: rgba(0,0,0,0.38);
+            ">
+              <span style="font-size: 1.1rem; line-height:1">▶</span>
+            </div>
+          {/if}
+        </div>
+      {/if}
+    {/if}
 
     <!-- Zona de confirmación/borrado -->
     {#if confirmingDelete}

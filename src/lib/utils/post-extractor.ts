@@ -22,6 +22,8 @@ const IMAGE_RE = /\.(png|jpe?g|gif|webp|avif)(\?.*)?$/i
 const VIDEO_RE = /\.(mp4|mov|webm|m3u8)(\?.*)?$/i
 const ABSOLUTE_URL_RE = /^https?:\/\//i
 const THREADS_POST_PATH_RE = /\/(?:@[\w.]+\/post\/|post\/|t\/)[A-Za-z0-9_-]+/i
+// PBL: t51.71878 = tipo CDN de Meta para thumbnails de vídeo (preview image del vídeo)
+const VIDEO_THUMB_CDN_RE = /\/t51\.71878[-_]/
 
 function decodeHtml(value: string): string {
   return value
@@ -88,12 +90,43 @@ function extractMediaFromText(text: string): string[] {
   return matches.filter((url) => inferMediaType(url) !== null)
 }
 
+/*
+  PBL: Extrae media SOLO de la sección del post en la respuesta markdown de Jina.
+  Jina devuelve la página completa (post + posts relacionados/sugeridos).
+  Limitamos a los primeros 3000 chars del bloque "Markdown Content:" para
+  quedarnos con el post objetivo y evitar imágenes de otros posts.
+*/
+function extractPostSectionMedia(jinaMarkdown: string): string[] {
+  if (!jinaMarkdown) return []
+  const contentMatch = /Markdown Content:\s*/i.exec(jinaMarkdown)
+  const start = contentMatch ? contentMatch.index + contentMatch[0].length : 0
+  const postSection = jinaMarkdown.slice(start, start + 3000)
+  return extractMediaFromText(postSection)
+}
+
+/*
+  PBL: Asigna tipo explícito sin inferir por URL.
+  Usado para og:video / og:image — la fuente ya indica el tipo correctamente.
+*/
+function forceMediaEntries(urls: Array<string | undefined>, type: PostMediaType): PostMedia[] {
+  const result: PostMedia[] = []
+  for (const url of urls) {
+    if (!url || !ABSOLUTE_URL_RE.test(url)) continue
+    result.push({ id: crypto.randomUUID(), type, url })
+  }
+  return result
+}
+
+// PBL: timeout individual por fetch — si un origen falla lento no bloquea a los demás
 async function tryFetchJson(url: string): Promise<OEmbedPayload | null> {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 4500)
+  const timer = setTimeout(() => controller.abort(), 8000)
   try {
     const res = await fetch(url, {
-      headers: { Accept: 'application/json' },
+      headers: {
+        Accept: 'application/json',
+        'Accept-Language': 'es,en;q=0.9',
+      },
       signal: controller.signal,
     })
     if (!res.ok) return null
@@ -107,9 +140,15 @@ async function tryFetchJson(url: string): Promise<OEmbedPayload | null> {
 
 async function tryFetchText(url: string): Promise<string | null> {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 4500)
+  const timer = setTimeout(() => controller.abort(), 8000)
   try {
-    const res = await fetch(url, { signal: controller.signal })
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        Accept: 'text/html,application/xhtml+xml,*/*',
+        'Accept-Language': 'es,en;q=0.9',
+      },
+    })
     if (!res.ok) return null
     return await res.text()
   } catch {
@@ -179,40 +218,88 @@ function extractFallbackTextFromSource(source: string, postId: string | null): s
 export async function extractPostData(rawUrl: string): Promise<ExtractedPostData> {
   const sourceUrl = rawUrl.trim()
   const canonicalUrl = cleanThreadsUrl(sourceUrl)
-
-  const oembed = await tryFetchJson(
-    `https://www.threads.net/oembed?url=${encodeURIComponent(sourceUrl)}`
-  )
-
-  const htmlFromSource = await tryFetchText(sourceUrl)
-  const html = htmlFromSource ?? (sourceUrl !== canonicalUrl ? await tryFetchText(canonicalUrl) : null)
-  const proxiedSource = html ? null : await tryFetchText(`https://r.jina.ai/http://${sourceUrl.replace(/^https?:\/\//, '')}`)
-  const proxiedCanonical = proxiedSource || sourceUrl === canonicalUrl
-    ? null
-    : await tryFetchText(`https://r.jina.ai/http://${canonicalUrl.replace(/^https?:\/\//, '')}`)
-  const source = html ?? proxiedSource ?? proxiedCanonical ?? ''
-
-  const ogTitle = extractMetaTag(source, 'og:title')
-  const ogDescription = extractMetaTag(source, 'og:description')
-  const twitterDescription = extractMetaTag(source, 'twitter:description')
-  const ogImage = extractMetaTag(source, 'og:image')
-  const ogVideo = extractMetaTag(source, 'og:video')
-  const twitterImage = extractMetaTag(source, 'twitter:image')
-  const twitterVideo = extractMetaTag(source, 'twitter:player:stream')
-  const canonicalFromHtml = extractCanonical(source)
   const postId = extractPostId(sourceUrl)
 
-  const media = toMediaEntries([
-    ...(oembed?.thumbnail_url ? [oembed.thumbnail_url] : []),
-    ...(oembed?.html ? extractMediaFromText(oembed.html) : []),
-    ...extractMediaFromText(source),
-    ...[ogImage, ogVideo, twitterImage, twitterVideo].filter(Boolean) as string[],
+  /*
+    PBL: Ejecutamos los 3 orígenes EN PARALELO con Promise.all.
+    Antes eran secuenciales (await + await + await) = hasta 13.5s.
+    Ahora el tiempo total = max(cada timeout individual) = ~8s.
+    Esto garantiza que Jina siempre tiene tiempo de responder antes
+    del timeout exterior de ShareScreen.
+
+    Orden de preferencia para el HTML fuente:
+    1. directHtml  — fetch directo (funciona en Tauri, CORS en browser)
+    2. jinaHtml    — Jina Reader (headless proxy, funciona en browser)
+
+    BUG CORREGIDO: antes el Jina URL usaba `http://` en lugar de
+    `https://`, forzando una redirección en Threads que añadía latencia
+    y podía fallar. Ahora usamos `https://r.jina.ai/${canonicalUrl}`.
+  */
+  const [oembed, directHtml, jinaHtml] = await Promise.all([
+    tryFetchJson(`https://www.threads.net/oembed?url=${encodeURIComponent(sourceUrl)}`),
+    tryFetchText(sourceUrl),
+    tryFetchText(`https://r.jina.ai/${canonicalUrl}`),
   ])
 
-  const previewVideo = media.find((item) => item.type === 'video')?.url
-  const previewImage = media.find((item) => item.type === 'image')?.url
-  const metadataText = firstDefined(ogDescription, twitterDescription, oembed?.title)
-  const fallbackText = extractFallbackTextFromSource(source, postId)
+  const source = directHtml ?? jinaHtml ?? ''
+
+  const ogTitle        = extractMetaTag(source, 'og:title')
+  const ogDescription  = extractMetaTag(source, 'og:description')
+  const twitterDesc    = extractMetaTag(source, 'twitter:description')
+  const ogImage        = extractMetaTag(source, 'og:image')
+  const ogVideo        = extractMetaTag(source, 'og:video')
+  const twitterImage   = extractMetaTag(source, 'twitter:image')
+  const twitterVideo   = extractMetaTag(source, 'twitter:player:stream')
+  const canonicalFromHtml = extractCanonical(source)
+
+  /*
+    PBL: Construcción de media con tipos correctos y sin imágenes ajenas.
+
+    Problema anterior: `extractMediaFromText(source)` escaneaba TODA la respuesta
+    de Jina (~25KB) incluyendo posts relacionados/sugeridos → 24 items de otros posts.
+
+    Solución: pipeline ordenado con deduplicación global.
+      1. og:video / twitter:player:stream  → 'video' forzado
+      2. oEmbed thumbnail                  → tipo inferido (casi siempre imagen)
+      3. og:image / twitter:image          → 'image' forzado
+      4. oEmbed HTML                       → tipo inferido
+      5. Jina — solo primeros 3000 chars   → solo el post, no posts relacionados
+  */
+  const seenMediaUrls = new Set<string>()
+  const media: PostMedia[] = []
+  const addMedia = (items: PostMedia[]) => {
+    for (const item of items) {
+      if (!seenMediaUrls.has(item.url)) {
+        seenMediaUrls.add(item.url)
+        media.push(item)
+      }
+    }
+  }
+
+  addMedia(forceMediaEntries([ogVideo, twitterVideo], 'video'))
+  addMedia(toMediaEntries(oembed?.thumbnail_url ? [oembed.thumbnail_url] : []))
+  addMedia(forceMediaEntries([ogImage, twitterImage], 'image'))
+  if (oembed?.html) addMedia(toMediaEntries(extractMediaFromText(oembed.html)))
+  // PBL: jinaHtml (markdown limpio del post) en vez de source (HTML completo con otros posts)
+  addMedia(toMediaEntries(extractPostSectionMedia(jinaHtml ?? '')))
+
+  /*
+    PBL: Detección de vídeo por thumbnail CDN.
+    Threads sirve vídeos via HLS/DASH con tokens de autenticación — no extraíbles.
+    Pero el thumbnail del vídeo (t51.71878 en CDN de Meta) sí aparece en Jina.
+    Si lo detectamos y no tenemos stream real → añadimos 'video-link' con la URL
+    canónica del post para que el usuario pueda abrirlo en Threads desde la app.
+  */
+  const hasRealVideo  = media.some((item) => item.type === 'video')
+  const hasVideoThumb = media.some((item) => VIDEO_THUMB_CDN_RE.test(item.url))
+  if (!hasRealVideo && hasVideoThumb) {
+    media.push({ id: crypto.randomUUID(), type: 'video-link', url: canonicalUrl })
+  }
+
+  const previewVideo  = media.find((item) => item.type === 'video')?.url
+  const previewImage  = media.find((item) => item.type === 'image')?.url
+  const metadataText  = firstDefined(ogDescription, twitterDesc, oembed?.title)
+  const fallbackText  = extractFallbackTextFromSource(source, postId)
   const extractedText = isGenericThreadsText(metadataText)
     ? fallbackText
     : firstDefined(metadataText, fallbackText)
@@ -222,9 +309,9 @@ export async function extractPostData(rawUrl: string): Promise<ExtractedPostData
 
   return {
     canonicalUrl: normalizedCanonical,
-    author: selectAuthor(oembed, normalizedCanonical),
-    title: firstDefined(oembed?.title, ogTitle),
-    text: extractedText,
+    author:       selectAuthor(oembed, normalizedCanonical),
+    title:        firstDefined(oembed?.title, ogTitle),
+    text:         extractedText,
     previewImage,
     previewVideo,
     media,
