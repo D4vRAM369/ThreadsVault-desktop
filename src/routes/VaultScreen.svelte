@@ -131,21 +131,21 @@
   }
 </script>
 
-<div class="max-w-2xl mx-auto px-4 pb-24">
+<div class="w-full max-w-6xl mx-auto px-5 sm:px-6 lg:px-10 pb-24">
 
   <!--
     PBL: -mx-4 cancela el px-4 del padre → header full-width en mobile.
     backdrop-filter:blur(28px) crea el efecto cristal esmerilado.
     El fondo rgba semi-transparente deja pasar algo del color de los blobs.
   -->
-  <header class="sticky top-0 z-20 -mx-4 px-4 pt-5 pb-3" style="
+  <header class="sticky top-0 z-20 -mx-5 sm:-mx-6 lg:-mx-10 px-5 sm:px-6 lg:px-10 pt-5 sm:pt-6 pb-4" style="
     background: rgba(8, 8, 16, 0.82);
     backdrop-filter: blur(28px);
     -webkit-backdrop-filter: blur(28px);
     border-bottom: 1px solid rgba(255,255,255,0.08);
   ">
     <!-- Logo + acciones -->
-    <div class="flex items-center justify-between mb-3">
+    <div class="flex items-center justify-between mb-4">
       <div class="flex items-center gap-2.5">
         <div class="shrink-0" style="
           width: 34px; height: 34px;
@@ -171,7 +171,7 @@
 
       <div class="flex items-center gap-2">
         <button
-          class="w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-200"
+          class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center transition-all duration-200"
           style="background: var(--vault-surface); border: 1px solid var(--vault-border)"
           onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--vault-surface-hover)'}
           onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--vault-surface)'}
@@ -185,7 +185,7 @@
         </button>
 
         <button
-          class="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white transition-all duration-200"
+          class="flex items-center gap-1.5 px-4 sm:px-5 py-2.5 rounded-xl text-sm font-semibold text-white transition-all duration-200"
           style="
             background: linear-gradient(135deg, var(--vault-primary), #9c27b0);
             box-shadow: 0 4px 14px var(--vault-primary-glow);
@@ -206,7 +206,7 @@
       Muestra top tags extraídos de notas + texto extraído.
       click = filtra por hashtag; segundo click = limpia filtro.
     -->
-    <div class="rounded-2xl p-3 mb-2.5" style="
+    <div class="rounded-2xl sm:rounded-3xl p-3.5 sm:p-4 mb-3" style="
       background: rgba(255,255,255,0.04);
       border: 1px solid rgba(255,255,255,0.10);
       box-shadow: 0 4px 16px rgba(0,0,0,0.22);
@@ -252,7 +252,7 @@
     </div>
 
     <!-- Campo de búsqueda principal -->
-    <div class="relative mb-2">
+    <div class="relative mb-3">
       <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
            width="14" height="14" viewBox="0 0 24 24" fill="none"
            stroke="rgba(232,232,240,0.3)" stroke-width="2">
@@ -262,13 +262,13 @@
         type="search"
         placeholder="Buscar posts, autores, notas…"
         bind:value={$searchQuery}
-        class="w-full rounded-xl text-sm outline-none transition-all duration-200"
+        class="w-full rounded-2xl text-sm outline-none transition-all duration-200"
         style="
           background: var(--vault-surface);
           color: var(--vault-on-bg);
           border: 1px solid var(--vault-border);
           font-family: var(--font-body);
-          padding: 10px 16px 10px 44px;
+          padding: 12px 18px 12px 44px;
         "
         onfocus={(e) => (e.target as HTMLElement).style.borderColor = 'rgba(124,77,255,0.5)'}
         onblur={(e)  => (e.target as HTMLElement).style.borderColor = 'var(--vault-border)'}
@@ -290,7 +290,7 @@
     </div>
 
     {#if $categories.length > 0}
-      <div class="flex gap-1.5 overflow-x-auto no-scrollbar" style="padding-bottom: 2px" onwheel={handleHorizontalWheel} use:horizontalDrag>
+      <div class="flex gap-2 overflow-x-auto no-scrollbar" style="padding-bottom: 2px" onwheel={handleHorizontalWheel} use:horizontalDrag>
         <button
           class="shrink-0 px-3 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-200"
           style="
@@ -323,7 +323,7 @@
   </header>
 
   <!-- Contenido principal -->
-  <div class="pt-4">
+  <div class="pt-5 sm:pt-6">
     {#if $appState === 'loading'}
       <LoadingSpinner />
 

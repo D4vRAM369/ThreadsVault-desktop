@@ -20,12 +20,19 @@
   --font-mono:            'DM Mono', 'Fira Code', monospace;
 }
 
+html {
+  width: 100%;
+  min-height: 100%;
+  background-color: var(--vault-bg);
+}
+
 /* ─── Reset base ──────────────────────────────────────── */
 /* PBL: No repetimos el reset aquí — Tailwind v4 lo incluye en   */
 /* @layer base. Un reset unlayered sobreescribiría @layer        */
 /* utilities (mx-auto, px-*, etc.) por el CSS Cascade Level 5.   */
 
 body {
+  width: 100%;
   background-color: var(--vault-bg);
   color: var(--vault-on-bg);
   font-family: var(--font-body);
@@ -39,6 +46,12 @@ body {
 #app {
   position: relative;
   z-index: 1;
+  width: 100%;
+  min-height: 100vh;
+}
+
+.app-shell {
+  width: 100%;
   min-height: 100vh;
 }
 

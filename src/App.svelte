@@ -24,7 +24,7 @@
   <div class="blob blob-teal"></div>
 </div>
 
-<main>
+<main class="app-shell">
   {#if currentRoute === '#/' || currentRoute === ''}
     {#await import('./routes/VaultScreen.svelte') then { default: VaultScreen }}
       <VaultScreen />
