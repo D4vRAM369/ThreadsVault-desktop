@@ -311,6 +311,7 @@ async fn resolve_threads_video(post_url: String) -> Result<VideoResolution, Stri
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_sql::Builder::default().build())
         .invoke_handler(tauri::generate_handler![resolve_threads_video])
         .run(tauri::generate_context!())
         .expect("error while running ThreadsVault desktop");
