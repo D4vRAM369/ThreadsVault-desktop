@@ -4,7 +4,7 @@
   import { getStorage } from '../lib/storage/index'
   import CategoryBadge from '../components/CategoryBadge.svelte'
   import { cleanThreadsUrl, getPostShortId } from '../lib/utils/url-parser'
-  import { extractPostData, resolvePlayableVideoUrl } from '../lib/utils/post-extractor'
+  import { extractPostData, resolvePlayableVideoUrl, fetchOEmbedHtml } from '../lib/utils/post-extractor'
   import { resolveDesktopVideo } from '../lib/utils/desktop-video'
   import { cachePostMediaLocally } from '../lib/utils/media-cache'
   import type { Post, PostMedia } from '../lib/types'
@@ -23,7 +23,8 @@
     src?: string
     downloadSrc?: string
     reason?: string
-    source?: 'desktop' | 'web'
+    source?: 'desktop' | 'web' | 'embed'
+    embedHtml?: string   // HTML del reproductor oficial oEmbed de Threads
   }>>({})
   let showFailedMedia = $state(false)
   let refreshedMediaOnce = $state(false)
@@ -78,6 +79,29 @@
     return inlineVideoState[media.id] ?? { status: 'idle' as const }
   }
 
+  /*
+    PBL: buildEmbedPage — construye una página HTML completa para inyectar en un <iframe srcdoc>.
+    ¿Por qué srcdoc y no src?
+    - src carga una URL externa → Threads bloquea iframes externos (X-Frame-Options: SAMEORIGIN)
+    - srcdoc pasa el HTML como string directamente → no hay petición a Threads,
+      el HTML se ejecuta en el contexto del propio iframe → funciona
+    El blockquote + embed.js de oEmbed es el reproductor oficial de Threads.
+  */
+  function buildEmbedPage(embedHtml: string): string {
+    return [
+      '<!DOCTYPE html><html><head>',
+      '<meta charset="utf-8">',
+      '<meta name="viewport" content="width=device-width, initial-scale=1">',
+      '<style>',
+      'html,body{margin:0;padding:8px;background:#0a0a14;box-sizing:border-box;}',
+      'blockquote{margin:0!important;max-width:100%!important;}',
+      '</style>',
+      '</head><body>',
+      embedHtml,
+      '</body></html>',
+    ].join('')
+  }
+
   async function loadInlineVideo(media: PostMedia) {
     if (!post) return
     const current = getInlineVideoState(media)
@@ -89,7 +113,26 @@
     }
 
     try {
-      const desktopResolution = await resolveDesktopVideo(post.canonicalUrl ?? post.url)
+      const postUrl = post.canonicalUrl ?? post.url
+
+      /*
+        PBL: Promise.all — ejecuta los 3 métodos EN PARALELO.
+        Si fueran secuenciales: 8s + 8s + 8s = hasta 24s de espera.
+        En paralelo: max(8s, 8s, 8s) = ~8s total (el más lento marca el límite).
+
+        Prioridad de resultado (de mayor a menor calidad):
+          1. Desktop (Tauri/Rust) → URL .mp4 directa, mejor para descargar
+          2. Web extractor        → URL directa extraída del HTML público
+          3. oEmbed iframe        → reproductor oficial de Threads embebido
+          4. Error               → cuando los 3 métodos fallan
+      */
+      const [desktopResolution, resolvedUrl, oembedHtml] = await Promise.all([
+        resolveDesktopVideo(postUrl),
+        resolvePlayableVideoUrl(postUrl),
+        fetchOEmbedHtml(postUrl),
+      ])
+
+      // 1. URL nativa desde Tauri (Rust fetch sin CORS)
       if (desktopResolution?.playableUrl) {
         inlineVideoState = {
           ...inlineVideoState,
@@ -103,26 +146,40 @@
         return
       }
 
-      const resolvedUrl = await resolvePlayableVideoUrl(post.canonicalUrl ?? post.url)
-      if (!resolvedUrl) {
+      // 2. URL directa extraída del HTML (rara vez funciona en Threads)
+      if (resolvedUrl) {
         inlineVideoState = {
           ...inlineVideoState,
           [media.id]: {
-            status: 'error',
-            reason: desktopResolution?.reason ?? 'No se pudo resolver un stream publico para este video.',
-            source: desktopResolution ? 'desktop' : undefined,
+            status: 'ready',
+            src: resolvedUrl,
+            downloadSrc: resolvedUrl,
+            source: 'web',
           },
         }
         return
       }
 
+      // 3. Reproductor oEmbed oficial de Threads embebido en iframe
+      if (oembedHtml) {
+        inlineVideoState = {
+          ...inlineVideoState,
+          [media.id]: {
+            status: 'ready',
+            embedHtml: buildEmbedPage(oembedHtml),
+            source: 'embed',
+          },
+        }
+        return
+      }
+
+      // 4. Todos los métodos fallaron
       inlineVideoState = {
         ...inlineVideoState,
         [media.id]: {
-          status: 'ready',
-          src: resolvedUrl,
-          downloadSrc: resolvedUrl,
-          source: 'web',
+          status: 'error',
+          reason: desktopResolution?.reason ?? 'No se pudo resolver el stream del vídeo.',
+          source: desktopResolution ? 'desktop' : undefined,
         },
       }
     } catch {
@@ -130,7 +187,7 @@
         ...inlineVideoState,
         [media.id]: {
           status: 'error',
-          reason: 'Fallo la resolucion del video en la app.',
+          reason: 'Fallo la resolución del vídeo en la app.',
         },
       }
     }
@@ -511,41 +568,74 @@
                         class="w-full rounded-lg mb-3"
                         style="background: #000; max-height: 360px;"
                       ></video>
+                    {:else if state.status === 'ready' && state.embedHtml}
+                      <!--
+                        PBL: <iframe srcdoc="..."> — inyectamos el HTML del reproductor
+                        oficial de Threads directamente como string. No carga una URL
+                        externa → no hay problema de X-Frame-Options ni CORS.
+                        sandbox="allow-scripts allow-same-origin allow-popups":
+                          - allow-scripts    → el embed.js de Threads puede ejecutarse
+                          - allow-same-origin → el script puede hacer fetch a Threads API
+                          - allow-popups     → el usuario puede abrir links del post
+                      -->
+                      <iframe
+                        srcdoc={state.embedHtml}
+                        sandbox="allow-scripts allow-same-origin allow-popups"
+                        class="w-full rounded-xl mb-3"
+                        style="height: 520px; border: none; background: #0a0a14; border-radius: 12px; display: block;"
+                        title="Vídeo embebido de Threads"
+                      ></iframe>
                     {:else}
                       <div class="flex items-center gap-3 mb-3">
                         <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
                              style="background: rgba(124,77,255,0.22)">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"
-                               style="color: #c8b4ff; margin-left: 2px">
-                            <polygon points="5 3 19 12 5 21 5 3"/>
-                          </svg>
+                          {#if state.status === 'loading'}
+                            <!-- Spinner de carga -->
+                            <div class="w-5 h-5 rounded-full animate-spin" style="
+                              border: 2px solid rgba(200,180,255,0.2);
+                              border-top-color: #c8b4ff;
+                            "></div>
+                          {:else}
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"
+                                 style="color: #c8b4ff; margin-left: 2px">
+                              <polygon points="5 3 19 12 5 21 5 3"/>
+                            </svg>
+                          {/if}
                         </div>
                         <div class="flex-1 min-w-0">
                           <p class="text-sm font-semibold"
-                             style="color: #e4d6ff; font-family: var(--font-display)">Vídeo embebido</p>
+                             style="color: #e4d6ff; font-family: var(--font-display)">
+                            {state.status === 'loading' ? 'Cargando vídeo…' : 'Vídeo en Threads'}
+                          </p>
                           <p class="text-xs" style="color: var(--vault-on-bg-muted)">
                             {state.status === 'loading'
-                              ? 'Resolviendo fuente de vídeo…'
-                              : state.status === 'error'
-                                ? (state.reason ?? 'No se pudo resolver el stream automáticamente.')
-                                : 'Cargar dentro de la app con controles básicos.'}
+                              ? 'Buscando fuente reproducible…'
+                              : 'Threads protege sus vídeos. Ábrelo directamente para reproducirlo.'}
                           </p>
                         </div>
                       </div>
                     {/if}
 
-                    <div class="flex items-center gap-2">
-                      {#if state.status !== 'ready'}
+                    <div class="flex items-center gap-2 flex-wrap">
+                      {#if state.status === 'loading'}
+                        <span class="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                              style="
+                                background: rgba(124,77,255,0.10);
+                                border: 1px solid rgba(124,77,255,0.22);
+                                color: rgba(228,214,255,0.5);
+                                font-family: var(--font-display);
+                              ">Cargando…</span>
+                      {:else if state.status === 'error'}
                         <button
                           onclick={() => loadInlineVideo(media)}
                           class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200"
                           style="
-                            background: rgba(124,77,255,0.18);
-                            border: 1px solid rgba(124,77,255,0.34);
-                            color: #e4d6ff;
+                            background: rgba(124,77,255,0.12);
+                            border: 1px solid rgba(124,77,255,0.28);
+                            color: #c8b4ff;
                             font-family: var(--font-display);
                           "
-                        >{state.status === 'loading' ? 'Cargando…' : state.status === 'error' ? 'Reintentar vídeo' : 'Ver vídeo'}</button>
+                        >Reintentar</button>
                       {/if}
 
                       {#if state.status === 'ready' && state.src}
@@ -567,13 +657,13 @@
                         rel="noopener noreferrer"
                         class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200"
                         style="
-                          background: rgba(255,255,255,0.07);
-                          border: 1px solid rgba(255,255,255,0.12);
-                          color: var(--vault-on-bg);
+                          background: rgba(124,77,255,0.22);
+                          border: 1px solid rgba(124,77,255,0.4);
+                          color: #e4d6ff;
                           font-family: var(--font-display);
                           text-decoration: none;
                         "
-                      >Abrir enlace</a>
+                      >Ver en Threads ↗</a>
                     </div>
                   </div>
                 {:else}

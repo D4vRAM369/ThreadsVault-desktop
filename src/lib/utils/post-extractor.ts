@@ -403,6 +403,27 @@ export async function extractPostData(rawUrl: string): Promise<ExtractedPostData
   }
 }
 
+/*
+  PBL: fetchOEmbedHtml — obtiene el HTML del reproductor oficial de Threads.
+  La API oEmbed de Threads devuelve un JSON con:
+    - author_name: "@usuario"
+    - html: '<blockquote class="text-post-media" ...>...</blockquote>
+             <script src="https://www.threads.net/embed/embed.js"></script>'
+
+  Ese HTML (blockquote + embed.js) es el reproductor oficial de Threads.
+  Podemos inyectarlo en un <iframe srcdoc="..."> para reproducir el vídeo
+  dentro de la app usando el player nativo de Threads.
+
+  El campo OEmbedPayload ya tiene `html?: string`, así que reutilizamos
+  tryFetchJson directamente.
+*/
+export async function fetchOEmbedHtml(postUrl: string): Promise<string | null> {
+  const data = await tryFetchJson(
+    `https://www.threads.net/oembed?url=${encodeURIComponent(postUrl)}`
+  )
+  return data?.html ?? null
+}
+
 export async function resolvePlayableVideoUrl(rawUrl: string): Promise<string | null> {
   const sourceUrl = rawUrl.trim()
   const canonicalUrl = cleanThreadsUrl(sourceUrl)
