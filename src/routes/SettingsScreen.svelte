@@ -6,6 +6,9 @@
   let exportStatus = $state<'idle' | 'success' | 'error'>('idle')
   let importStatus = $state<'idle' | 'success' | 'error'>('idle')
   let importError  = $state('')
+  // pendingFile guarda el archivo seleccionado mientras el usuario decide si confirmar.
+  // File | null significa: puede ser un objeto File (archivo) o null (ninguno pendiente).
+  let pendingFile  = $state<File | null>(null)
 
   async function handleExport() {
     const storage = await getStorage()
@@ -21,19 +24,32 @@
     setTimeout(() => exportStatus = 'idle', 3000)
   }
 
-  async function handleImport(e: Event) {
+  // Paso 1: el usuario selecciona un archivo → guardarlo y mostrar modal de confirmación.
+  // No importamos aún — esperamos que el usuario confirme.
+  function handleImport(e: Event) {
     const file = (e.target as HTMLInputElement).files?.[0]
     if (!file) return
+    pendingFile = file
+    // Reseteamos el valor del input para que el mismo archivo pueda seleccionarse
+    // de nuevo si el usuario cancela y vuelve a intentarlo.
+    ;(e.target as HTMLInputElement).value = ''
+  }
+
+  // Paso 2: el usuario confirmó en el modal → ejecutar la importación real.
+  async function doImport() {
+    if (!pendingFile) return
     try {
-      const json    = await file.text()
+      const json    = await pendingFile.text()   // leer el archivo como string JSON
       const storage = await getStorage()
-      await storage.importBackup(json)
-      await loadVault()
+      await storage.importBackup(json)           // borrar todo e importar los datos del backup
+      await loadVault()                          // recargar el store global con los nuevos datos
+      pendingFile  = null
       importStatus = 'success'
       setTimeout(() => importStatus = 'idle', 3000)
     } catch (err) {
       importError  = (err as Error).message
       importStatus = 'error'
+      pendingFile  = null
     }
   }
 </script>
@@ -233,3 +249,68 @@
     ">v1.0</span>
   </div>
 </div>
+
+<!-- ── Modal de confirmación de importación ──────────────────────────────
+  {#if pendingFile} solo renderiza este bloque cuando hay un archivo pendiente.
+  Cuando pendingFile es null, el modal no existe en el DOM — no consume recursos.
+-->
+{#if pendingFile}
+  <!-- Overlay: capa negra semitransparente que cubre toda la pantalla.
+       position:fixed + inset-0 = ocupa exactamente la ventana completa.
+       z-50 = z-index:50, se dibuja encima de todo lo demás.
+       onclick cierra el modal al hacer clic fuera de la tarjeta. -->
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center p-4"
+    style="background: rgba(0,0,0,0.7); backdrop-filter: blur(8px)"
+    onclick={() => pendingFile = null}
+    role="dialog"
+    aria-modal="true"
+    aria-label="Confirmar importación"
+  >
+    <!-- Tarjeta del modal.
+         e.stopPropagation() evita que el clic dentro cierre el modal
+         (si no estuviera, el clic en la tarjeta subiría al overlay y lo cerraría). -->
+    <div
+      class="glass rounded-2xl p-6 max-w-sm w-full flex flex-col gap-4 animate-fade-up"
+      onclick={(e) => e.stopPropagation()}
+    >
+      <!-- Icono de advertencia + nombre del archivo -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+             style="background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        </div>
+        <div>
+          <p class="font-bold text-sm" style="font-family: var(--font-display); color: var(--vault-on-bg)">
+            ¿Importar este backup?
+          </p>
+          <p class="text-xs mt-0.5" style="color: var(--vault-on-bg-muted)">{pendingFile.name}</p>
+        </div>
+      </div>
+
+      <!-- Advertencia clara de las consecuencias -->
+      <p class="text-sm" style="color: var(--vault-on-bg-muted); line-height: 1.6">
+        Esto <strong style="color: #f87171">borrará todos tus posts y categorías actuales</strong>
+        y los reemplazará con los del archivo seleccionado. Esta acción no se puede deshacer.
+      </p>
+
+      <!-- Dos botones: acción destructiva (rojo) y cancelar (neutro) -->
+      <div class="flex gap-2">
+        <button
+          onclick={doImport}
+          class="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all duration-200"
+          style="background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3)"
+        >Importar y reemplazar</button>
+        <button
+          onclick={() => pendingFile = null}
+          class="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200"
+          style="background: var(--vault-surface); color: var(--vault-on-bg-muted); border: 1px solid var(--vault-border)"
+        >Cancelar</button>
+      </div>
+    </div>
+  </div>
+{/if}
