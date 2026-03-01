@@ -4,7 +4,12 @@
 #
 # FASE 1: Solo build (verifica que la app compila en CI)       ✓
 # FASE 2: Subir artifacts (binarios disponibles en GitHub)     ✓
-# FASE 3: Crear Release automático al hacer git tag            ← pendiente
+# FASE 3: Crear Release automático al hacer git tag            ✓
+#
+# Uso:
+#   git tag v1.0.1
+#   git push origin v1.0.1
+#   → Actions compila, sube artifacts y crea GitHub Release
 #
 # Documentación PBL: docs/0103/pbl-release-tasks.md
 # ============================================================
@@ -12,62 +17,57 @@
 name: Release
 
 # ------------------------------------------------------------
-# TRIGGER: ¿Cuándo se ejecuta este workflow?
-# Por ahora: en cada push a main (Fases 1 y 2).
-# En Fase 3 cambiaremos a: push de tags "v*" (ej: v1.0.1)
+# TRIGGER — FASE 3: solo cuando se hace push de un tag "v*"
+#
+# ¿Qué es un tag? Es una etiqueta que se pone a un commit
+# específico para marcarlo como versión. Convención: "v1.0.0".
+#
+# "git tag v1.0.1" → crea el tag localmente
+# "git push origin v1.0.1" → lo sube a GitHub → dispara este workflow
+#
+# El filtro "v*" significa: cualquier tag que empiece por "v".
+# Así "v1.0.0", "v2.3.1-beta" disparan el workflow,
+# pero "backup-2026" no lo dispara.
 # ------------------------------------------------------------
 on:
   push:
-    branches:
-      - main
+    tags:
+      - 'v*'
 
 # ------------------------------------------------------------
-# JOBS: unidades de trabajo. Cada job corre en su propia
-# máquina virtual, en paralelo (salvo que declares 'needs').
+# PERMISSIONS: permisos que necesita el workflow.
+# "contents: write" permite crear GitHub Releases y subir
+# archivos adjuntos al release. Sin esto, el paso
+# create-release fallaría con "403 Forbidden".
 # ------------------------------------------------------------
+permissions:
+  contents: write
+
 jobs:
 
   # ----------------------------------------------------------
-  # JOB 1: Compilar en Windows
-  # runs-on: windows-latest → GitHub nos da una VM con
-  # Windows Server, Node.js, Rust y el toolchain MSVC ya
-  # instalados. No tenemos que configurar nada manualmente.
+  # JOB 1: Compilar en Windows y subir artifact
   # ----------------------------------------------------------
   build-windows:
     name: Build (Windows)
     runs-on: windows-latest
 
     steps:
-      # PASO 1: Descargar el código del repositorio
-      # "actions/checkout" es una Action oficial de GitHub.
-      # Sin este paso, la VM no tiene ningún archivo del repo.
       - name: Checkout código
         uses: actions/checkout@v4
 
-      # PASO 2: Instalar Node.js (especificamos la versión exacta
-      # para que el build sea reproducible — siempre la misma versión)
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'   # cachea node_modules entre runs → más rápido
+          cache: 'npm'
 
-      # PASO 3: Instalar dependencias JavaScript
-      # "npm ci" (clean install) usa package-lock.json exacto,
-      # a diferencia de "npm install" que puede actualizar versiones.
-      # Es más seguro y determinista para CI.
       - name: Instalar dependencias npm
         run: npm ci
 
-      # PASO 4: Instalar Rust (necesario para compilar Tauri)
-      # "dtolnay/rust-toolchain" instala el toolchain de Rust
-      # especificado. "stable" = versión estable más reciente.
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      # PASO 5: Caché de Cargo (el gestor de paquetes de Rust)
-      # Sin caché, Rust descarga y compila TODAS las dependencias
-      # en cada run (~5-10 minutos extra). Con caché: ~30 segundos.
       - name: Cache Cargo
         uses: actions/cache@v4
         with:
@@ -81,12 +81,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      # PASO 6: Compilar la app con Tauri
-      # "tauri-apps/tauri-action" es la Action oficial de Tauri.
-      # tagName y releaseName vacíos = solo compila, sin crear release.
       - name: Build Tauri (Windows)
         uses: tauri-apps/tauri-action@v0
-        id: tauri-windows
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -95,18 +91,6 @@ jobs:
           releaseDraft: false
           prerelease: false
 
-      # ----------------------------------------------------------
-      # FASE 2: Subir artifacts
-      # "actions/upload-artifact" guarda los binarios generados
-      # en el servidor de GitHub, asociados a este workflow run.
-      # Duración de retención: 7 días (configurable, máx 90).
-      # Cómo verlos: GitHub → repo → Actions → run → Artifacts
-      #
-      # Los binarios de Tauri en Windows se generan en:
-      # src-tauri/target/release/bundle/
-      #   nsis/      → instalador .exe (NSIS)
-      #   msi/       → instalador .msi (Windows Installer)
-      # ----------------------------------------------------------
       - name: Subir artifacts (Windows)
         uses: actions/upload-artifact@v4
         with:
@@ -118,9 +102,7 @@ jobs:
           if-no-files-found: warn
 
   # ----------------------------------------------------------
-  # JOB 2: Compilar en Linux
-  # Ubuntu necesita librerías del sistema adicionales para
-  # WebKit (el motor del navegador que usa Tauri internamente).
+  # JOB 2: Compilar en Linux y subir artifact
   # ----------------------------------------------------------
   build-linux:
     name: Build (Linux)
@@ -130,11 +112,6 @@ jobs:
       - name: Checkout código
         uses: actions/checkout@v4
 
-      # En Linux, Tauri necesita librerías del sistema operativo
-      # que no vienen preinstaladas en la VM de GitHub.
-      # webkit2gtk: el motor web (muestra la UI de Svelte)
-      # patchelf: herramienta para ajustar binarios ELF de Linux
-      # librsvg2-dev: soporte SVG (para iconos de la app)
       - name: Instalar dependencias del sistema (Linux)
         run: |
           sudo apt-get update
@@ -180,13 +157,6 @@ jobs:
           releaseDraft: false
           prerelease: false
 
-      # ----------------------------------------------------------
-      # FASE 2: Subir artifacts (Linux)
-      # Los binarios de Tauri en Linux se generan en:
-      # src-tauri/target/release/bundle/
-      #   appimage/  → archivo .AppImage (portable, sin instalación)
-      #   deb/       → paquete .deb (Debian/Ubuntu/Mint)
-      # ----------------------------------------------------------
       - name: Subir artifacts (Linux)
         uses: actions/upload-artifact@v4
         with:
@@ -196,3 +166,67 @@ jobs:
             src-tauri/target/release/bundle/deb/*.deb
           retention-days: 7
           if-no-files-found: warn
+
+  # ----------------------------------------------------------
+  # JOB 3: Crear GitHub Release
+  #
+  # "needs" significa: espera a que build-windows Y build-linux
+  # terminen con éxito antes de empezar este job.
+  # Si cualquiera de los dos falla, este job no se ejecuta.
+  #
+  # Flujo:
+  # 1. Descargar los artifacts subidos por los jobs anteriores
+  # 2. Crear el GitHub Release con softprops/action-gh-release
+  # 3. Adjuntar todos los binarios al release
+  # ----------------------------------------------------------
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [build-windows, build-linux]
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      # Descargar artifact de Windows generado en build-windows
+      # Se descarga en la carpeta "artifacts/windows/"
+      - name: Descargar artifacts Windows
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-binaries
+          path: artifacts/windows
+
+      # Descargar artifact de Linux generado en build-linux
+      - name: Descargar artifacts Linux
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-binaries
+          path: artifacts/linux
+
+      # Listar los archivos descargados (útil para depurar si algo falla)
+      - name: Listar artifacts descargados
+        run: find artifacts/ -type f | sort
+
+      # Crear el GitHub Release y adjuntar todos los binarios.
+      #
+      # softprops/action-gh-release es la acción más usada para esto.
+      # Lee el tag del push (github.ref_name → "v1.0.1") y crea
+      # un release con ese nombre.
+      #
+      # "files:" acepta glob patterns. "artifacts/**/*" = todos los
+      # archivos dentro de cualquier subcarpeta de artifacts/.
+      #
+      # draft: true → el release se crea como borrador.
+      # Puedes editarlo en GitHub antes de publicarlo.
+      # Cuando estés listo, lo publicas manualmente con un clic.
+      # Cambia a false cuando quieras publicación automática total.
+      - name: Crear GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ThreadsVault Desktop ${{ github.ref_name }}
+          draft: true
+          prerelease: false
+          generate_release_notes: true
+          files: artifacts/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
