@@ -2,9 +2,9 @@
 # ThreadsVault Desktop — GitHub Actions Release Workflow
 # ============================================================
 #
-# FASE 1: Solo build (verifica que la app compila en CI)
-# FASE 2: Subir artifacts (binarios disponibles en GitHub)  ← pendiente
-# FASE 3: Crear Release automático al hacer git tag          ← pendiente
+# FASE 1: Solo build (verifica que la app compila en CI)       ✓
+# FASE 2: Subir artifacts (binarios disponibles en GitHub)     ✓
+# FASE 3: Crear Release automático al hacer git tag            ← pendiente
 #
 # Documentación PBL: docs/0103/pbl-release-tasks.md
 # ============================================================
@@ -13,7 +13,7 @@ name: Release
 
 # ------------------------------------------------------------
 # TRIGGER: ¿Cuándo se ejecuta este workflow?
-# Por ahora: en cada push a la rama main.
+# Por ahora: en cada push a main (Fases 1 y 2).
 # En Fase 3 cambiaremos a: push de tags "v*" (ej: v1.0.1)
 # ------------------------------------------------------------
 on:
@@ -83,10 +83,10 @@ jobs:
 
       # PASO 6: Compilar la app con Tauri
       # "tauri-apps/tauri-action" es la Action oficial de Tauri.
-      # En Fase 1 solo compila — no crea release ni sube binarios.
-      # tagName y releaseName están vacíos a propósito.
+      # tagName y releaseName vacíos = solo compila, sin crear release.
       - name: Build Tauri (Windows)
         uses: tauri-apps/tauri-action@v0
+        id: tauri-windows
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -94,6 +94,28 @@ jobs:
           releaseName: ''
           releaseDraft: false
           prerelease: false
+
+      # ----------------------------------------------------------
+      # FASE 2: Subir artifacts
+      # "actions/upload-artifact" guarda los binarios generados
+      # en el servidor de GitHub, asociados a este workflow run.
+      # Duración de retención: 7 días (configurable, máx 90).
+      # Cómo verlos: GitHub → repo → Actions → run → Artifacts
+      #
+      # Los binarios de Tauri en Windows se generan en:
+      # src-tauri/target/release/bundle/
+      #   nsis/      → instalador .exe (NSIS)
+      #   msi/       → instalador .msi (Windows Installer)
+      # ----------------------------------------------------------
+      - name: Subir artifacts (Windows)
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-binaries
+          path: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/msi/*.msi
+          retention-days: 7
+          if-no-files-found: warn
 
   # ----------------------------------------------------------
   # JOB 2: Compilar en Linux
@@ -157,3 +179,20 @@ jobs:
           releaseName: ''
           releaseDraft: false
           prerelease: false
+
+      # ----------------------------------------------------------
+      # FASE 2: Subir artifacts (Linux)
+      # Los binarios de Tauri en Linux se generan en:
+      # src-tauri/target/release/bundle/
+      #   appimage/  → archivo .AppImage (portable, sin instalación)
+      #   deb/       → paquete .deb (Debian/Ubuntu/Mint)
+      # ----------------------------------------------------------
+      - name: Subir artifacts (Linux)
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-binaries
+          path: |
+            src-tauri/target/release/bundle/appimage/*.AppImage
+            src-tauri/target/release/bundle/deb/*.deb
+          retention-days: 7
+          if-no-files-found: warn
