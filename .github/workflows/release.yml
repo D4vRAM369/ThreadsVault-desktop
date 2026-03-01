@@ -1,0 +1,159 @@
+# ============================================================
+# ThreadsVault Desktop — GitHub Actions Release Workflow
+# ============================================================
+#
+# FASE 1: Solo build (verifica que la app compila en CI)
+# FASE 2: Subir artifacts (binarios disponibles en GitHub)  ← pendiente
+# FASE 3: Crear Release automático al hacer git tag          ← pendiente
+#
+# Documentación PBL: docs/0103/pbl-release-tasks.md
+# ============================================================
+
+name: Release
+
+# ------------------------------------------------------------
+# TRIGGER: ¿Cuándo se ejecuta este workflow?
+# Por ahora: en cada push a la rama main.
+# En Fase 3 cambiaremos a: push de tags "v*" (ej: v1.0.1)
+# ------------------------------------------------------------
+on:
+  push:
+    branches:
+      - main
+
+# ------------------------------------------------------------
+# JOBS: unidades de trabajo. Cada job corre en su propia
+# máquina virtual, en paralelo (salvo que declares 'needs').
+# ------------------------------------------------------------
+jobs:
+
+  # ----------------------------------------------------------
+  # JOB 1: Compilar en Windows
+  # runs-on: windows-latest → GitHub nos da una VM con
+  # Windows Server, Node.js, Rust y el toolchain MSVC ya
+  # instalados. No tenemos que configurar nada manualmente.
+  # ----------------------------------------------------------
+  build-windows:
+    name: Build (Windows)
+    runs-on: windows-latest
+
+    steps:
+      # PASO 1: Descargar el código del repositorio
+      # "actions/checkout" es una Action oficial de GitHub.
+      # Sin este paso, la VM no tiene ningún archivo del repo.
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      # PASO 2: Instalar Node.js (especificamos la versión exacta
+      # para que el build sea reproducible — siempre la misma versión)
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'   # cachea node_modules entre runs → más rápido
+
+      # PASO 3: Instalar dependencias JavaScript
+      # "npm ci" (clean install) usa package-lock.json exacto,
+      # a diferencia de "npm install" que puede actualizar versiones.
+      # Es más seguro y determinista para CI.
+      - name: Instalar dependencias npm
+        run: npm ci
+
+      # PASO 4: Instalar Rust (necesario para compilar Tauri)
+      # "dtolnay/rust-toolchain" instala el toolchain de Rust
+      # especificado. "stable" = versión estable más reciente.
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # PASO 5: Caché de Cargo (el gestor de paquetes de Rust)
+      # Sin caché, Rust descarga y compila TODAS las dependencias
+      # en cada run (~5-10 minutos extra). Con caché: ~30 segundos.
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            src-tauri/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      # PASO 6: Compilar la app con Tauri
+      # "tauri-apps/tauri-action" es la Action oficial de Tauri.
+      # En Fase 1 solo compila — no crea release ni sube binarios.
+      # tagName y releaseName están vacíos a propósito.
+      - name: Build Tauri (Windows)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ''
+          releaseName: ''
+          releaseDraft: false
+          prerelease: false
+
+  # ----------------------------------------------------------
+  # JOB 2: Compilar en Linux
+  # Ubuntu necesita librerías del sistema adicionales para
+  # WebKit (el motor del navegador que usa Tauri internamente).
+  # ----------------------------------------------------------
+  build-linux:
+    name: Build (Linux)
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      # En Linux, Tauri necesita librerías del sistema operativo
+      # que no vienen preinstaladas en la VM de GitHub.
+      # webkit2gtk: el motor web (muestra la UI de Svelte)
+      # patchelf: herramienta para ajustar binarios ELF de Linux
+      # librsvg2-dev: soporte SVG (para iconos de la app)
+      - name: Instalar dependencias del sistema (Linux)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Instalar dependencias npm
+        run: npm ci
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            src-tauri/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build Tauri (Linux)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ''
+          releaseName: ''
+          releaseDraft: false
+          prerelease: false
