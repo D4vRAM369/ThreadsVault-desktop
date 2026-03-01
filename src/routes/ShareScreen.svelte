@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
+  import { onMount, onDestroy } from 'svelte'
   import { categories, savePost } from '../lib/stores/vault'
   import { getStorage } from '../lib/storage/index'
-  import { parseThreadsAuthor, isValidThreadsUrl } from '../lib/utils/url-parser'
+  import { parseThreadsAuthor, isValidThreadsUrl, cleanThreadsUrl } from '../lib/utils/url-parser'
   import { extractPostData } from '../lib/utils/post-extractor'
   import { cachePostMediaLocally } from '../lib/utils/media-cache'
   import type { Post } from '../lib/types'
@@ -13,12 +13,21 @@
   let error         = $state('')
   let saving        = $state(false)
   let extracting    = $state(false)
+  let duplicatePost = $state<Post | null>(null)
 
-  async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T | null> {
+  // AbortController para cancelar la extracción si el componente se desmonta
+  let abortController: AbortController | null = null
+
+  onDestroy(() => {
+    abortController?.abort()
+  })
+
+  function withTimeout<T>(promise: Promise<T>, ms: number, signal?: AbortSignal): Promise<T | null> {
     return new Promise((resolve) => {
       const timer = setTimeout(() => resolve(null), ms)
+      signal?.addEventListener('abort', () => { clearTimeout(timer); resolve(null) })
       promise
-        .then((value) => resolve(value))
+        .then((value) => { if (!signal?.aborted) resolve(value) })
         .catch(() => resolve(null))
         .finally(() => clearTimeout(timer))
     })
@@ -31,7 +40,7 @@
     if ($categories.length > 0) selectedCatId = $categories[0].id
   })
 
-  async function handleSave() {
+  async function handleSave(skipDuplicateCheck = false) {
     if (!isValidThreadsUrl(url)) {
       error = 'Introduce una URL válida de Threads (threads.net o threads.com)'
       return
@@ -40,17 +49,44 @@
       error = 'Selecciona una categoría'
       return
     }
+
+    const cleanUrl = cleanThreadsUrl(url.trim())
+
+    // Detección de duplicados: comparar URL limpia contra posts existentes
+    if (!skipDuplicateCheck) {
+      const storage = await getStorage()
+      const posts = await storage.getPosts()
+      const found = posts.find((p) =>
+        cleanThreadsUrl(p.url) === cleanUrl ||
+        (p.canonicalUrl ? cleanThreadsUrl(p.canonicalUrl) === cleanUrl : false)
+      )
+      if (found) {
+        duplicatePost = found
+        return
+      }
+    }
+
+    duplicatePost = null
     saving = true
     error  = ''
 
-    const cleanUrl = url.trim()
+    abortController = new AbortController()
+    const signal = abortController.signal
+
     let extracted: Awaited<ReturnType<typeof extractPostData>> | null = null
     extracting = true
     // PBL: 12s — los 3 fetches corren en paralelo (~8s max cada uno)
-    extracted = await withTimeout(extractPostData(cleanUrl), 12000)
+    extracted = await withTimeout(extractPostData(url.trim()), 12000, signal)
     extracting = false
+    abortController = null
 
-    const author = extracted?.author || parseThreadsAuthor(cleanUrl) || '@desconocido'
+    // Si el componente fue desmontado durante la extracción, no seguir
+    if (signal.aborted) {
+      saving = false
+      return
+    }
+
+    const author = extracted?.author || parseThreadsAuthor(url.trim()) || '@desconocido'
     const post: Post = {
       id: crypto.randomUUID(),
       url: extracted?.canonicalUrl ?? cleanUrl,
@@ -182,6 +218,30 @@
       </div>
     </div>
 
+    <!-- Aviso de duplicado -->
+    {#if duplicatePost}
+      <div class="flex flex-col gap-2 px-3 py-3 rounded-xl text-sm"
+           style="background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.25)">
+        <p style="color: #fde68a; font-weight: 600">⚠ Ya tienes este post guardado</p>
+        <p style="color: var(--vault-on-bg-muted)">
+          Guardado por <strong style="color: var(--vault-on-bg)">{duplicatePost.author}</strong>
+          el {new Date(duplicatePost.savedAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
+        </p>
+        <div class="flex gap-2 mt-1">
+          <button
+            onclick={() => handleSave(true)}
+            class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200"
+            style="background: rgba(251,191,36,0.15); color: #fde68a; border: 1px solid rgba(251,191,36,0.3)"
+          >Guardar igualmente</button>
+          <button
+            onclick={() => { const id = duplicatePost!.id; duplicatePost = null; window.location.hash = `#/post/${id}` }}
+            class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200"
+            style="background: var(--vault-surface); color: var(--vault-on-bg-muted); border: 1px solid var(--vault-border)"
+          >Ver post existente</button>
+        </div>
+      </div>
+    {/if}
+
     {#if error}
       <div class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm"
            style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); color: #fca5a5">
@@ -196,7 +256,7 @@
       Solo CSS, cero JS extra.
     -->
     <button
-      onclick={handleSave}
+      onclick={() => handleSave()}
       disabled={saving}
       class="w-full py-3.5 rounded-xl font-bold text-white transition-all duration-300 disabled:opacity-50"
       style="

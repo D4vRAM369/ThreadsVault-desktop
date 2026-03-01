@@ -70,7 +70,11 @@ export class DexieStorage implements StorageAdapter {
   }
 
   async deleteCategory(id: string): Promise<void> {
-    await this.db.categories.delete(id)
+    await this.db.transaction('rw', [this.db.posts, this.db.categories], async () => {
+      // Reasignar posts huérfanos a "General" antes de borrar la categoría
+      await this.db.posts.where('categoryId').equals(id).modify({ categoryId: 'cat-default-1' })
+      await this.db.categories.delete(id)
+    })
   }
 
   async exportBackup(): Promise<string> {

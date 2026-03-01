@@ -180,6 +180,11 @@ export class SqliteStorage implements StorageAdapter {
   }
 
   async deleteCategory(id: string): Promise<void> {
+    // Reasignar posts huérfanos a "General" antes de borrar la categoría
+    await this.db.execute(
+      "UPDATE posts SET categoryId = 'cat-default-1' WHERE categoryId = $1",
+      [id]
+    )
     await this.db.execute('DELETE FROM categories WHERE id = $1', [id])
   }
 
@@ -196,9 +201,16 @@ export class SqliteStorage implements StorageAdapter {
 
   async importBackup(json: string): Promise<void> {
     const data = normalizeBackupPayload(JSON.parse(json))
-    await this.db.execute('DELETE FROM posts')
-    await this.db.execute('DELETE FROM categories')
-    for (const post of data.posts as Post[]) await this.savePost(post)
-    for (const cat of data.categories as Category[]) await this.saveCategory(cat)
+    try {
+      await this.db.execute('BEGIN TRANSACTION')
+      await this.db.execute('DELETE FROM posts')
+      await this.db.execute('DELETE FROM categories')
+      for (const post of data.posts as Post[]) await this.savePost(post)
+      for (const cat of data.categories as Category[]) await this.saveCategory(cat)
+      await this.db.execute('COMMIT')
+    } catch (error) {
+      try { await this.db.execute('ROLLBACK') } catch { /* ignorar error de rollback */ }
+      throw error
+    }
   }
 }
