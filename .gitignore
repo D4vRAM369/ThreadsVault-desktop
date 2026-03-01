@@ -27,3 +27,6 @@ src-tauri/target/
 
 # Documentación local de estudio (no va al repo)
 docs/
+
+# Claude Code config local
+.claude/
