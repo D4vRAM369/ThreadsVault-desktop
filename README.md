@@ -1,47 +1,128 @@
-# Svelte + TS + Vite
+# ThreadsVault Desktop
 
-This template should help get you started developing with Svelte and TypeScript in Vite.
+<!-- badges -->
+![Plataforma](https://img.shields.io/badge/plataforma-Windows%20%7C%20Linux-blue)
+![Tauri](https://img.shields.io/badge/Tauri-v2-orange)
+![Svelte](https://img.shields.io/badge/Svelte-5-red)
+![Licencia](https://img.shields.io/badge/licencia-GPL--3.0-green)
+![PBL](https://img.shields.io/badge/método-PBL-blueviolet)
 
-## Recommended IDE Setup
+> Una bóveda local para tus posts de Threads. Sin nube. Sin rastreo. Sin cuenta necesaria.
 
-[VS Code](https://code.visualstudio.com/) + [Svelte](https://marketplace.visualstudio.com/items?itemName=svelte.svelte-vscode).
+ThreadsVault Desktop es la versión de escritorio de [ThreadsVault para Android](https://github.com/D4vRAM369/ThreadsVault). Pega la URL de un post de Threads — se extrae, se guarda localmente, y es tuyo. Cierra la app, ábrela un año después: tus posts siguen ahí.
 
-## Need an official Svelte framework?
+---
 
-Check out [SvelteKit](https://github.com/sveltejs/kit#readme), which is also powered by Vite. Deploy anywhere with its serverless-first approach and adapt to various platforms, with out of the box support for TypeScript, SCSS, and Less, and easily-added support for mdsvex, GraphQL, PostCSS, Tailwind CSS, and more.
+## Características principales
 
-## Technical considerations
+- **Guardar posts por URL** — pega un enlace de Threads y pulsa guardar. Título, autor, texto e imágenes se extraen automáticamente.
+- **Almacenamiento local** — SQLite en escritorio (vía Tauri), IndexedDB en navegador. Nada sale de tu dispositivo.
+- **Categorías** — organiza tus posts en categorías personalizadas. Los no categorizados van a una bandeja por defecto.
+- **Backup y restauración** — exporta toda tu bóveda como JSON e impórtala cuando quieras.
+- **Caché de medios** — las imágenes se cachean localmente como data URLs para que los posts sobrevivan la expiración de los enlaces CDN.
+- **Reproductor de vídeo** — reproductor embebido para vídeos de Threads con manejo de fallos CDN.
+- **Sin telemetría** — sin analíticas, sin informes de errores, sin peticiones externas más allá de la extracción del post.
 
-**Why use this over SvelteKit?**
+---
 
-- It brings its own routing solution which might not be preferable for some users.
-- It is first and foremost a framework that just happens to use Vite under the hood, not a Vite app.
+## Instalación
 
-This template contains as little as possible to get started with Vite + TypeScript + Svelte, while taking into account the developer experience with regards to HMR and intellisense. It demonstrates capabilities on par with the other `create-vite` templates and is a good starting point for beginners dipping their toes into a Vite + Svelte project.
+### Windows
 
-Should you later need the extended capabilities and extensibility provided by SvelteKit, the template has been structured similarly to SvelteKit so that it is easy to migrate.
+Descarga el instalador `.exe` desde [Releases](../../releases) y ejecútalo.
+Instalador NSIS — instala en `%LocalAppData%\threadsvault-desktop` y crea un acceso directo en el Menú Inicio.
 
-**Why `global.d.ts` instead of `compilerOptions.types` inside `jsconfig.json` or `tsconfig.json`?**
+### Linux
 
-Setting `compilerOptions.types` shuts out all other types not explicitly listed in the configuration. Using triple-slash references keeps the default TypeScript setting of accepting type information from the entire workspace, while also adding `svelte` and `vite/client` type information.
+Dos opciones disponibles en [Releases](../../releases):
 
-**Why include `.vscode/extensions.json`?**
+| Formato | Cómo usarlo |
+|---|---|
+| `.AppImage` | `chmod +x ThreadsVault_*.AppImage && ./ThreadsVault_*.AppImage` |
+| `.deb` | `sudo dpkg -i threadsvault-desktop_*.deb` |
 
-Other templates indirectly recommend extensions via the README, but this file allows VS Code to prompt the user to install the recommended extension upon opening the project.
+> **Nota:** AppImage requiere FUSE. En Ubuntu 22.04+ instala `sudo apt install libfuse2` si el AppImage no arranca.
 
-**Why enable `allowJs` in the TS template?**
+---
 
-While `allowJs: false` would indeed prevent the use of `.js` files in the project, it does not prevent the use of JavaScript syntax in `.svelte` files. In addition, it would force `checkJs: false`, bringing the worst of both worlds: not being able to guarantee the entire codebase is TypeScript, and also having worse typechecking for the existing JavaScript. In addition, there are valid use cases in which a mixed codebase may be relevant.
+## Cómo funciona
 
-**Why is HMR not preserving my local component state?**
+1. Copia la URL de un post de Threads (ej. `https://www.threads.net/@usuario/post/abc123`)
+2. Abre la app → pulsa el botón **+** (pantalla Compartir)
+3. Pega la URL y pulsa **Guardar**
+4. La app extrae el contenido mediante [Jina Reader](https://jina.ai/reader/) — un proxy con navegador headless — porque Threads es una SPA en React que devuelve HTML vacío en peticiones directas
+5. El post se guarda localmente. Listo.
 
-HMR state preservation comes with a number of gotchas! It has been disabled by default in both `svelte-hmr` and `@sveltejs/vite-plugin-svelte` due to its often surprising behavior. You can read the details [here](https://github.com/rixo/svelte-hmr#svelte-hmr).
+---
 
-If you have state that's important to retain within a component, consider creating an external store which would not be replaced by HMR.
+## Privacidad
 
-```ts
-// store.ts
-// An extremely simple external store
-import { writable } from 'svelte/store'
-export default writable(0)
+- Todos los datos se almacenan en una base de datos SQLite local (`%AppData%\threadsvault-desktop` en Windows, `~/.local/share/threadsvault-desktop` en Linux)
+- La única petición externa que se realiza es a `r.jina.ai` durante la extracción del post — y solo cuando guardas un post explícitamente
+- Sin datos de uso, sin informes de errores, sin telemetría de ningún tipo
+
+---
+
+## Limitaciones conocidas
+
+- **Solo Threads** — diseñado específicamente para posts de Threads; otras URLs pueden no extraerse correctamente
+- **La extracción depende de Jina** — si `r.jina.ai` está caído o aplica rate-limit, la extracción falla de forma controlada
+- **Enlaces de vídeo CDN** — los CDN de Threads expiran; la app intenta un re-fetch de la página al fallar la reproducción
+- **Sin búsqueda** — búsqueda de texto completo planificada para v1.1+
+- **Sin operaciones en bulk** — borrar o recategorizar múltiples posts a la vez: v1.1+
+- **macOS no soportado** — requiere cuenta Apple Developer ($99/año) para notarización; no planificado para v1.x
+
+---
+
+## Compilar desde el código fuente
+
+**Requisitos previos:**
+- [Node.js](https://nodejs.org/) 20+
+- [Rust](https://rustup.rs/) (toolchain stable)
+- En Linux: `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `patchelf` (`sudo apt install ...`)
+
+```bash
+git clone https://github.com/D4vRAM369/threadsvault-desktop
+cd threadsvault-desktop
+npm install
+npm run tauri build
 ```
+
+El binario compilado estará en `src-tauri/target/release/bundle/`.
+
+Para desarrollo con hot-reload:
+```bash
+npm run tauri dev
+```
+
+O solo en navegador (sin Tauri, usa IndexedDB en lugar de SQLite):
+```bash
+npm run dev
+```
+
+---
+
+## Stack técnico
+
+| Capa | Tecnología |
+|---|---|
+| Shell | Tauri v2 |
+| Frontend | Svelte 5 (runes) + TypeScript |
+| Estilos | Tailwind CSS v4 |
+| Almacenamiento (escritorio) | SQLite vía `@tauri-apps/plugin-sql` |
+| Almacenamiento (navegador) | Dexie (IndexedDB) |
+| Extracción de posts | Jina Reader (`r.jina.ai`) |
+
+---
+
+## Método de desarrollo
+
+Construido mediante **PBL (Project-Based Learning)** — problemas reales impulsando funcionalidades reales, documentados como artefactos de aprendizaje. Las sesiones de desarrollo están registradas en `docs/`.
+
+Desarrollado principalmente con asistencia de **Claude Code** y en menor medida con **ChatGPT-5.3-Codex**.
+
+---
+
+## Licencia
+
+[GPL-3.0](LICENSE) — igual que ThreadsVault para Android.
