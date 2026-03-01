@@ -51,8 +51,8 @@
     {/await}
 
   {:else}
-    <div class="flex items-center justify-center h-screen" style="color: var(--vault-on-bg-muted)">
-      <p>Ruta no encontrada</p>
-    </div>
+    {#await import('./lib/components/NotFound.svelte') then { default: NotFound }}
+      <NotFound />
+    {/await}
   {/if}
 </main>
