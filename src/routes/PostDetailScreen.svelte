@@ -26,6 +26,8 @@
     source?: 'desktop' | 'web' | 'embed'
     embedHtml?: string   // HTML del reproductor oficial oEmbed de Threads
   }>>({})
+  // URLs resueltas en caliente para media type:'video' con CDN expirado
+  let resolvedVideoSrcs = $state<Record<string, string>>({})
   let showFailedMedia = $state(false)
   let refreshedMediaOnce = $state(false)
   let category      = $derived($categories.find(c => c.id === post?.categoryId))
@@ -228,6 +230,20 @@
     return mediaSourceIndex[media.id] ?? 0
   }
 
+  // Cuando un media type:'video' falla (CDN firmado expirado), intenta el
+  // resolver de Rust en Tauri para obtener una URL fresca via GraphQL.
+  async function tryResolveExpiredVideo(media: PostMedia) {
+    if (!post || !isTauriEnvironment()) return
+    const postUrl = post.canonicalUrl ?? post.url
+    const resolution = await resolveDesktopVideo(postUrl)
+    if (resolution?.playableUrl) {
+      resolvedVideoSrcs = { ...resolvedVideoSrcs, [media.id]: resolution.playableUrl }
+      const next = new Set(failedMediaIds)
+      next.delete(media.id)
+      failedMediaIds = next
+    }
+  }
+
   function markMediaFailed(media: PostMedia) {
     if (failedMediaIds.has(media.id)) return
     const next = new Set(failedMediaIds)
@@ -235,6 +251,11 @@
     failedMediaIds = next
     if (!refreshedMediaOnce) {
       void refreshMedia('auto')
+    }
+    // CDN de Threads usa URLs firmadas que expiran (~24-48h).
+    // Si un video falla y estamos en Tauri, pedimos URL fresca al resolver Rust.
+    if (media.type === 'video') {
+      void tryResolveExpiredVideo(media)
     }
   }
 
@@ -253,6 +274,7 @@
   }
 
   function getMediaSource(media: PostMedia): string {
+    if (resolvedVideoSrcs[media.id]) return resolvedVideoSrcs[media.id]
     const candidates = getMediaCandidates(media)
     const index = getCurrentSourceIndex(media)
     return candidates[Math.min(index, Math.max(candidates.length - 1, 0))] ?? media.url

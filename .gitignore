@@ -22,4 +22,5 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-docs/exports/2026-02-27-pbl-miniaturas-home.md
+# Documentación local de estudio (no va al repo)
+docs/
