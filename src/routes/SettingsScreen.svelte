@@ -6,6 +6,7 @@
   import { invoke } from '@tauri-apps/api/core'
 
   let exportStatus = $state<'idle' | 'success' | 'error'>('idle')
+  let exportSavedPath = $state('')
   let importStatus = $state<'idle' | 'success' | 'error'>('idle')
   let importError  = $state('')
   // pendingFile guarda el archivo seleccionado mientras el usuario decide si confirmar.
@@ -23,17 +24,33 @@
   }
 
   async function handleExport() {
-    const storage = await getStorage()
-    const json    = await storage.exportBackup()
-    const blob    = new Blob([json], { type: 'application/json' })
-    const url     = URL.createObjectURL(blob)
-    const a       = document.createElement('a')
-    a.href        = url
-    a.download    = `threadsvault-backup-${Date.now()}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-    exportStatus  = 'success'
-    setTimeout(() => exportStatus = 'idle', 3000)
+    const storage  = await getStorage()
+    const json     = await storage.exportBackup()
+    const filename = `threadsvault-backup-${Date.now()}.json`
+
+    if ('__TAURI_INTERNALS__' in window) {
+      // En Tauri: WebView2 descarta los downloads via Blob URL.
+      // Usamos el comando Rust save_backup que escribe directamente en ~/Downloads.
+      try {
+        const savedPath = await invoke<string>('save_backup', { content: json, filename })
+        exportSavedPath = savedPath
+        exportStatus    = 'success'
+        setTimeout(() => { exportStatus = 'idle'; exportSavedPath = '' }, 6000)
+      } catch {
+        exportStatus = 'error'
+        setTimeout(() => exportStatus = 'idle', 3000)
+      }
+    } else {
+      // Fallback modo browser web
+      const blob = new Blob([json], { type: 'application/json' })
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href = url; a.download = filename
+      document.body.appendChild(a); a.click(); document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      exportStatus = 'success'
+      setTimeout(() => exportStatus = 'idle', 3000)
+    }
   }
 
   // Paso 1: el usuario selecciona un archivo → guardarlo y mostrar modal de confirmación.
@@ -138,13 +155,27 @@
         </p>
       </div>
       {#if exportStatus === 'success'}
-        <span class="text-xs font-semibold" style="color: #4ade80; font-family: var(--font-display)">✓ Listo</span>
+        <span class="text-xs font-semibold" style="color: #4ade80; font-family: var(--font-display)">✓ Guardado</span>
+      {:else if exportStatus === 'error'}
+        <span class="text-xs font-semibold" style="color: #f87171; font-family: var(--font-display)">✗ Error</span>
       {:else}
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--vault-on-bg-muted)" stroke-width="2">
           <polyline points="9 18 15 12 9 6"/>
         </svg>
       {/if}
     </button>
+
+    <!-- Ruta de guardado — aparece bajo el botón cuando exportStatus === 'success' -->
+    {#if exportStatus === 'success' && exportSavedPath}
+      <div class="px-4 sm:px-5 pb-2" style="animation: fadeIn 0.2s ease">
+        <p class="text-xs font-mono" style="
+          color: #4ade80;
+          opacity: 0.85;
+          word-break: break-all;
+          line-height: 1.5;
+        ">📁 {exportSavedPath}</p>
+      </div>
+    {/if}
 
     <!-- Separador -->
     <div style="height: 1px; background: rgba(255,255,255,0.07); margin: 0 16px"></div>

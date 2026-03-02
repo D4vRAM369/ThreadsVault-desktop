@@ -314,10 +314,33 @@ fn open_url(url: String) -> Result<(), String> {
     open::that(url).map_err(|e| e.to_string())
 }
 
+// ---------------------------------------------------------------------------
+// save_backup — guarda el JSON de backup en la carpeta Descargas del usuario
+//
+// WebView2 descarta silenciosamente los downloads via <a download> + Blob URL.
+// Este comando lo resuelve desde Rust nativo con std::fs::write, que tiene
+// permisos OS completos sin necesitar plugins adicionales.
+// Devuelve la ruta completa del archivo para mostrarla al usuario.
+// ---------------------------------------------------------------------------
+#[tauri::command]
+fn save_backup(content: String, filename: String) -> Result<String, String> {
+    let home = std::env::var("USERPROFILE")
+        .or_else(|_| std::env::var("HOME"))
+        .map_err(|_| String::from("No se encontró el directorio de usuario"))?;
+
+    let downloads = std::path::Path::new(&home).join("Downloads");
+    std::fs::create_dir_all(&downloads).ok();
+
+    let file_path = downloads.join(&filename);
+    std::fs::write(&file_path, content.as_bytes()).map_err(|e| e.to_string())?;
+
+    Ok(file_path.to_string_lossy().to_string())
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_sql::Builder::default().build())
-        .invoke_handler(tauri::generate_handler![resolve_threads_video, open_url])
+        .invoke_handler(tauri::generate_handler![resolve_threads_video, open_url, save_backup])
         .run(tauri::generate_context!())
         .expect("error while running ThreadsVault desktop");
 }
