@@ -89,20 +89,31 @@ export function normalizeBackupPayload(raw: unknown): NormalizedBackup {
 
   const root = raw as {
     categories?: unknown[]
+    categorias?: unknown[]   // compatibilidad ThreadsVault Android (clave en español)
     posts?: unknown[]
     exportedAt?: unknown
     exportedAtMillis?: unknown
   }
 
-  if (!Array.isArray(root.categories) || !Array.isArray(root.posts)) {
-    throw new Error('Formato de backup inválido: faltan categorías o posts')
+  // PBL: Android exporta la clave raíz como "categorias" (español).
+  // Desktop usa "categories" (inglés). Aceptamos ambas para garantizar
+  // compatibilidad cruzada. Si ninguna existe → array vacío → fallback "General".
+  // Posts sí es obligatorio (sin ellos no hay nada que importar).
+  const rawCategories: unknown[] = Array.isArray(root.categories)
+    ? root.categories
+    : Array.isArray(root.categorias)
+      ? root.categorias
+      : []
+
+  if (!Array.isArray(root.posts)) {
+    throw new Error('Formato de backup inválido: faltan posts')
   }
 
   const categories: Category[] = []
   const categoryNameToId = new Map<string, string>()
   const categoryIds = new Set<string>()
 
-  root.categories.forEach((entry, index) => {
+  rawCategories.forEach((entry, index) => {
     const item = (entry ?? {}) as Record<string, unknown>
     const name = safeString(item.name ?? item.nombre ?? item.categoryName)
     if (!name) return
