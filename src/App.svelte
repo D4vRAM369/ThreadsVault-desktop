@@ -50,11 +50,6 @@
         window.location.hash = '#/share'
       }
 
-      // Ctrl/Cmd + , → ajustes
-      if (e.key === ',' && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault()
-        window.location.hash = '#/settings'
-      }
     }
 
     window.addEventListener('hashchange', onHashChange)
@@ -86,7 +81,9 @@
 
   {:else if currentRoute.startsWith('#/post/')}
     {#await import('./routes/PostDetailScreen.svelte') then { default: PostDetailScreen }}
-      <PostDetailScreen postId={getPostId()} />
+      {#key getPostId()}
+        <PostDetailScreen postId={getPostId()} />
+      {/key}
     {/await}
 
   {:else if currentRoute === '#/settings'}

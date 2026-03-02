@@ -3,12 +3,23 @@
   import { loadVault } from '../lib/stores/vault'
   import CategoryManager from '../components/CategoryManager.svelte'
 
+  import { invoke } from '@tauri-apps/api/core'
+
   let exportStatus = $state<'idle' | 'success' | 'error'>('idle')
   let importStatus = $state<'idle' | 'success' | 'error'>('idle')
   let importError  = $state('')
   // pendingFile guarda el archivo seleccionado mientras el usuario decide si confirmar.
   // File | null significa: puede ser un objeto File (archivo) o null (ninguno pendiente).
-  let pendingFile  = $state<File | null>(null)
+  let pendingFile   = $state<File | null>(null)
+  let showAboutDev  = $state(false)
+
+  async function openExternal(url: string) {
+    if ('__TAURI_INTERNALS__' in window) {
+      await invoke('open_url', { url })
+    } else {
+      window.open(url, '_blank', 'noopener')
+    }
+  }
 
   async function handleExport() {
     const storage = await getStorage()
@@ -225,30 +236,131 @@
     letter-spacing: 0.12em;
   ">Acerca de</p>
 
-  <div class="rounded-2xl sm:rounded-3xl p-4 sm:p-5 flex items-center gap-3.5" style="
-    background: rgba(255,255,255,0.04);
+  <div class="rounded-2xl sm:rounded-3xl overflow-hidden" style="
     border: 1px solid rgba(255,255,255,0.09);
   ">
-    <div class="w-10 h-10 rounded-full overflow-hidden shrink-0" style="box-shadow: 0 3px 12px rgba(0,0,0,0.5)">
-      <img src="/icon-app.png" alt="ThreadsVault" style="width:100%; height:100%; object-fit:cover; display:block;" />
+    <!-- Fila: info de la app -->
+    <div class="flex items-center gap-3.5 p-4 sm:p-5" style="background: rgba(255,255,255,0.04)">
+      <div class="w-10 h-10 rounded-full overflow-hidden shrink-0" style="box-shadow: 0 3px 12px rgba(0,0,0,0.5)">
+        <img src="/icon-app.png" alt="ThreadsVault" style="width:100%; height:100%; object-fit:cover; display:block;" />
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="font-bold text-sm" style="font-family: var(--font-brand); color: var(--vault-on-bg)">
+          ThreadsVault
+        </p>
+        <p class="text-xs" style="color: var(--vault-on-bg-muted)">Desktop v1.0.0 · Privacy-first</p>
+      </div>
+      <span class="text-xs px-2 py-1 rounded-full" style="
+        background: rgba(124,77,255,0.12);
+        border: 1px solid rgba(124,77,255,0.25);
+        color: var(--vault-primary);
+        font-family: var(--font-display);
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+      ">v1.0</span>
     </div>
-    <div class="flex-1 min-w-0">
-      <p class="font-bold text-sm" style="font-family: var(--font-brand); color: var(--vault-on-bg)">
-        ThreadsVault
-      </p>
-      <p class="text-xs" style="color: var(--vault-on-bg-muted)">Desktop v1.0.0 · Privacy-first</p>
-    </div>
-    <span class="text-xs px-2 py-1 rounded-full" style="
-      background: rgba(124,77,255,0.12);
-      border: 1px solid rgba(124,77,255,0.25);
-      color: var(--vault-primary);
-      font-family: var(--font-display);
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 0.05em;
-    ">v1.0</span>
+
+    <!-- Separador -->
+    <div style="height: 1px; background: rgba(255,255,255,0.07); margin: 0 16px"></div>
+
+    <!-- Fila: About Dev -->
+    <button
+      onclick={() => showAboutDev = true}
+      class="w-full flex items-center gap-3.5 px-4 sm:px-5 py-3.5 sm:py-4 transition-all duration-200 text-left"
+      style="background: rgba(255,255,255,0.04)"
+      onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.08)'}
+      onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)'}
+    >
+      <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style="
+        background: rgba(124,77,255,0.14);
+        border: 1px solid rgba(124,77,255,0.28);
+      ">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--vault-primary)" stroke-width="2">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+          <circle cx="12" cy="7" r="4"/>
+        </svg>
+      </div>
+      <div class="flex-1 min-w-0">
+        <p class="text-sm font-semibold" style="font-family: var(--font-display); color: var(--vault-on-bg)">
+          About Dev
+        </p>
+        <p class="text-xs" style="color: var(--vault-on-bg-muted)">D4vRAM369 · GitHub · BuyMeACoffee</p>
+      </div>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--vault-on-bg-muted)" stroke-width="2">
+        <polyline points="9 18 15 12 9 6"/>
+      </svg>
+    </button>
   </div>
 </div>
+
+<!-- ── Modal About Dev ─────────────────────────────────────────────────── -->
+{#if showAboutDev}
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center p-4"
+    style="background: rgba(0,0,0,0.7); backdrop-filter: blur(8px)"
+    onclick={() => showAboutDev = false}
+    role="dialog"
+    aria-modal="true"
+    aria-label="About Dev"
+  >
+    <div
+      class="glass rounded-2xl p-6 max-w-sm w-full flex flex-col gap-5 animate-fade-up"
+      onclick={(e) => e.stopPropagation()}
+    >
+      <!-- Header -->
+      <div class="flex items-center gap-3">
+        <div class="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style="
+          background: linear-gradient(135deg, rgba(124,77,255,0.25), rgba(0,188,212,0.15));
+          border: 1px solid rgba(124,77,255,0.35);
+          font-size: 1.4rem; line-height: 1;
+        ">👨‍💻</div>
+        <div>
+          <p class="font-bold text-sm" style="font-family: var(--font-display); color: var(--vault-on-bg)">
+            D4vRAM369
+          </p>
+          <p class="text-xs" style="color: var(--vault-on-bg-muted)">Desarrollador de ThreadsVault</p>
+        </div>
+      </div>
+
+      <!-- Links -->
+      <div class="flex flex-col gap-2.5">
+        <button
+          onclick={() => openExternal('https://github.com/D4vRAM369/ThreadsVault-desktop')}
+          class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 text-left"
+          style="background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12); color: var(--vault-on-bg)"
+          onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.11)'}
+          onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.07)'}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="color: var(--vault-on-bg); shrink-0: 0">
+            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
+          </svg>
+          <span>GitHub — ThreadsVault</span>
+        </button>
+
+        <button
+          onclick={() => openExternal('https://buymeacoffee.com/d4vram369')}
+          class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 text-left"
+          style="background: rgba(255,212,0,0.08); border: 1px solid rgba(255,212,0,0.2); color: #ffd700"
+          onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(255,212,0,0.14)'}
+          onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(255,212,0,0.08)'}
+        >
+          <span style="font-size: 1.1rem; line-height: 1">☕</span>
+          <span>BuyMeACoffee</span>
+        </button>
+      </div>
+
+      <!-- Cerrar -->
+      <button
+        onclick={() => showAboutDev = false}
+        class="w-full py-2.5 rounded-xl text-sm font-semibold transition-all duration-200"
+        style="background: var(--vault-surface); color: var(--vault-on-bg-muted); border: 1px solid var(--vault-border)"
+        onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--vault-surface-hover)'}
+        onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--vault-surface)'}
+      >Cerrar</button>
+    </div>
+  </div>
+{/if}
 
 <!-- ── Modal de confirmación de importación ──────────────────────────────
   {#if pendingFile} solo renderiza este bloque cuando hay un archivo pendiente.
