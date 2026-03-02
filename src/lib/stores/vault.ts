@@ -73,6 +73,9 @@ export const activeHashtag  = writable<string | null>(null)
 
 let refreshingStaleMedia = false
 
+export const mediaRefreshState  = writable<'idle' | 'refreshing' | 'done' | 'error'>('idle')
+export const mediaRefreshResult = writable<{ updated: number; failed: number }>({ updated: 0, failed: 0 })
+
 /*
   PBL: derived() crea stores de solo-lectura que se recalculan
   automáticamente cuando cambian sus dependencias.
@@ -158,6 +161,10 @@ function needsMediaRefresh(post: Post): boolean {
 export async function refreshStalePostMedia(limit: number = 6) {
   if (refreshingStaleMedia) return
   refreshingStaleMedia = true
+  mediaRefreshState.set('refreshing')
+
+  let updated = 0
+  let failed  = 0
 
   try {
     const storage = await getStorage()
@@ -185,16 +192,25 @@ export async function refreshStalePostMedia(limit: number = 6) {
         })
 
         await storage.savePost(withCachedMedia)
+        updated++
       } catch (error) {
         console.warn('No se pudo refrescar media antigua', post.url, error)
+        failed++
       }
     }
 
     const refreshedPosts = await storage.getPosts()
     posts.set(refreshedPosts)
     appState.set(refreshedPosts.length === 0 ? 'empty' : 'success')
+    mediaRefreshResult.set({ updated, failed })
+    mediaRefreshState.set(updated === 0 && failed > 0 ? 'error' : 'done')
+  } catch (e) {
+    console.error(e)
+    mediaRefreshResult.set({ updated, failed })
+    mediaRefreshState.set('error')
   } finally {
     refreshingStaleMedia = false
+    setTimeout(() => mediaRefreshState.set('idle'), 4000)
   }
 }
 
