@@ -19,7 +19,13 @@
   }
 
   $effect(() => {
-    document.title = computeTitle(currentRoute, $posts)
+    const title = computeTitle(currentRoute, $posts)
+    document.title = title
+    if ('__TAURI_INTERNALS__' in window) {
+      import('@tauri-apps/api/window').then(({ getCurrentWindow }) => {
+        getCurrentWindow().setTitle(title).catch(() => {})
+      })
+    }
   })
 
   onMount(() => {
