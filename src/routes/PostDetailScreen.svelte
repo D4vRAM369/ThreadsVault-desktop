@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { categories, deletePost, loadVault } from '../lib/stores/vault'
+  import { get } from 'svelte/store'
+  import { categories, deletePost, loadVault, posts, savePost } from '../lib/stores/vault'
   import { getStorage } from '../lib/storage/index'
   import CategoryBadge from '../components/CategoryBadge.svelte'
   import { cleanThreadsUrl, getPostShortId } from '../lib/utils/url-parser'
@@ -14,6 +15,9 @@
   let post          = $state<Post | null>(null)
   let loading       = $state(true)
   let confirmDelete = $state(false)
+  let editingNote   = $state(false)
+  let noteValue     = $state('')
+  let savingNote    = $state(false)
   let refreshingMedia = $state(false)
   let mediaRefreshError = $state('')
   let failedMediaIds = $state<Set<string>>(new Set())
@@ -34,8 +38,9 @@
 
   onMount(async () => {
     const storage = await getStorage()
-    post    = await storage.getPost(postId)
-    loading = false
+    post      = await storage.getPost(postId)
+    noteValue = post?.note ?? ''
+    loading   = false
 
     if (post?.media?.length) {
       for (const media of post.media) {
@@ -44,12 +49,56 @@
         }
       }
     }
+
+    function onKeydown(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        const all = get(posts)
+        const idx = all.findIndex(p => p.id === postId)
+        if (idx === -1) return
+        // ← = más reciente (anterior en la lista) · → = más antiguo (siguiente)
+        const target = e.key === 'ArrowLeft' ? all[idx - 1] : all[idx + 1]
+        if (target) {
+          e.preventDefault()
+          window.location.hash = `#/post/${target.id}`
+        }
+      }
+    }
+
+    window.addEventListener('keydown', onKeydown)
+    return () => window.removeEventListener('keydown', onKeydown)
   })
 
   async function handleDelete() {
     if (!post) return
     await deletePost(post.id)
     window.location.hash = '#/'
+  }
+
+  async function handleSaveNote() {
+    if (!post) return
+    savingNote = true
+    try {
+      const updated: Post = { ...post, note: noteValue.trim() }
+      await savePost(updated)
+      post = updated
+      await loadVault()
+      editingNote = false
+    } finally {
+      savingNote = false
+    }
+  }
+
+  async function handleDeleteNote() {
+    if (!post) return
+    const updated: Post = { ...post, note: '' }
+    await savePost(updated)
+    post = updated
+    noteValue = ''
+    await loadVault()
+    editingNote = false
   }
 
   function formatDate(ts: number): string {
@@ -477,16 +526,128 @@
         <span class="truncate">post/{getPostShortId(post.url)}</span>
       </a>
 
-      <!-- Nota personal con estilo "cita" -->
-      {#if post.note}
-        <div class="rounded-xl p-4 mb-4" style="
-          background: rgba(124,77,255,0.07);
-          border: 1px solid rgba(124,77,255,0.18);
-          border-left: 3px solid var(--vault-primary);
-        ">
-          <p class="text-sm leading-relaxed" style="color: var(--vault-on-bg)">{post.note}</p>
-        </div>
-      {/if}
+      <!-- Nota personal — edición inline -->
+      <div class="mb-4">
+        {#if editingNote}
+          <div class="rounded-xl p-4" style="
+            background: rgba(124,77,255,0.07);
+            border: 1px solid rgba(124,77,255,0.30);
+            border-left: 3px solid var(--vault-primary);
+          ">
+            <textarea
+              bind:value={noteValue}
+              rows="3"
+              placeholder="Escribe tu nota…"
+              class="w-full bg-transparent resize-none text-sm leading-relaxed outline-none"
+              style="
+                color: var(--vault-on-bg);
+                font-family: var(--font-body);
+                border: none;
+                padding: 0;
+                width: 100%;
+                caret-color: var(--vault-primary);
+              "
+            ></textarea>
+            <div class="flex items-center gap-2 mt-3 flex-wrap">
+              <button
+                onclick={handleSaveNote}
+                disabled={savingNote}
+                class="px-3 py-1 rounded-lg text-xs font-semibold transition-all duration-200"
+                style="
+                  background: rgba(124,77,255,0.25);
+                  border: 1px solid rgba(124,77,255,0.45);
+                  color: #e4d6ff;
+                  font-family: var(--font-display);
+                "
+              >{savingNote ? 'Guardando…' : 'Guardar'}</button>
+              <button
+                onclick={() => { editingNote = false; noteValue = post?.note ?? '' }}
+                class="px-3 py-1 rounded-lg text-xs font-semibold transition-all duration-200"
+                style="
+                  background: rgba(255,255,255,0.06);
+                  border: 1px solid rgba(255,255,255,0.12);
+                  color: var(--vault-on-bg-muted);
+                  font-family: var(--font-display);
+                "
+              >Cancelar</button>
+              {#if post.note}
+                <button
+                  onclick={handleDeleteNote}
+                  class="px-3 py-1 rounded-lg text-xs font-semibold ml-auto transition-all duration-200"
+                  style="
+                    background: rgba(239,68,68,0.08);
+                    border: 1px solid rgba(239,68,68,0.22);
+                    color: #fca5a5;
+                    font-family: var(--font-display);
+                  "
+                >Eliminar nota</button>
+              {/if}
+            </div>
+          </div>
+
+        {:else if post.note}
+          <div
+            class="rounded-xl p-4 relative"
+            style="
+              background: rgba(124,77,255,0.07);
+              border: 1px solid rgba(124,77,255,0.18);
+              border-left: 3px solid var(--vault-primary);
+            "
+            onmouseenter={(e) => {
+              const btn = (e.currentTarget as HTMLElement).querySelector<HTMLElement>('.note-edit-btn')
+              if (btn) btn.style.opacity = '1'
+            }}
+            onmouseleave={(e) => {
+              const btn = (e.currentTarget as HTMLElement).querySelector<HTMLElement>('.note-edit-btn')
+              if (btn) btn.style.opacity = '0'
+            }}
+          >
+            <p class="text-sm leading-relaxed pr-8" style="color: var(--vault-on-bg)">{post.note}</p>
+            <button
+              onclick={() => { editingNote = true; noteValue = post?.note ?? '' }}
+              class="note-edit-btn absolute top-3 right-3 w-6 h-6 rounded-lg flex items-center justify-center transition-all duration-150"
+              style="
+                background: rgba(124,77,255,0.15);
+                border: 1px solid rgba(124,77,255,0.28);
+                opacity: 0;
+              "
+              onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(124,77,255,0.28)'}
+              onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(124,77,255,0.15)'}
+              aria-label="Editar nota"
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#c8b4ff" stroke-width="2.5">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+            </button>
+          </div>
+
+        {:else}
+          <button
+            onclick={() => editingNote = true}
+            class="w-full text-left rounded-xl px-4 py-3 transition-all duration-200"
+            style="
+              background: rgba(124,77,255,0.03);
+              border: 1px dashed rgba(124,77,255,0.20);
+              color: rgba(200,180,255,0.40);
+              font-family: var(--font-display);
+              font-size: 0.8rem;
+            "
+            onmouseenter={(e) => {
+              const el = e.currentTarget as HTMLElement
+              el.style.background = 'rgba(124,77,255,0.07)'
+              el.style.borderColor = 'rgba(124,77,255,0.35)'
+              el.style.color = 'rgba(200,180,255,0.65)'
+            }}
+            onmouseleave={(e) => {
+              const el = e.currentTarget as HTMLElement
+              el.style.background = 'rgba(124,77,255,0.03)'
+              el.style.borderColor = 'rgba(124,77,255,0.20)'
+              el.style.color = 'rgba(200,180,255,0.40)'
+            }}
+          >+ Añadir nota personal…</button>
+        {/if}
+      </div>
 
       {#if post.extractedText}
         <div class="rounded-xl p-4 mb-4" style="
