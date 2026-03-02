@@ -1,21 +1,11 @@
 # ThreadsVault Desktop
 
-<img width="400" height="400" alt="threadsvault-desktop-icon" src="https://github.com/user-attachments/assets/e336810d-5130-4b7a-a275-fac97b15acec" />
-
-
 <!-- badges -->
 ![Plataforma](https://img.shields.io/badge/plataforma-Windows%20%7C%20Linux-blue)
-![Cross Platform](https://img.shields.io/badge/Cross--Platform-Desktop%20%7C%20Web-blueviolet)
 ![Tauri](https://img.shields.io/badge/Tauri-v2-orange)
 ![Svelte](https://img.shields.io/badge/Svelte-5-red)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)
-![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-v4-38B2AC?logo=tailwindcss&logoColor=white)
-![SQLite](https://img.shields.io/badge/SQLite-Local_DB-003B57?logo=sqlite&logoColor=white)
-![IndexedDB](https://img.shields.io/badge/IndexedDB-Dexie-yellow)
 ![Licencia](https://img.shields.io/badge/licencia-GPL--3.0-green)
 ![PBL](https://img.shields.io/badge/método-PBL-blueviolet)
-[![Claude Code](https://img.shields.io/badge/Assistant-Claude%20Code-D97706)](https://www.anthropic.com/claude-code)
-[![Codex](https://img.shields.io/badge/Assistant-Codex-111827)](https://openai.com/)
 
 > Una bóveda local para tus posts de Threads. Sin nube. Sin rastreo. Sin cuenta necesaria.
 
