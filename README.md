@@ -1,15 +1,24 @@
 # ThreadsVault Desktop
 
+<img width="400" height="400" alt="threadsvault-desktop-icon" src="https://github.com/user-attachments/assets/e336810d-5130-4b7a-a275-fac97b15acec" />
+
 <!-- badges -->
 ![Plataforma](https://img.shields.io/badge/plataforma-Windows%20%7C%20Linux-blue)
+![Cross Platform](https://img.shields.io/badge/Cross--Platform-Desktop%20%7C%20Web-blueviolet)
 ![Tauri](https://img.shields.io/badge/Tauri-v2-orange)
 ![Svelte](https://img.shields.io/badge/Svelte-5-red)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-v4-38B2AC?logo=tailwindcss&logoColor=white)
+![SQLite](https://img.shields.io/badge/SQLite-Local_DB-003B57?logo=sqlite&logoColor=white)
+![IndexedDB](https://img.shields.io/badge/IndexedDB-Dexie-yellow)
 ![Licencia](https://img.shields.io/badge/licencia-GPL--3.0-green)
 ![PBL](https://img.shields.io/badge/método-PBL-blueviolet)
+[![Claude Code](https://img.shields.io/badge/Assistant-Claude%20Code-D97706)](https://www.anthropic.com/claude-code)
+[![Codex](https://img.shields.io/badge/Assistant-Codex-111827)](https://openai.com/)
 
 > Una bóveda local para tus posts de Threads. Sin nube. Sin rastreo. Sin cuenta necesaria.
 
-ThreadsVault Desktop es la versión de escritorio de [ThreadsVault para Android](https://github.com/D4vRAM369/ThreadsVault). Su funcionamiento es sencillo: pega la URL de un post de Threads, ésta se extrae, se guarda localmente, y es tuyo. Cierra la app, ábrela un año después: el texto y las imágenes de tus posts guardados van a seguir ahí (la app los guarda localmente en segundo plano tras cada guardado).
+ThreadsVault Desktop es la versión de escritorio de [ThreadsVault para Android](https://github.com/D4vRAM369/ThreadsVault). Su funcionamiento es sencillo: pega la URL de un post de Threads, ésta se extrae, se guarda localmente, y es tuyo. Cierra la app y ábrela en el tiempo que quiera: el texto y las imágenes de tus posts guardados van a seguir ahí (el programa los guarda localmente en segundo plano tras cada guardado).
 
 Puedes clasificar los posts en distintas categorías, el programa indexa los hashtags de las publicaciones y tú puedes usarlos en notas personales al guardar un post, para una mayor facilidad de búsqueda en tu pequeña bóveda personal de hilos que te resulten interesantes o relevantes para guardarlos de forma local, sin depender únicamente del sencillo Guardados de Threads 🗄🧵
 
@@ -20,7 +29,7 @@ Puedes clasificar los posts en distintas categorías, el programa indexa los has
 - **Guardar posts por URL** — pega un enlace de Threads y pulsa guardar. Título, autor, texto e imágenes se extraen automáticamente.
 - **Almacenamiento local** — SQLite en escritorio (vía Tauri), IndexedDB en navegador. Nada sale de tu dispositivo.
 - **Categorías** — organiza tus posts en categorías personalizadas. Los no categorizados van a una bandeja por defecto.
-- **Backup y restauración** — exporta toda tu bóveda como JSON e impórtala cuando quieras *(puedes migrar tu bóveda entre ThreadsVault de Android y ThreadsVault-desktop sin problemas)*
+- **Backup y restauración** —  exporta toda tu bóveda como JSON e impórtala cuando quieras. Al importar, la app muestra el progreso y confirma cuántos posts y categorías se restauraron. Compatible con backups de ThreadsVault para Android.
 - **Caché de medios** — las imágenes se cachean localmente como data URLs para que los posts sobrevivan la expiración de los enlaces CDN.
 - **Notas personales** — añade, edita o elimina notas en cualquier post guardado directamente desde su pantalla de detalle.
 - **Atajos de teclado** — navega y busca sin ratón: `Esc` volver, `Ctrl+N` añadir, `/` o `Ctrl+F` buscar, `←` `→` navegar entre posts.
