@@ -9,6 +9,7 @@
   let exportSavedPath = $state('')
   let importStatus = $state<'idle' | 'success' | 'error'>('idle')
   let importError  = $state('')
+  let importing    = $state(false)   // true mientras se ejecuta la transacción SQLite
   // pendingFile guarda el archivo seleccionado mientras el usuario decide si confirmar.
   // File | null significa: puede ser un objeto File (archivo) o null (ninguno pendiente).
   let pendingFile    = $state<File | null>(null)
@@ -67,18 +68,22 @@
   // Paso 2: el usuario confirmó en el modal → ejecutar la importación real.
   async function doImport() {
     if (!pendingFile) return
+    importing = true
     try {
-      const json    = await pendingFile.text()   // leer el archivo como string JSON
+      const json    = await pendingFile.text()
       const storage = await getStorage()
-      await storage.importBackup(json)           // borrar todo e importar los datos del backup
-      await loadVault()                          // recargar el store global con los nuevos datos
+      await storage.importBackup(json)
+      await loadVault()
       pendingFile  = null
-      importStatus = 'success'
-      setTimeout(() => importStatus = 'idle', 3000)
+      importing    = false
+      // Navegar al vault: muestra los datos importados inmediatamente y evita
+      // el race condition de reactividad entre el store y el CategoryManager.
+      window.location.hash = '#/'
     } catch (err) {
       importError  = (err as Error).message
       importStatus = 'error'
       pendingFile  = null
+      importing    = false
     }
   }
 </script>
@@ -205,7 +210,12 @@
           Compatible con ThreadsVault Android
         </p>
       </div>
-      {#if importStatus === 'success'}
+      {#if importing}
+        <div class="w-4 h-4 rounded-full animate-spin shrink-0" style="
+          border: 2px solid rgba(0,188,212,0.2);
+          border-top-color: var(--vault-secondary);
+        "></div>
+      {:else if importStatus === 'success'}
         <span class="text-xs font-semibold" style="color: #4ade80; font-family: var(--font-display)">✓ Listo</span>
       {:else}
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--vault-on-bg-muted)" stroke-width="2">
@@ -480,7 +490,7 @@
   <div
     class="fixed inset-0 z-50 flex items-center justify-center p-4"
     style="background: rgba(0,0,0,0.7); backdrop-filter: blur(8px)"
-    onclick={() => pendingFile = null}
+    onclick={() => { if (!importing) pendingFile = null }}
     role="dialog"
     aria-modal="true"
     aria-label="Confirmar importación"
@@ -516,19 +526,38 @@
         y los reemplazará con los del archivo seleccionado. Esta acción no se puede deshacer.
       </p>
 
-      <!-- Dos botones: acción destructiva (rojo) y cancelar (neutro) -->
-      <div class="flex gap-2">
-        <button
-          onclick={doImport}
-          class="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all duration-200"
-          style="background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3)"
-        >Importar y reemplazar</button>
-        <button
-          onclick={() => pendingFile = null}
-          class="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200"
-          style="background: var(--vault-surface); color: var(--vault-on-bg-muted); border: 1px solid var(--vault-border)"
-        >Cancelar</button>
-      </div>
+      {#if importing}
+        <!-- Estado de progreso — reemplaza los botones durante el import -->
+        <div class="flex flex-col items-center gap-3 py-1">
+          <div class="w-9 h-9 rounded-full animate-spin" style="
+            border: 2.5px solid rgba(0,188,212,0.15);
+            border-top-color: var(--vault-secondary);
+            border-right-color: var(--vault-primary);
+          "></div>
+          <div class="text-center">
+            <p class="text-sm font-semibold" style="color: var(--vault-on-bg); font-family: var(--font-display)">
+              Importando…
+            </p>
+            <p class="text-xs mt-0.5" style="color: var(--vault-on-bg-muted)">
+              Posts, categorías y media
+            </p>
+          </div>
+        </div>
+      {:else}
+        <!-- Dos botones: acción destructiva (rojo) y cancelar (neutro) -->
+        <div class="flex gap-2">
+          <button
+            onclick={doImport}
+            class="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all duration-200"
+            style="background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3)"
+          >Importar y reemplazar</button>
+          <button
+            onclick={() => pendingFile = null}
+            class="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200"
+            style="background: var(--vault-surface); color: var(--vault-on-bg-muted); border: 1px solid var(--vault-border)"
+          >Cancelar</button>
+        </div>
+      {/if}
     </div>
   </div>
 {/if}
