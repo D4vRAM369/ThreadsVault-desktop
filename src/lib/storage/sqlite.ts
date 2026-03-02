@@ -1,5 +1,5 @@
 import Database from '@tauri-apps/plugin-sql'
-import type { StorageAdapter } from './adapter'
+import type { StorageAdapter, ImportResult } from './adapter'
 import type { Post, Category } from '../types'
 import { normalizeBackupPayload } from './backup-normalizer'
 
@@ -199,18 +199,55 @@ export class SqliteStorage implements StorageAdapter {
     }, null, 2)
   }
 
-  async importBackup(json: string): Promise<void> {
+  async importBackup(json: string): Promise<ImportResult> {
+    // Normalizar y validar los datos ANTES de tocar la base de datos.
+    // Si esto lanza, la DB no ha sido modificada.
     const data = normalizeBackupPayload(JSON.parse(json))
-    try {
-      await this.db.execute('BEGIN TRANSACTION')
-      await this.db.execute('DELETE FROM posts')
-      await this.db.execute('DELETE FROM categories')
-      for (const post of data.posts as Post[]) await this.savePost(post)
-      for (const cat of data.categories as Category[]) await this.saveCategory(cat)
-      await this.db.execute('COMMIT')
-    } catch (error) {
-      try { await this.db.execute('ROLLBACK') } catch { /* ignorar error de rollback */ }
-      throw error
+
+    // IMPORTANTE: @tauri-apps/plugin-sql usa un pool de conexiones SQLite.
+    // Cada execute() puede ir a una conexión diferente del pool, por lo que
+    // BEGIN TRANSACTION / COMMIT / ROLLBACK en llamadas separadas NO garantizan
+    // atomicidad — las operaciones pueden ejecutarse en conexiones distintas.
+    //
+    // Estrategia: auto-commit por statement + manejo de errores por-item.
+    // Las categorías se insertan primero (los posts referencian categoryId).
+    // Los posts se importan con data URLs eliminadas para evitar payloads
+    // enormes en el IPC de Tauri (imágenes cacheadas en base64 pueden ser >5MB).
+
+    // 1. Borrar datos existentes
+    await this.db.execute('DELETE FROM posts')
+    await this.db.execute('DELETE FROM categories')
+
+    let catCount  = 0
+    let postCount = 0
+    let errors    = 0
+
+    // 2. Insertar categorías primero (pequeñas, rápidas, nunca tienen data URLs)
+    for (const cat of data.categories) {
+      try {
+        await this.saveCategory(cat)
+        catCount++
+      } catch {
+        errors++
+      }
     }
+
+    // 3. Insertar posts — eliminar data URLs para evitar fallos IPC por payload grande
+    for (const post of data.posts) {
+      try {
+        const cleanPost: Post = {
+          ...post,
+          previewImage: post.previewImage?.startsWith('data:') ? undefined : post.previewImage,
+          previewVideo: post.previewVideo?.startsWith('data:') ? undefined : post.previewVideo,
+          media: post.media?.filter(m => !m.url.startsWith('data:')),
+        }
+        await this.savePost(cleanPost)
+        postCount++
+      } catch {
+        errors++
+      }
+    }
+
+    return { posts: postCount, categories: catCount, errors }
   }
 }
