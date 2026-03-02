@@ -32,6 +32,8 @@ Puedes clasificar los posts en distintas categorías, el programa indexa los has
 - **Categorías** — organiza tus posts en categorías personalizadas. Los no categorizados van a una bandeja por defecto.
 - **Backup y restauración** — exporta toda tu bóveda como JSON e impórtala cuando quieras *(puedes migrar tu bóveda entre ThreadsVault de Android y ThreadsVault-desktop sin problemas)*
 - **Caché de medios** — las imágenes se cachean localmente como data URLs para que los posts sobrevivan la expiración de los enlaces CDN.
+- **Notas personales** — añade, edita o elimina notas en cualquier post guardado directamente desde su pantalla de detalle.
+- **Atajos de teclado** — navega y busca sin ratón: `Esc` volver, `Ctrl+N` añadir, `/` o `Ctrl+F` buscar, `←` `→` navegar entre posts.
 - **Sin telemetría** — sin analíticas, sin informes de errores, sin peticiones externas más allá de la extracción del post. Todo funciona 100% en local (client-side): ni el desarrollador tiene acceso a tus datos.
 
 ---
@@ -82,7 +84,7 @@ Flatpak planificado para futuras versiones.
 
 - **Solo Threads** — diseñado específicamente para posts de Threads; otras URLs pueden no extraerse correctamente
 - **La extracción depende de Jina** — si `r.jina.ai` está caído o aplica rate-limit, la extracción falla de forma controlada
-- **Vídeos de Threads** — los vídeos no se reproducen ni se almacenan localmente. Threads sirve los vídeos a través de URLs CDN temporales que Jina Reader no puede descargar como archivo. Si un post contiene vídeo, solo se guarda el texto, las imágenes y una referencia al post original
+- **Vídeos de Threads** — los vídeos no se reproducen inline ni se almacenan localmente. Threads protege sus vídeos mediante URLs CDN firmadas y temporales. Si un post contiene vídeo, se guarda el texto, las imágenes y un botón «Ver en Threads» que lo abre directamente en el navegador del sistema.
 - **Sin operaciones en bulk** — borrar o recategorizar múltiples posts a la vez: v1.1+
 - **macOS no soportado** — requiere cuenta Apple Developer ($99/año) para notarización; no planificado para v1.x (probablemente tampoco para una 2.x).
 
@@ -140,3 +142,4 @@ Desarrollado principalmente con asistencia de **Claude Code** y en menor medida 
 ## Licencia
 
 [GPL-3.0](LICENSE) — igual que ThreadsVault para Android.
+
