@@ -147,9 +147,26 @@
 
   let refreshToastMsg = $derived(getRefreshToastMsg($mediaRefreshState, $mediaRefreshResult))
 
+  let searchInput: HTMLInputElement
+
   onMount(() => {
     void loadVault()
     void refreshStalePostMedia()
+
+    function onKeydown(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return
+
+      // / o Ctrl+F → focus buscador
+      if (e.key === '/' || (e.key === 'f' && (e.ctrlKey || e.metaKey))) {
+        e.preventDefault()
+        searchInput?.focus()
+        searchInput?.select()
+      }
+    }
+
+    window.addEventListener('keydown', onKeydown)
+    return () => window.removeEventListener('keydown', onKeydown)
   })
 </script>
 
@@ -305,6 +322,7 @@
         type="search"
         placeholder="Buscar posts, autores, notas…"
         bind:value={$searchQuery}
+        bind:this={searchInput}
         class="w-full rounded-2xl text-sm outline-none transition-all duration-200"
         style="
           background: var(--vault-surface);

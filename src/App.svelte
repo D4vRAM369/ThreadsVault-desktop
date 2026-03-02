@@ -30,9 +30,39 @@
 
   onMount(() => {
     loadVault()
+
     const onHashChange = () => { currentRoute = window.location.hash || '#/' }
+
+    function onKeydown(e: KeyboardEvent) {
+      const tag  = (e.target as HTMLElement).tagName
+      const edit = (e.target as HTMLElement).isContentEditable
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || edit) return
+
+      // Esc → volver atrás
+      if (e.key === 'Escape' && currentRoute !== '#/' && currentRoute !== '') {
+        e.preventDefault()
+        history.back()
+      }
+
+      // Ctrl/Cmd + N → añadir post
+      if (e.key === 'n' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault()
+        window.location.hash = '#/share'
+      }
+
+      // Ctrl/Cmd + , → ajustes
+      if (e.key === ',' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault()
+        window.location.hash = '#/settings'
+      }
+    }
+
     window.addEventListener('hashchange', onHashChange)
-    return () => window.removeEventListener('hashchange', onHashChange)
+    window.addEventListener('keydown', onKeydown)
+    return () => {
+      window.removeEventListener('hashchange', onHashChange)
+      window.removeEventListener('keydown', onKeydown)
+    }
   })
 
   function getPostId(): string {
