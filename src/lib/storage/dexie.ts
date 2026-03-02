@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie'
-import type { StorageAdapter } from './adapter'
+import type { StorageAdapter, ImportResult } from './adapter'
 import type { Post, Category } from '../types'
 import { normalizeBackupPayload } from './backup-normalizer'
 
@@ -88,13 +88,42 @@ export class DexieStorage implements StorageAdapter {
     }, null, 2)
   }
 
-  async importBackup(json: string): Promise<void> {
+  async importBackup(json: string): Promise<ImportResult> {
     const data = normalizeBackupPayload(JSON.parse(json))
+
+    let catCount  = 0
+    let postCount = 0
+    let errors    = 0
+
     await this.db.transaction('rw', [this.db.posts, this.db.categories], async () => {
       await this.db.posts.clear()
       await this.db.categories.clear()
-      await this.db.posts.bulkAdd(data.posts)
-      await this.db.categories.bulkAdd(data.categories)
+
+      for (const cat of data.categories) {
+        try {
+          await this.db.categories.put(cat)
+          catCount++
+        } catch {
+          errors++
+        }
+      }
+
+      for (const post of data.posts) {
+        try {
+          const cleanPost: Post = {
+            ...post,
+            previewImage: post.previewImage?.startsWith('data:') ? undefined : post.previewImage,
+            previewVideo: post.previewVideo?.startsWith('data:') ? undefined : post.previewVideo,
+            media: post.media?.filter(m => !m.url.startsWith('data:')),
+          }
+          await this.db.posts.put(cleanPost)
+          postCount++
+        } catch {
+          errors++
+        }
+      }
     })
+
+    return { posts: postCount, categories: catCount, errors }
   }
 }

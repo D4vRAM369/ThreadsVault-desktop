@@ -2,17 +2,18 @@
   import { getStorage } from '../lib/storage/index'
   import { loadVault } from '../lib/stores/vault'
   import CategoryManager from '../components/CategoryManager.svelte'
+  import type { ImportResult } from '../lib/storage/adapter'
 
   import { invoke } from '@tauri-apps/api/core'
 
   let exportStatus = $state<'idle' | 'success' | 'error'>('idle')
   let exportSavedPath = $state('')
-  let importStatus = $state<'idle' | 'success' | 'error'>('idle')
-  let importError  = $state('')
-  let importing    = $state(false)   // true mientras se ejecuta la transacción SQLite
-  // pendingFile guarda el archivo seleccionado mientras el usuario decide si confirmar.
-  // File | null significa: puede ser un objeto File (archivo) o null (ninguno pendiente).
+  // pendingFile: archivo seleccionado mientras el usuario decide si confirmar.
   let pendingFile    = $state<File | null>(null)
+  // modalPhase: controla qué vista muestra el modal (sin afectar pendingFile).
+  let modalPhase     = $state<'confirm' | 'importing' | 'success' | 'error'>('confirm')
+  let importResult   = $state<ImportResult | null>(null)
+  let importError    = $state('')
   let showAboutDev   = $state(false)
   let showShortcuts  = $state(false)
 
@@ -54,37 +55,57 @@
     }
   }
 
-  // Paso 1: el usuario selecciona un archivo → guardarlo y mostrar modal de confirmación.
-  // No importamos aún — esperamos que el usuario confirme.
+  // Paso 1: el usuario selecciona un archivo → mostrar modal de confirmación.
   function handleImport(e: Event) {
     const file = (e.target as HTMLInputElement).files?.[0]
     if (!file) return
-    pendingFile = file
-    // Reseteamos el valor del input para que el mismo archivo pueda seleccionarse
-    // de nuevo si el usuario cancela y vuelve a intentarlo.
+    pendingFile  = file
+    modalPhase   = 'confirm'
+    importResult = null
+    importError  = ''
     ;(e.target as HTMLInputElement).value = ''
   }
 
-  // Paso 2: el usuario confirmó en el modal → ejecutar la importación real.
+  function closeModal() {
+    pendingFile = null
+    modalPhase  = 'confirm'
+    importResult = null
+    importError  = ''
+  }
+
+  // Paso 2: el usuario confirmó → ejecutar importación.
   async function doImport() {
     if (!pendingFile) return
-    importing = true
+
+    modalPhase  = 'importing'
+    importError = ''
+
+    let json: string
     try {
-      const json    = await pendingFile.text()
-      const storage = await getStorage()
-      await storage.importBackup(json)
-      await loadVault()
-      pendingFile  = null
-      importing    = false
-      // Navegar al vault: muestra los datos importados inmediatamente y evita
-      // el race condition de reactividad entre el store y el CategoryManager.
-      window.location.hash = '#/'
-    } catch (err) {
-      importError  = (err as Error).message
-      importStatus = 'error'
-      pendingFile  = null
-      importing    = false
+      json = await pendingFile.text()
+    } catch {
+      importError = 'No se pudo leer el archivo seleccionado.'
+      modalPhase  = 'error'
+      return
     }
+
+    try {
+      const storage = await getStorage()
+      const result  = await storage.importBackup(json)
+      await loadVault()
+      importResult = result
+      modalPhase   = 'success'
+    } catch (err) {
+      importError = err instanceof Error
+        ? (err.message || 'Error desconocido al importar')
+        : String(err)
+      modalPhase = 'error'
+    }
+  }
+
+  function goToVault() {
+    closeModal()
+    window.location.hash = '#/'
   }
 </script>
 
@@ -117,11 +138,6 @@
   </div>
 
   <!-- ── Sección: Backup & Restore ─────────────────────── -->
-  <!--
-    PBL: Usamos label="BACKUP" con mayúsculas y tracking-widest
-    para crear jerarquía visual tipo "settings iOS".
-    El truco es: sección header pequeño + contenido debajo.
-  -->
   <p class="text-xs font-semibold uppercase mb-2.5 px-1" style="
     color: var(--vault-on-bg-muted);
     font-family: var(--font-display);
@@ -140,7 +156,6 @@
       onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.09)'}
       onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)'}
     >
-      <!-- Icono en contenedor de color -->
       <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style="
         background: rgba(124,77,255,0.18);
         border: 1px solid rgba(124,77,255,0.3);
@@ -170,7 +185,7 @@
       {/if}
     </button>
 
-    <!-- Ruta de guardado — aparece bajo el botón cuando exportStatus === 'success' -->
+    <!-- Ruta de guardado -->
     {#if exportStatus === 'success' && exportSavedPath}
       <div class="px-4 sm:px-5 pb-2" style="animation: fadeIn 0.2s ease">
         <p class="text-xs font-mono" style="
@@ -210,37 +225,12 @@
           Compatible con ThreadsVault Android
         </p>
       </div>
-      {#if importing}
-        <div class="w-4 h-4 rounded-full animate-spin shrink-0" style="
-          border: 2px solid rgba(0,188,212,0.2);
-          border-top-color: var(--vault-secondary);
-        "></div>
-      {:else if importStatus === 'success'}
-        <span class="text-xs font-semibold" style="color: #4ade80; font-family: var(--font-display)">✓ Listo</span>
-      {:else}
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--vault-on-bg-muted)" stroke-width="2">
-          <polyline points="9 18 15 12 9 6"/>
-        </svg>
-      {/if}
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--vault-on-bg-muted)" stroke-width="2">
+        <polyline points="9 18 15 12 9 6"/>
+      </svg>
       <input type="file" accept=".json" class="hidden" onchange={handleImport} />
     </label>
   </div>
-
-  {#if importStatus === 'error'}
-    <div class="flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs mb-4" style="
-      background: rgba(239,68,68,0.09);
-      border: 1px solid rgba(239,68,68,0.22);
-      color: #fca5a5;
-      font-family: var(--font-display);
-    ">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-        <circle cx="12" cy="12" r="10"/>
-        <line x1="12" y1="8" x2="12" y2="12"/>
-        <line x1="12" y1="16" x2="12.01" y2="16"/>
-      </svg>
-      {importError}
-    </div>
-  {/if}
 
   <!-- ── Sección: Privacidad ──────────────────────────── -->
   <p class="text-xs font-semibold uppercase mb-2.5 px-1" style="
@@ -335,10 +325,7 @@
     </button>
   </div>
 
-  <!-- ── Tip: atajos de teclado ───────────────────────────────────────────
-    Sin card dedicada — fila colapsable sutil al pie del layout.
-    Patrón: chip con icono de teclado + acordeón max-height.
-  -->
+  <!-- ── Atajos de teclado ─────────────────────────────────────────────────── -->
   <div class="mt-6 mb-2">
     <button
       onclick={() => showShortcuts = !showShortcuts}
@@ -348,7 +335,6 @@
       onmouseleave={(e) => (e.currentTarget as HTMLElement).style.color = 'var(--vault-on-bg-muted)'}
       aria-expanded={showShortcuts}
     >
-      <!-- Icono teclado -->
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="shrink-0:0; opacity:0.7">
         <rect x="2" y="6" width="20" height="14" rx="2"/>
         <line x1="6" y1="10" x2="6" y2="10"/><line x1="10" y1="10" x2="10" y2="10"/>
@@ -357,7 +343,6 @@
         <line x1="10" y1="14" x2="14" y2="14"/>
       </svg>
       <span style="font-family: var(--font-body)">Atajos de teclado</span>
-      <!-- Chevron rotatorio -->
       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
         style="transition: transform 0.22s ease; transform: rotate({showShortcuts ? 180 : 0}deg); opacity:0.5"
       >
@@ -365,7 +350,6 @@
       </svg>
     </button>
 
-    <!-- Acordeón — max-height transition estándar -->
     <div style="
       max-height: {showShortcuts ? '280px' : '0'};
       overflow: hidden;
@@ -424,7 +408,6 @@
       class="glass rounded-2xl p-6 max-w-sm w-full flex flex-col gap-5 animate-fade-up"
       onclick={(e) => e.stopPropagation()}
     >
-      <!-- Header -->
       <div class="flex items-center gap-3">
         <div class="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style="
           background: linear-gradient(135deg, rgba(124,77,255,0.25), rgba(0,188,212,0.15));
@@ -439,7 +422,6 @@
         </div>
       </div>
 
-      <!-- Links -->
       <div class="flex flex-col gap-2.5">
         <button
           onclick={() => openExternal('https://github.com/D4vRAM369/ThreadsVault-desktop')}
@@ -466,7 +448,6 @@
         </button>
       </div>
 
-      <!-- Cerrar -->
       <button
         onclick={() => showAboutDev = false}
         class="w-full py-2.5 rounded-xl text-sm font-semibold transition-all duration-200"
@@ -478,86 +459,222 @@
   </div>
 {/if}
 
-<!-- ── Modal de confirmación de importación ──────────────────────────────
-  {#if pendingFile} solo renderiza este bloque cuando hay un archivo pendiente.
-  Cuando pendingFile es null, el modal no existe en el DOM — no consume recursos.
+<!-- ── Modal de importación ──────────────────────────────────────────────
+  El modal NUNCA se cierra solo. Muestra 4 estados secuenciales:
+    confirm  → botones "Importar y reemplazar" / "Cancelar"
+    importing→ spinner + "Importando…"
+    success  → resumen con posts/categorías importados + "Ver mi vault →"
+    error    → mensaje de error + "Reintentar" / "Cerrar"
+  El overlay solo permite cerrar en estado confirm (no durante importación ni éxito).
 -->
 {#if pendingFile}
-  <!-- Overlay: capa negra semitransparente que cubre toda la pantalla.
-       position:fixed + inset-0 = ocupa exactamente la ventana completa.
-       z-50 = z-index:50, se dibuja encima de todo lo demás.
-       onclick cierra el modal al hacer clic fuera de la tarjeta. -->
   <div
     class="fixed inset-0 z-50 flex items-center justify-center p-4"
-    style="background: rgba(0,0,0,0.7); backdrop-filter: blur(8px)"
-    onclick={() => { if (!importing) pendingFile = null }}
+    style="background: rgba(0,0,0,0.75); backdrop-filter: blur(10px)"
+    onclick={() => { if (modalPhase === 'confirm') closeModal() }}
     role="dialog"
     aria-modal="true"
-    aria-label="Confirmar importación"
+    aria-label="Importar backup"
   >
-    <!-- Tarjeta del modal.
-         e.stopPropagation() evita que el clic dentro cierre el modal
-         (si no estuviera, el clic en la tarjeta subiría al overlay y lo cerraría). -->
     <div
       class="glass rounded-2xl p-6 max-w-sm w-full flex flex-col gap-4 animate-fade-up"
       onclick={(e) => e.stopPropagation()}
     >
-      <!-- Icono de advertencia + nombre del archivo -->
-      <div class="flex items-center gap-3">
-        <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-             style="background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3)">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2">
-            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-            <line x1="12" y1="9" x2="12" y2="13"/>
-            <line x1="12" y1="17" x2="12.01" y2="17"/>
-          </svg>
-        </div>
-        <div>
-          <p class="font-bold text-sm" style="font-family: var(--font-display); color: var(--vault-on-bg)">
-            ¿Importar este backup?
-          </p>
-          <p class="text-xs mt-0.5" style="color: var(--vault-on-bg-muted)">{pendingFile.name}</p>
-        </div>
-      </div>
 
-      <!-- Advertencia clara de las consecuencias -->
-      <p class="text-sm" style="color: var(--vault-on-bg-muted); line-height: 1.6">
-        Esto <strong style="color: #f87171">borrará todos tus posts y categorías actuales</strong>
-        y los reemplazará con los del archivo seleccionado. Esta acción no se puede deshacer.
-      </p>
+      {#if modalPhase === 'confirm'}
+        <!-- ── Estado 1: Confirmación ── -->
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+               style="background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </div>
+          <div>
+            <p class="font-bold text-sm" style="font-family: var(--font-display); color: var(--vault-on-bg)">
+              ¿Importar este backup?
+            </p>
+            <p class="text-xs mt-0.5" style="color: var(--vault-on-bg-muted)">{pendingFile.name}</p>
+          </div>
+        </div>
 
-      {#if importing}
-        <!-- Estado de progreso — reemplaza los botones durante el import -->
-        <div class="flex flex-col items-center gap-3 py-1">
-          <div class="w-9 h-9 rounded-full animate-spin" style="
+        <p class="text-sm" style="color: var(--vault-on-bg-muted); line-height: 1.6">
+          Esto <strong style="color: #f87171">borrará todos tus posts y categorías actuales</strong>
+          y los reemplazará con los del archivo seleccionado. Esta acción no se puede deshacer.
+        </p>
+
+        <div class="flex gap-2">
+          <button
+            onclick={doImport}
+            class="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all duration-200"
+            style="background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3)"
+            onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.25)'}
+            onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.15)'}
+          >Importar y reemplazar</button>
+          <button
+            onclick={closeModal}
+            class="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200"
+            style="background: var(--vault-surface); color: var(--vault-on-bg-muted); border: 1px solid var(--vault-border)"
+            onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--vault-surface-hover)'}
+            onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--vault-surface)'}
+          >Cancelar</button>
+        </div>
+
+      {:else if modalPhase === 'importing'}
+        <!-- ── Estado 2: Importando (spinner) ── -->
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+               style="background: rgba(0,188,212,0.12); border: 1px solid rgba(0,188,212,0.25)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--vault-secondary)" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17 8 12 3 7 8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+          </div>
+          <div>
+            <p class="font-bold text-sm" style="font-family: var(--font-display); color: var(--vault-on-bg)">
+              Importando backup…
+            </p>
+            <p class="text-xs mt-0.5" style="color: var(--vault-on-bg-muted)">{pendingFile.name}</p>
+          </div>
+        </div>
+
+        <div class="flex flex-col items-center gap-3 py-3">
+          <div class="w-10 h-10 rounded-full animate-spin" style="
             border: 2.5px solid rgba(0,188,212,0.15);
             border-top-color: var(--vault-secondary);
             border-right-color: var(--vault-primary);
           "></div>
           <div class="text-center">
             <p class="text-sm font-semibold" style="color: var(--vault-on-bg); font-family: var(--font-display)">
-              Importando…
+              Procesando…
             </p>
             <p class="text-xs mt-0.5" style="color: var(--vault-on-bg-muted)">
               Posts, categorías y media
             </p>
           </div>
         </div>
-      {:else}
-        <!-- Dos botones: acción destructiva (rojo) y cancelar (neutro) -->
+
+      {:else if modalPhase === 'success' && importResult}
+        <!-- ── Estado 3: Éxito — resumen concluyente ── -->
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+               style="background: rgba(74,222,128,0.15); border: 1px solid rgba(74,222,128,0.3)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2.5">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          </div>
+          <div>
+            <p class="font-bold text-sm" style="font-family: var(--font-display); color: var(--vault-on-bg)">
+              Importación completada
+            </p>
+            <p class="text-xs mt-0.5" style="color: var(--vault-on-bg-muted)">{pendingFile.name}</p>
+          </div>
+        </div>
+
+        <!-- Resumen con cifras -->
+        <div class="flex gap-2">
+          <div class="flex-1 flex flex-col items-center gap-0.5 py-3 rounded-xl" style="
+            background: rgba(74,222,128,0.07);
+            border: 1px solid rgba(74,222,128,0.18);
+          ">
+            <span class="text-xl font-bold" style="font-family: var(--font-display); color: #4ade80">
+              {importResult.posts}
+            </span>
+            <span class="text-xs" style="color: var(--vault-on-bg-muted)">
+              post{importResult.posts !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <div class="flex-1 flex flex-col items-center gap-0.5 py-3 rounded-xl" style="
+            background: rgba(0,188,212,0.07);
+            border: 1px solid rgba(0,188,212,0.18);
+          ">
+            <span class="text-xl font-bold" style="font-family: var(--font-display); color: var(--vault-secondary)">
+              {importResult.categories}
+            </span>
+            <span class="text-xs" style="color: var(--vault-on-bg-muted)">
+              categoría{importResult.categories !== 1 ? 's' : ''}
+            </span>
+          </div>
+          {#if importResult.errors > 0}
+            <div class="flex-1 flex flex-col items-center gap-0.5 py-3 rounded-xl" style="
+              background: rgba(251,191,36,0.07);
+              border: 1px solid rgba(251,191,36,0.18);
+            ">
+              <span class="text-xl font-bold" style="font-family: var(--font-display); color: #fbbf24">
+                {importResult.errors}
+              </span>
+              <span class="text-xs" style="color: var(--vault-on-bg-muted)">omitido{importResult.errors !== 1 ? 's' : ''}</span>
+            </div>
+          {/if}
+        </div>
+
+        {#if importResult.errors > 0}
+          <p class="text-xs" style="color: var(--vault-on-bg-muted); line-height: 1.5">
+            Los elementos omitidos tenían datos incompatibles. El resto se importó correctamente.
+          </p>
+        {/if}
+
+        <button
+          onclick={goToVault}
+          class="w-full py-3 rounded-xl text-sm font-bold transition-all duration-300 text-white"
+          style="
+            background: linear-gradient(135deg, var(--vault-primary) 0%, var(--vault-secondary) 100%);
+            box-shadow: 0 4px 16px rgba(124,77,255,0.35);
+            font-family: var(--font-display);
+          "
+          onmouseenter={(e) => (e.currentTarget as HTMLElement).style.boxShadow = '0 6px 22px rgba(124,77,255,0.55)'}
+          onmouseleave={(e) => (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 16px rgba(124,77,255,0.35)'}
+        >Ver mi vault →</button>
+
+      {:else if modalPhase === 'error'}
+        <!-- ── Estado 4: Error — dentro del modal, no barra roja ── -->
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+               style="background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+          </div>
+          <div>
+            <p class="font-bold text-sm" style="font-family: var(--font-display); color: var(--vault-on-bg)">
+              Error al importar
+            </p>
+            <p class="text-xs mt-0.5" style="color: var(--vault-on-bg-muted)">{pendingFile.name}</p>
+          </div>
+        </div>
+
+        <div class="px-3 py-2.5 rounded-xl text-xs" style="
+          background: rgba(239,68,68,0.09);
+          border: 1px solid rgba(239,68,68,0.22);
+          color: #fca5a5;
+          font-family: var(--font-body);
+          line-height: 1.6;
+          word-break: break-word;
+        ">{importError || 'No se pudo completar la importación. Verifica que el archivo sea un backup válido de ThreadsVault.'}</div>
+
         <div class="flex gap-2">
           <button
-            onclick={doImport}
+            onclick={() => { modalPhase = 'confirm'; importError = '' }}
             class="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all duration-200"
-            style="background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3)"
-          >Importar y reemplazar</button>
+            style="background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.28)"
+            onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.22)'}
+            onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.12)'}
+          >Reintentar</button>
           <button
-            onclick={() => pendingFile = null}
+            onclick={closeModal}
             class="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200"
             style="background: var(--vault-surface); color: var(--vault-on-bg-muted); border: 1px solid var(--vault-border)"
-          >Cancelar</button>
+            onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--vault-surface-hover)'}
+            onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--vault-surface)'}
+          >Cerrar</button>
         </div>
       {/if}
+
     </div>
   </div>
 {/if}

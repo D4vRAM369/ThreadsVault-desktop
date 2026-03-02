@@ -1,5 +1,11 @@
 import type { Post, Category } from '../types'
 
+export interface ImportResult {
+  posts: number
+  categories: number
+  errors: number
+}
+
 export interface StorageAdapter {
   // Posts
   getPosts(): Promise<Post[]>
@@ -13,6 +19,6 @@ export interface StorageAdapter {
   deleteCategory(id: string): Promise<void>
 
   // Backup
-  exportBackup(): Promise<string>           // devuelve JSON string
-  importBackup(json: string): Promise<void>
+  exportBackup(): Promise<string>                    // devuelve JSON string
+  importBackup(json: string): Promise<ImportResult>  // devuelve resumen de lo importado
 }
