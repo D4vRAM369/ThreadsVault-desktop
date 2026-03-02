@@ -1,8 +1,26 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { loadVault } from './lib/stores/vault'
+  import { loadVault, posts } from './lib/stores/vault'
+  import type { Post } from './lib/types'
 
   let currentRoute = $state(window.location.hash || '#/')
+
+  function computeTitle(route: string, allPosts: Post[]): string {
+    if (route === '#/' || route === '') return 'ThreadsVault'
+    if (route === '#/share')      return 'ThreadsVault — Añadir post'
+    if (route === '#/settings')   return 'ThreadsVault — Ajustes'
+    if (route === '#/categories') return 'ThreadsVault — Categorías'
+    if (route.startsWith('#/post/')) {
+      const id   = route.replace('#/post/', '')
+      const post = allPosts.find(p => p.id === id)
+      return post?.author ? `ThreadsVault — ${post.author}` : 'ThreadsVault — Post'
+    }
+    return 'ThreadsVault'
+  }
+
+  $effect(() => {
+    document.title = computeTitle(currentRoute, $posts)
+  })
 
   onMount(() => {
     loadVault()
