@@ -10,8 +10,9 @@
   let importError  = $state('')
   // pendingFile guarda el archivo seleccionado mientras el usuario decide si confirmar.
   // File | null significa: puede ser un objeto File (archivo) o null (ninguno pendiente).
-  let pendingFile   = $state<File | null>(null)
-  let showAboutDev  = $state(false)
+  let pendingFile    = $state<File | null>(null)
+  let showAboutDev   = $state(false)
+  let showShortcuts  = $state(false)
 
   async function openExternal(url: string) {
     if ('__TAURI_INTERNALS__' in window) {
@@ -292,6 +293,80 @@
       </svg>
     </button>
   </div>
+
+  <!-- ── Tip: atajos de teclado ───────────────────────────────────────────
+    Sin card dedicada — fila colapsable sutil al pie del layout.
+    Patrón: chip con icono de teclado + acordeón max-height.
+  -->
+  <div class="mt-6 mb-2">
+    <button
+      onclick={() => showShortcuts = !showShortcuts}
+      class="flex items-center gap-1.5 text-xs transition-colors duration-200"
+      style="color: var(--vault-on-bg-muted); background: none; border: none; padding: 0; cursor: pointer;"
+      onmouseenter={(e) => (e.currentTarget as HTMLElement).style.color = 'var(--vault-on-bg)'}
+      onmouseleave={(e) => (e.currentTarget as HTMLElement).style.color = 'var(--vault-on-bg-muted)'}
+      aria-expanded={showShortcuts}
+    >
+      <!-- Icono teclado -->
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="shrink-0:0; opacity:0.7">
+        <rect x="2" y="6" width="20" height="14" rx="2"/>
+        <line x1="6" y1="10" x2="6" y2="10"/><line x1="10" y1="10" x2="10" y2="10"/>
+        <line x1="14" y1="10" x2="14" y2="10"/><line x1="18" y1="10" x2="18" y2="10"/>
+        <line x1="6" y1="14" x2="6" y2="14"/><line x1="18" y1="14" x2="18" y2="14"/>
+        <line x1="10" y1="14" x2="14" y2="14"/>
+      </svg>
+      <span style="font-family: var(--font-body)">Atajos de teclado</span>
+      <!-- Chevron rotatorio -->
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+        style="transition: transform 0.22s ease; transform: rotate({showShortcuts ? 180 : 0}deg); opacity:0.5"
+      >
+        <polyline points="6 9 12 15 18 9"/>
+      </svg>
+    </button>
+
+    <!-- Acordeón — max-height transition estándar -->
+    <div style="
+      max-height: {showShortcuts ? '280px' : '0'};
+      overflow: hidden;
+      transition: max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    ">
+      <div class="mt-3 flex flex-col gap-1" style="opacity: {showShortcuts ? 1 : 0}; transition: opacity 0.2s ease 0.05s">
+        {#each [
+          { keys: ['Esc'],          desc: 'Volver atrás',                  ctx: 'Global' },
+          { keys: ['Ctrl', 'N'],    desc: 'Añadir post',                   ctx: 'Global' },
+          { keys: ['/'],            desc: 'Buscar posts',                  ctx: 'En vault' },
+          { keys: ['Ctrl', 'F'],    desc: 'Buscar en la app',              ctx: 'Global' },
+          { keys: ['←', '→'],      desc: 'Navegar entre posts',           ctx: 'En post' },
+        ] as shortcut}
+          <div class="flex items-center gap-3 py-1">
+            <div class="flex items-center gap-1 shrink-0" style="min-width: 110px">
+              {#each shortcut.keys as key, i}
+                {#if i > 0}<span style="color: var(--vault-on-bg-muted); font-size: 9px; opacity:0.5">+</span>{/if}
+                <span style="
+                  font-family: var(--font-mono, 'DM Mono', monospace);
+                  font-size: 10px;
+                  padding: 1px 6px;
+                  border-radius: 4px;
+                  border: 1px solid rgba(255,255,255,0.13);
+                  background: rgba(255,255,255,0.05);
+                  color: var(--vault-on-bg);
+                  line-height: 1.6;
+                ">{key}</span>
+              {/each}
+            </div>
+            <span class="text-xs" style="color: var(--vault-on-bg); flex:1">{shortcut.desc}</span>
+            <span class="text-xs" style="
+              color: var(--vault-on-bg-muted);
+              font-family: var(--font-body);
+              font-size: 10px;
+              opacity: 0.5;
+            ">{shortcut.ctx}</span>
+          </div>
+        {/each}
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <!-- ── Modal About Dev ─────────────────────────────────────────────────── -->
