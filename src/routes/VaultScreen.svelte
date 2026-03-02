@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { posts, categories, appState, filteredPosts, hashtagStats,
-           searchQuery, activeCategory, activeHashtag, deletePost, refreshStalePostMedia, loadVault } from '../lib/stores/vault'
+           searchQuery, activeCategory, activeHashtag, deletePost, refreshStalePostMedia, loadVault,
+           mediaRefreshState, mediaRefreshResult } from '../lib/stores/vault'
   import PostCard from '../components/PostCard.svelte'
   import EmptyState from '../components/EmptyState.svelte'
   import LoadingSpinner from '../components/LoadingSpinner.svelte'
@@ -131,6 +132,21 @@
     return { destroy() { observer.disconnect() } }
   }
 
+  function getRefreshToastMsg(
+    state: 'idle' | 'refreshing' | 'done' | 'error',
+    result: { updated: number; failed: number }
+  ): string {
+    if (state === 'error') return '⚠ Error al refrescar medios'
+    if (state !== 'done') return ''
+    const { updated, failed } = result
+    if (updated === 0 && failed === 0) return '✓ Medios al día'
+    if (failed === 0) return `✓ ${updated} ${updated === 1 ? 'post actualizado' : 'posts actualizados'}`
+    if (updated === 0) return `⚠ ${failed} ${failed === 1 ? 'post no pudo actualizarse' : 'posts no pudieron actualizarse'}`
+    return `✓ ${updated} actualizados · ${failed} fallaron`
+  }
+
+  let refreshToastMsg = $derived(getRefreshToastMsg($mediaRefreshState, $mediaRefreshResult))
+
   onMount(() => {
     void loadVault()
     void refreshStalePostMedia()
@@ -187,6 +203,27 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--vault-on-bg-muted)">
             <circle cx="12" cy="12" r="3"/>
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </button>
+
+        <button
+          class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center transition-all duration-200"
+          style="background: var(--vault-surface); border: 1px solid var(--vault-border)"
+          onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--vault-surface-hover)'}
+          onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--vault-surface)'}
+          onclick={() => void refreshStalePostMedia()}
+          disabled={$mediaRefreshState === 'refreshing'}
+          aria-label="Refrescar medios"
+        >
+          <svg
+            width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            style="color: var(--vault-on-bg-muted)"
+            class={$mediaRefreshState === 'refreshing' ? 'animate-spin' : ''}
+          >
+            <polyline points="23 4 23 10 17 10"/>
+            <polyline points="1 20 1 14 7 14"/>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
           </svg>
         </button>
 
@@ -394,4 +431,26 @@
       {/each}
     {/if}
   </div>
+
+  {#if $mediaRefreshState === 'done' || $mediaRefreshState === 'error'}
+    <div
+      class="fixed bottom-6 left-1/2 z-50 animate-fade-up"
+      style="transform: translateX(-50%); white-space: nowrap;"
+    >
+      <div
+        class="px-4 py-2.5 rounded-xl text-sm font-semibold"
+        style="
+          background: rgba(8,8,16,0.88);
+          backdrop-filter: blur(16px);
+          -webkit-backdrop-filter: blur(16px);
+          border: 1px solid {$mediaRefreshState === 'error' ? 'rgba(239,68,68,0.4)' : 'rgba(124,77,255,0.35)'};
+          color: {$mediaRefreshState === 'error' ? '#fca5a5' : 'var(--vault-on-bg)'};
+          box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+          font-family: var(--font-display);
+        "
+      >
+        {refreshToastMsg}
+      </div>
+    </div>
+  {/if}
 </div>
