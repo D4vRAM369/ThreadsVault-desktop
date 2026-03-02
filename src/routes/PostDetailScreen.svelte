@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { get } from 'svelte/store'
+  import { invoke } from '@tauri-apps/api/core'
   import { categories, deletePost, loadVault, posts, savePost } from '../lib/stores/vault'
   import { getStorage } from '../lib/storage/index'
   import CategoryBadge from '../components/CategoryBadge.svelte'
@@ -101,6 +102,16 @@
     editingNote = false
   }
 
+  // Abre una URL en el browser del sistema (no en el WebView interno de Tauri).
+  // En desktop usa open_url (crate open, Rust). En browser usa window.open().
+  function openInBrowser(url: string) {
+    if ('__TAURI_INTERNALS__' in window) {
+      void invoke('open_url', { url })
+    } else {
+      window.open(url, '_blank', 'noopener,noreferrer')
+    }
+  }
+
   function formatDate(ts: number): string {
     return new Date(ts).toLocaleDateString('es', {
       weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
@@ -117,13 +128,34 @@
     }
   }
 
+  /*
+    PBL: <a download> no funciona en URLs cross-origin (CDN Instagram/Threads).
+    El WebView2/browser ignora el atributo download si el dominio es distinto al de la app.
+    Fix: fetch() → Blob → Object URL (mismo origen) → <a download> ya funciona.
+    Si está cacheado como data URL, descarga directa sin red.
+  */
   function downloadMedia(media: PostMedia) {
-    const a = document.createElement('a')
-    a.href = getMediaSource(media)
-    a.download = fileNameFromUrl(media.url)
-    a.target = '_blank'
-    a.rel = 'noopener noreferrer'
-    a.click()
+    // En Tauri, WebView2 no puede descargar data: URIs ni URLs cross-origin.
+    // La solución más fiable: abrir la URL original en el browser del sistema.
+    if ('__TAURI_INTERNALS__' in window) {
+      openInBrowser(media.url)
+      return
+    }
+
+    // Fallback para modo browser web: intentar descarga directa vía data URL
+    const src = getMediaSource(media)
+    if (src.startsWith('data:')) {
+      const filename = fileNameFromUrl(media.url)
+      const a = document.createElement('a')
+      a.href     = src
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      return
+    }
+
+    openInBrowser(src)
   }
 
   function getInlineVideoState(media: PostMedia) {
@@ -244,17 +276,24 @@
     }
   }
 
-  function downloadInlineVideo(media: PostMedia) {
-    const state = getInlineVideoState(media)
+  async function downloadInlineVideo(media: PostMedia) {
+    const state  = getInlineVideoState(media)
     const source = state.downloadSrc ?? state.src
     if (!source) return
 
-    const a = document.createElement('a')
-    a.href = source
-    a.download = fileNameFromUrl(source)
-    a.target = '_blank'
-    a.rel = 'noopener noreferrer'
-    a.click()
+    const filename = fileNameFromUrl(source)
+    try {
+      const res     = await fetch(source)
+      const blob    = await res.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href     = blobUrl
+      a.download = filename
+      a.click()
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 15_000)
+    } catch {
+      openInBrowser(source)
+    }
   }
 
   function toImageProxyUrl(url: string): string {
@@ -834,19 +873,16 @@
                         >Descargar</button>
                       {/if}
 
-                      <a
-                        href={media.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        onclick={() => openInBrowser(media.url)}
                         class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200"
                         style="
                           background: rgba(124,77,255,0.22);
                           border: 1px solid rgba(124,77,255,0.4);
                           color: #e4d6ff;
                           font-family: var(--font-display);
-                          text-decoration: none;
                         "
-                      >Ver en Threads ↗</a>
+                      >Ver en Threads ↗</button>
                     </div>
                   </div>
                 {:else}
@@ -874,13 +910,11 @@
                         font-family: var(--font-display);
                       "
                     >Descargar</button>
-                    <a
-                      href={media.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="text-xs truncate"
+                    <button
+                      onclick={() => openInBrowser(media.url)}
+                      class="text-xs truncate text-left"
                       style="color: var(--vault-on-bg-muted)"
-                    >{media.url}</a>
+                    >{media.url}</button>
                   </div>
                 {/if}
               </div>
@@ -914,10 +948,8 @@
       target="_blank" + rel="noopener noreferrer" = seguridad básica
       para links externos (previene que la nueva pestaña acceda a window.opener).
     -->
-    <a
-      href={cleanThreadsUrl(post.url)}
-      target="_blank"
-      rel="noopener noreferrer"
+    <button
+      onclick={() => openInBrowser(cleanThreadsUrl(post.url))}
       class="flex items-center justify-center gap-2.5 w-full py-3.5 rounded-2xl font-semibold transition-all duration-200"
       style="
         background: rgba(255,255,255,0.05);
@@ -925,7 +957,6 @@
         color: var(--vault-on-bg);
         font-family: var(--font-display);
         font-size: 0.9rem;
-        text-decoration: none;
         letter-spacing: 0.02em;
       "
       onmouseenter={(e) => {
@@ -947,6 +978,6 @@
         <line x1="10" y1="14" x2="21" y2="3"/>
       </svg>
       Abrir en Threads
-    </a>
+    </button>
   {/if}
 </div>
