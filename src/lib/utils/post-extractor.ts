@@ -118,12 +118,32 @@ function extractEscapedMediaFromText(text: string): string[] {
 
 /*
   PBL: Extrae media SOLO de la sección del post en la respuesta markdown de Jina.
-  Jina devuelve la página completa (post + posts relacionados/sugeridos).
-  Limitamos a los primeros 3000 chars del bloque "Markdown Content:" para
-  quedarnos con el post objetivo y evitar imágenes de otros posts.
+  Jina puede devolver la página completa (post + posts relacionados/perfil del usuario).
+
+  BUG CORREGIDO: cuando Jina sirve el perfil de @usuario en vez del post específico,
+  el primer post visible es el más reciente del usuario (que puede ser otro post distinto).
+  Sin anclaje al postId, cogemos media del post equivocado.
+
+  Fix: si tenemos postId, buscamos su primera aparición en el markdown y extraemos
+  media desde ese punto. Si el postId no aparece → Jina sirvió otra página → retornamos [].
 */
-function extractPostSectionMedia(jinaMarkdown: string): string[] {
+function extractPostSectionMedia(jinaMarkdown: string, postId: string | null): string[] {
   if (!jinaMarkdown) return []
+
+  if (postId) {
+    const postMatch = new RegExp(`/post/${postId}\\b`, 'i').exec(jinaMarkdown)
+    if (postMatch) {
+      const postSection = jinaMarkdown.slice(postMatch.index, postMatch.index + 2000)
+      return [
+        ...extractMediaFromText(postSection),
+        ...extractEscapedMediaFromText(postSection),
+      ]
+    }
+    // postId no encontrado → Jina sirvió perfil/feed en vez del post → no extraer media
+    return []
+  }
+
+  // Sin postId: comportamiento original (primeros 3000 chars tras "Markdown Content:")
   const contentMatch = /Markdown Content:\s*/i.exec(jinaMarkdown)
   const start = contentMatch ? contentMatch.index + contentMatch[0].length : 0
   const postSection = jinaMarkdown.slice(start, start + 3000)
@@ -275,6 +295,11 @@ function extractFallbackTextFromSource(source: string, postId: string | null): s
     ? lines.findIndex((line) => new RegExp(`/post/${postId}\\b`, 'i').test(line))
     : -1
 
+  // BUG CORREGIDO: si tenemos postId pero no aparece en la fuente, Jina devolvió
+  // otra página (perfil/feed del usuario). Es más seguro retornar undefined que
+  // devolver texto del primer post visible, que puede ser un post diferente.
+  if (postId && postLineIndex === -1) return undefined
+
   const start = postLineIndex >= 0 ? postLineIndex + 1 : 0
   for (let index = start; index < Math.min(lines.length, start + 28); index += 1) {
     const line = lines[index]
@@ -366,7 +391,8 @@ export async function extractPostData(rawUrl: string): Promise<ExtractedPostData
   addMedia(forceMediaEntries([ogImage, twitterImage], 'image'))
   if (oembed?.html) addMedia(toMediaEntries(extractMediaFromText(oembed.html)))
   // PBL: jinaHtml (markdown limpio del post) en vez de source (HTML completo con otros posts)
-  addMedia(toMediaEntries(extractPostSectionMedia(jinaHtml ?? '')))
+  // postId ancla la extracción al bloque correcto — evita coger media de otros posts del feed
+  addMedia(toMediaEntries(extractPostSectionMedia(jinaHtml ?? '', postId)))
 
   /*
     PBL: Detección de vídeo por thumbnail CDN.

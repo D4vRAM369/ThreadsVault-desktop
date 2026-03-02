@@ -21,6 +21,7 @@
   let savingNote    = $state(false)
   let refreshingMedia = $state(false)
   let mediaRefreshError = $state('')
+  let refreshingContent = $state(false)
   let failedMediaIds = $state<Set<string>>(new Set())
   let mediaSourceIndex = $state<Record<string, number>>({})
   let inlineVideoState = $state<Record<string, {
@@ -183,6 +184,33 @@
       embedHtml,
       '</body></html>',
     ].join('')
+  }
+
+  // Re-extrae texto y metadatos del post desde Threads/Jina.
+  // A diferencia de refreshMedia (que preserva el texto existente), éste lo sobreescribe.
+  // Útil cuando la extracción inicial cogió contenido del post equivocado.
+  async function refreshContent() {
+    if (!post || refreshingContent) return
+    refreshingContent = true
+    try {
+      const extracted = await extractPostData(post.canonicalUrl ?? post.url)
+      const updated: Post = {
+        ...post,
+        author:       extracted.author || post.author,
+        previewTitle: extracted.title ?? post.previewTitle,
+        extractedText: extracted.text !== undefined ? extracted.text : post.extractedText,
+        previewImage: extracted.previewImage ?? post.previewImage,
+        previewVideo: extracted.previewVideo ?? post.previewVideo,
+      }
+      const storage = await getStorage()
+      await storage.savePost(updated)
+      post = updated
+      await loadVault()
+    } catch {
+      // silencioso — el usuario puede reintentar
+    } finally {
+      refreshingContent = false
+    }
   }
 
   async function loadInlineVideo(media: PostMedia) {
@@ -688,21 +716,38 @@
         {/if}
       </div>
 
-      {#if post.extractedText}
-        <div class="rounded-xl p-4 mb-4" style="
-          background: rgba(0,188,212,0.08);
-          border: 1px solid rgba(0,188,212,0.24);
-        ">
-          <p class="text-xs font-semibold uppercase mb-1.5" style="
+      <div class="rounded-xl p-4 mb-4" style="
+        background: rgba(0,188,212,0.08);
+        border: 1px solid rgba(0,188,212,0.24);
+      ">
+        <div class="flex items-center justify-between gap-2 mb-2">
+          <p class="text-xs font-semibold uppercase" style="
             color: rgba(188,248,255,0.85);
             font-family: var(--font-display);
             letter-spacing: 0.08em;
           ">Texto extraído</p>
+          <button
+            onclick={refreshContent}
+            disabled={refreshingContent}
+            class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all duration-200 disabled:opacity-50"
+            style="
+              background: rgba(0,188,212,0.14);
+              border: 1px solid rgba(0,188,212,0.32);
+              color: #baf5ff;
+              font-family: var(--font-display);
+            "
+          >{refreshingContent ? 'Extrayendo...' : 'Refrescar'}</button>
+        </div>
+        {#if post.extractedText}
           <p class="text-sm leading-relaxed" style="color: var(--vault-on-bg); opacity: 0.9">
             {post.extractedText}
           </p>
-        </div>
-      {/if}
+        {:else}
+          <p class="text-xs" style="color: var(--vault-on-bg-muted); font-style: italic">
+            No se extrajo texto. Pulsa Refrescar para intentar de nuevo.
+          </p>
+        {/if}
+      </div>
 
       {#if post.media?.length}
         <div class="mb-4">

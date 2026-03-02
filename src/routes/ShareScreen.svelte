@@ -160,6 +160,11 @@
         id="url-input"
         type="url"
         bind:value={url}
+        onpaste={(e) => {
+          e.preventDefault()
+          const pasted = e.clipboardData?.getData('text') ?? ''
+          url = cleanThreadsUrl(pasted.trim())
+        }}
         placeholder="https://www.threads.net/@usuario/post/..."
         class="w-full px-4 py-3 rounded-xl text-sm outline-none transition-all duration-200"
         style="
