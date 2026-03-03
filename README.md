@@ -26,11 +26,25 @@ Puedes clasificar los posts en distintas categorías, el programa indexa los has
 
 ## Capturas
 
-<p align="center">
-  <img src="assets/screenshots/vault_empty.png" width="32%" alt="Bóveda vacía" />
-  <img src="assets/screenshots/settings_categories.png" width="32%" alt="Categorías" />
-  <img src="assets/screenshots/settings_privacy.png" width="32%" alt="Privacidad y ajustes" />
-</p>
+<table align="center">
+  <tr>
+    <td align="center" width="33%">
+      <img src="assets/screenshots/vault_empty.png" alt="Bóveda vacía" /><br/>
+      <b>Bóveda vacía</b><br/>
+      <sub>Pantalla principal al primer arranque</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="assets/screenshots/settings_categories.png" alt="Categorías" /><br/>
+      <b>Categorías</b><br/>
+      <sub>Crea y organiza con color e icono</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="assets/screenshots/settings_privacy.png" alt="Ajustes" /><br/>
+      <b>Privacidad y ajustes</b><br/>
+      <sub>Backup, privacidad, atajos de teclado</sub>
+    </td>
+  </tr>
+</table>
 
 ---
 
