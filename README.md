@@ -164,4 +164,4 @@ Desarrollado principalmente con asistencia de **Claude Code** y en menor medida 
 
 ## Licencia
 
-[GPL-3.0](LICENSE) — igual que ThreadsVault para Android.
+[GPL-3.0](LICENSE) — igual que[ ThreadsVault para Android](https://github.com/D4vRAM369/ThreadsVault).
