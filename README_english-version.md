@@ -53,7 +53,7 @@ You can classify posts into different categories. The app indexes hashtags from 
 - **Save posts by URL** — paste a Threads link and click save. Title, author, text, and images are extracted automatically.
 - **Local storage** — SQLite on desktop (via Tauri), IndexedDB in the browser. Nothing leaves your device.
 - **Categories** — organize posts into custom categories. Uncategorized posts go to a default inbox.
-- **Backup & restore** — export your entire vault as JSON and import it whenever you want. During import, the app shows progress and confirms how many posts and categories were restored. Compatible with backups from ThreadsVault for Android.
+- **Backup & restore** — export your entire vault as JSON and import it whenever you want. When importing, the app shows the progress and confirms how many posts and categories were restored. ThreadsVault backups for Android can be imported here without any problems (Android → Desktop ✅). The reverse direction (Desktop → Android) is not yet supported and will be resolved in a future version.
 - **Media caching** — images are cached locally as data URLs so posts survive CDN expiration.
 - **Personal notes** — add, edit, or delete notes on any saved post directly from its detail screen.
 - **Keyboard shortcuts** — navigate and search without a mouse: `Esc` back, `Ctrl+N` add, `/` or `Ctrl+F` search, `←` `→` navigate between posts.
