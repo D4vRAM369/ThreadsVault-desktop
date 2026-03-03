@@ -53,7 +53,7 @@ Puedes clasificar los posts en distintas categorías, el programa indexa los has
 - **Guardar posts por URL** — pega un enlace de Threads y pulsa guardar. Título, autor, texto e imágenes se extraen automáticamente.
 - **Almacenamiento local** — SQLite en escritorio (vía Tauri), IndexedDB en navegador. Nada sale de tu dispositivo.
 - **Categorías** — organiza tus posts en categorías personalizadas. Los no categorizados van a una bandeja por defecto.
-- **Backup y restauración** —  exporta toda tu bóveda como JSON e impórtala cuando quieras. Al importar, la app muestra el progreso y confirma cuántos posts y categorías se restauraron. Compatible con backups de ThreadsVault para Android.
+- **Backup y restauración** — exporta toda tu bóveda como JSON e impórtala cuando quieras. Al importar, la app muestra el progreso y confirma cuántos posts y categorías se restauraron. Los backups de ThreadsVault para Android se pueden importar aquí sin problemas *(Android → Desktop ✅)*. La dirección inversa *(Desktop → Android)* no está soportada aún y se resolverá en una versión futura.
 - **Caché de medios** — las imágenes se cachean localmente como data URLs para que los posts sobrevivan la expiración de los enlaces CDN.
 - **Notas personales** — añade, edita o elimina notas en cualquier post guardado directamente desde su pantalla de detalle.
 - **Atajos de teclado** — navega y busca sin ratón: `Esc` volver, `Ctrl+N` añadir, `/` o `Ctrl+F` buscar, `←` `→` navegar entre posts.
