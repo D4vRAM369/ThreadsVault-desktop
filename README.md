@@ -24,6 +24,16 @@ Puedes clasificar los posts en distintas categorías, el programa indexa los has
 
 ---
 
+## Capturas
+
+<p align="center">
+  <img src="assets/screenshots/vault_empty.png" width="32%" alt="Bóveda vacía" />
+  <img src="assets/screenshots/settings_categories.png" width="32%" alt="Categorías" />
+  <img src="assets/screenshots/settings_privacy.png" width="32%" alt="Privacidad y ajustes" />
+</p>
+
+---
+
 ## Características principales
 
 - **Guardar posts por URL** — pega un enlace de Threads y pulsa guardar. Título, autor, texto e imágenes se extraen automáticamente.
@@ -141,4 +151,3 @@ Desarrollado principalmente con asistencia de **Claude Code** y en menor medida 
 ## Licencia
 
 [GPL-3.0](LICENSE) — igual que ThreadsVault para Android.
-
