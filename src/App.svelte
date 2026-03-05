@@ -34,29 +34,46 @@
     const onHashChange = () => { currentRoute = window.location.hash || '#/' }
 
     function onKeydown(e: KeyboardEvent) {
+      const key = (e.key || '').toLowerCase()
+      const hasPrimaryModifier = e.ctrlKey || e.metaKey
+      const isCtrlF = hasPrimaryModifier && !e.shiftKey && !e.altKey && (key === 'f' || e.code === 'KeyF')
+      const isCtrlN = hasPrimaryModifier && !e.shiftKey && !e.altKey && (key === 'n' || e.code === 'KeyN')
+
+      // Global: Ctrl/Cmd+F -> busqueda interna de la app
+      if (isCtrlF) {
+        e.preventDefault()
+        if (currentRoute !== '#/' && currentRoute !== '') {
+          window.location.hash = '#/'
+        }
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('threadsvault:focus-search'))
+        }, 0)
+        return
+      }
+
+      // Global: Ctrl/Cmd+N -> nuevo post
+      if (isCtrlN) {
+        e.preventDefault()
+        window.location.hash = '#/share'
+        return
+      }
+
       const tag  = (e.target as HTMLElement).tagName
       const edit = (e.target as HTMLElement).isContentEditable
       if (tag === 'INPUT' || tag === 'TEXTAREA' || edit) return
 
-      // Esc → volver atrás
+      // Esc -> volver atras
       if (e.key === 'Escape' && currentRoute !== '#/' && currentRoute !== '') {
         e.preventDefault()
         history.back()
       }
-
-      // Ctrl/Cmd + N → añadir post
-      if (e.key === 'n' && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault()
-        window.location.hash = '#/share'
-      }
-
     }
 
     window.addEventListener('hashchange', onHashChange)
-    window.addEventListener('keydown', onKeydown)
+    window.addEventListener('keydown', onKeydown, { capture: true })
     return () => {
       window.removeEventListener('hashchange', onHashChange)
-      window.removeEventListener('keydown', onKeydown)
+      window.removeEventListener('keydown', onKeydown, true)
     }
   })
 
@@ -107,3 +124,4 @@
     {/await}
   {/if}
 </main>
+

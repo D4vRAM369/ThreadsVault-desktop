@@ -213,24 +213,34 @@
 
   let searchInput: HTMLInputElement
 
+  function focusSearch() {
+    searchInput?.focus()
+    searchInput?.select()
+  }
+
   onMount(() => {
     void loadVault()
     void refreshStalePostMedia()
+
+    const onFocusSearch = () => focusSearch()
 
     function onKeydown(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
 
-      // / o Ctrl+F → focus buscador
-      if (e.key === '/' || (e.key === 'f' && (e.ctrlKey || e.metaKey))) {
+      // / -> focus buscador
+      if (e.key === '/') {
         e.preventDefault()
-        searchInput?.focus()
-        searchInput?.select()
+        focusSearch()
       }
     }
 
+    window.addEventListener('threadsvault:focus-search', onFocusSearch)
     window.addEventListener('keydown', onKeydown)
-    return () => window.removeEventListener('keydown', onKeydown)
+    return () => {
+      window.removeEventListener('threadsvault:focus-search', onFocusSearch)
+      window.removeEventListener('keydown', onKeydown)
+    }
   })
 </script>
 
@@ -581,3 +591,4 @@
     </div>
   {/if}
 </div>
+
