@@ -17,8 +17,16 @@
 
   let draggingId = $state<string | null>(null)
   let localOrder = $state<Category[]>([])
+  let orderDirty = $state(false)
+  let dragPointerId = $state<number | null>(null)
+  let dragActive = $state(false)
 
-  $effect(() => { localOrder = [...$categories] })
+  $effect(() => {
+    if (!draggingId) {
+      localOrder = [...$categories]
+      orderDirty = false
+    }
+  })
 
   const PRESET_COLORS = [
     '#7C4DFF', '#00BCD4', '#26A69A', '#FF5252',
@@ -59,15 +67,8 @@
     confirmDeleteId = null
   }
 
-  function handleDragStart(e: DragEvent, id: string) {
-    draggingId = id
-    if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
-  }
-
-  function handleDragOver(e: DragEvent, targetId: string) {
-    e.preventDefault()
+  function reorderLocalCategories(targetId: string) {
     if (!draggingId || draggingId === targetId) return
-
     const from = localOrder.findIndex((c) => c.id === draggingId)
     const to = localOrder.findIndex((c) => c.id === targetId)
     if (from === -1 || to === -1) return
@@ -76,17 +77,62 @@
     const [item] = next.splice(from, 1)
     next.splice(to, 0, item)
     localOrder = next
+    orderDirty = true
   }
 
-  async function handleDrop(e: DragEvent) {
+  function getCategoryIdAtPoint(x: number, y: number): string | null {
+    const element = document.elementFromPoint(x, y) as HTMLElement | null
+    if (!element) return null
+    const row = element.closest<HTMLElement>('[data-category-id]')
+    return row?.dataset.categoryId ?? null
+  }
+
+  function handlePointerDragStart(e: PointerEvent, id: string) {
+    if (e.button !== 0) return
+    draggingId = id
+    orderDirty = false
+    dragActive = true
+    dragPointerId = e.pointerId
+    const handle = e.currentTarget as HTMLElement
+    handle.setPointerCapture(e.pointerId)
+    document.body.style.userSelect = 'none'
     e.preventDefault()
-    if (!draggingId) return
-    await reorderCategories(localOrder)
-    draggingId = null
   }
 
-  function handleDragEnd() {
+  function handlePointerDragMove(e: PointerEvent) {
+    if (!dragActive || dragPointerId !== e.pointerId) return
+    const targetId = getCategoryIdAtPoint(e.clientX, e.clientY)
+    if (!targetId) return
+    reorderLocalCategories(targetId)
+  }
+
+  async function finishPointerDrag() {
+    if (draggingId && orderDirty) {
+      await reorderCategories(localOrder)
+    }
     draggingId = null
+    orderDirty = false
+    dragPointerId = null
+    dragActive = false
+    document.body.style.userSelect = ''
+  }
+
+  async function handlePointerDragEnd(e: PointerEvent) {
+    if (!dragActive || dragPointerId !== e.pointerId) return
+    const handle = e.currentTarget as HTMLElement
+    if (handle.hasPointerCapture(e.pointerId)) {
+      handle.releasePointerCapture(e.pointerId)
+    }
+    await finishPointerDrag()
+  }
+
+  async function handlePointerDragCancel(e: PointerEvent) {
+    if (!dragActive || dragPointerId !== e.pointerId) return
+    const handle = e.currentTarget as HTMLElement
+    if (handle.hasPointerCapture(e.pointerId)) {
+      handle.releasePointerCapture(e.pointerId)
+    }
+    await finishPointerDrag()
   }
 
   function getCategoryLabel(cat: Category): string {
@@ -240,11 +286,7 @@
     {#each localOrder as cat, i (cat.id)}
       <div
         role="listitem"
-        draggable="true"
-        ondragstart={(e) => handleDragStart(e, cat.id)}
-        ondragover={(e) => handleDragOver(e, cat.id)}
-        ondrop={handleDrop}
-        ondragend={handleDragEnd}
+        data-category-id={cat.id}
         style="
           background: {draggingId === cat.id
             ? 'rgba(124,77,255,0.12)'
@@ -294,7 +336,14 @@
           </div>
         {:else}
           <div class="flex items-center gap-3 px-4 sm:px-5 py-3 sm:py-3.5">
-            <div class="cursor-grab active:cursor-grabbing shrink-0" style="color: rgba(255,255,255,0.2); touch-action: none">
+            <div
+              class="cursor-grab active:cursor-grabbing shrink-0"
+              style="color: rgba(255,255,255,0.2); touch-action: none"
+              onpointerdown={(e) => handlePointerDragStart(e, cat.id)}
+              onpointermove={handlePointerDragMove}
+              onpointerup={handlePointerDragEnd}
+              onpointercancel={handlePointerDragCancel}
+            >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                 <circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/>
                 <circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/>

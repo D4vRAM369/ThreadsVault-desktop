@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { posts, categories, appState, filteredPosts, hashtagStats,
-           searchQuery, activeCategory, activeHashtag, deletePost, refreshStalePostMedia, loadVault,
+           searchQuery, activeCategory, activeHashtag, deletePost, refreshStalePostMedia, loadVault, reorderCategories,
            mediaRefreshState, mediaRefreshResult } from '../lib/stores/vault'
+  import type { Category } from '../lib/types'
   import PostCard from '../components/PostCard.svelte'
   import EmptyState from '../components/EmptyState.svelte'
   import LoadingSpinner from '../components/LoadingSpinner.svelte'
@@ -34,6 +35,64 @@
       return
     }
     activeHashtag.set(tag)
+  }
+
+  let chipOrder = $state<Category[]>([])
+  let draggingCategoryId = $state<string | null>(null)
+  let categoryOrderDirty = $state(false)
+  let suppressCategoryClick = $state(false)
+
+  $effect(() => {
+    if (!draggingCategoryId) {
+      chipOrder = [...$categories]
+      categoryOrderDirty = false
+    }
+  })
+
+  function onCategoryDragStart(e: DragEvent, id: string) {
+    draggingCategoryId = id
+    categoryOrderDirty = false
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move'
+      e.dataTransfer.setData('text/plain', id)
+    }
+  }
+
+  function onCategoryDragOver(e: DragEvent, targetId: string) {
+    e.preventDefault()
+    if (!draggingCategoryId || draggingCategoryId === targetId) return
+
+    const from = chipOrder.findIndex((cat) => cat.id === draggingCategoryId)
+    const to = chipOrder.findIndex((cat) => cat.id === targetId)
+    if (from === -1 || to === -1) return
+
+    const next = [...chipOrder]
+    const [item] = next.splice(from, 1)
+    next.splice(to, 0, item)
+    chipOrder = next
+    categoryOrderDirty = true
+  }
+
+  async function onCategoryDrop(e: DragEvent) {
+    e.preventDefault()
+    if (!draggingCategoryId) return
+    if (categoryOrderDirty) {
+      await reorderCategories(chipOrder)
+      suppressCategoryClick = true
+      setTimeout(() => { suppressCategoryClick = false }, 120)
+    }
+    draggingCategoryId = null
+    categoryOrderDirty = false
+  }
+
+  async function onCategoryDragEnd() {
+    if (draggingCategoryId && categoryOrderDirty) {
+      await reorderCategories(chipOrder)
+      suppressCategoryClick = true
+      setTimeout(() => { suppressCategoryClick = false }, 120)
+    }
+    draggingCategoryId = null
+    categoryOrderDirty = false
   }
 
   function handleHorizontalWheel(e: WheelEvent) {
@@ -365,9 +424,10 @@
           onclick={() => toggleCategory(null)}
         >Todos</button>
 
-        {#each $categories as cat}
+        {#each chipOrder as cat}
           <button
             class="shrink-0 px-3 rounded-full text-xs font-semibold text-white whitespace-nowrap transition-all duration-200"
+            draggable="true"
             style="
               padding-top: 5px; padding-bottom: 5px;
               line-height: 1.2;
@@ -376,7 +436,14 @@
               opacity: {$activeCategory === cat.id ? '1' : '0.42'};
               box-shadow: {$activeCategory === cat.id ? `0 0 14px ${cat.color}55` : 'none'};
             "
-            onclick={() => toggleCategory(cat.id)}
+            ondragstart={(e) => onCategoryDragStart(e, cat.id)}
+            ondragover={(e) => onCategoryDragOver(e, cat.id)}
+            ondrop={onCategoryDrop}
+            ondragend={onCategoryDragEnd}
+            onclick={() => {
+              if (suppressCategoryClick) return
+              toggleCategory(cat.id)
+            }}
           >{cat.emoji ?? '📌'} {getCategoryLabel(cat.name)} ({getCategoryPostCount(cat.id)})</button>
         {/each}
       </div>
