@@ -502,7 +502,11 @@
   }
 
   function hasVideoMedia(): boolean {
-    return Boolean(post?.media?.some((media) => media.type === 'video'))
+    return Boolean(post?.media?.some((media) => media.type === 'video' || media.type === 'video-link'))
+  }
+
+  function isVideoThumbnailImage(media: PostMedia): boolean {
+    return media.type === 'image' && /\/t51\.71878[-_]/i.test(media.url)
   }
 
   function getMediaSource(media: PostMedia): string {
@@ -523,8 +527,17 @@
 
   function visibleMedia(): PostMedia[] {
     if (!post?.media?.length) return []
-    if (showFailedMedia) return post.media
-    return post.media.filter((media) => !failedMediaIds.has(media.id))
+    const baseMedia = showFailedMedia
+      ? post.media
+      : post.media.filter((media) => !failedMediaIds.has(media.id))
+
+    // Si el post tiene vídeo, ocultamos solo la miniatura CDN del vídeo para evitar
+    // duplicar tarjeta de imagen + tarjeta de reproductor en el mismo post.
+    if (hasVideoMedia()) {
+      return baseMedia.filter((media) => !isVideoThumbnailImage(media))
+    }
+
+    return baseMedia
   }
 
   async function refreshMedia(mode: 'auto' | 'manual' = 'manual') {
