@@ -37,6 +37,11 @@
     activeHashtag.set(tag)
   }
 
+  function getMaxHashtagCount(): number {
+    if ($hashtagStats.length === 0) return 1
+    return Math.max(...$hashtagStats.map((item) => item.count), 1)
+  }
+
   let chipOrder = $state<Category[]>([])
   let draggingCategoryId = $state<string | null>(null)
   let categoryOrderDirty = $state(false)
@@ -349,21 +354,58 @@
           Aún no hay hashtags. Añade `#tags` en tus notas o guarda posts con texto extraído.
         </p>
       {:else}
-        <div class="flex gap-1.5 overflow-x-auto no-scrollbar pb-1" onwheel={handleHorizontalWheel} use:horizontalDrag>
-          {#each $hashtagStats.slice(0, 24) as item (item.tag)}
+        <div
+          class="flex gap-2 overflow-x-auto no-scrollbar pb-1.5 snap-x snap-mandatory"
+          onwheel={handleHorizontalWheel}
+          use:horizontalDrag
+        >
+          {#each $hashtagStats as item (item.tag)}
+            {@const ratio = Math.max(0.08, Math.min(1, item.count / getMaxHashtagCount()))}
             <button
-              class="shrink-0 px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-200"
+              class="shrink-0 snap-start rounded-xl px-3 py-2 text-left transition-all duration-200"
               style="
-                font-family: var(--font-display);
-                line-height: 1.2;
-                {$activeHashtag === item.tag
-                  ? 'background: rgba(0,188,212,0.22); color: #d6f9ff; border: 1px solid rgba(0,188,212,0.45); box-shadow: 0 0 14px rgba(0,188,212,0.2);'
-                  : 'background: rgba(0,188,212,0.09); color: #8befff; border: 1px solid rgba(0,188,212,0.22);'}
+                width: 164px;
+                border: 1px solid {$activeHashtag === item.tag
+                  ? 'rgba(0,188,212,0.50)'
+                  : 'rgba(0,188,212,0.22)'};
+                background: {$activeHashtag === item.tag
+                  ? 'linear-gradient(135deg, rgba(0,188,212,0.22), rgba(124,77,255,0.16))'
+                  : 'linear-gradient(135deg, rgba(0,188,212,0.10), rgba(124,77,255,0.06))'};
+                box-shadow: {$activeHashtag === item.tag
+                  ? '0 0 16px rgba(0,188,212,0.18)'
+                  : 'none'};
               "
               onclick={() => toggleHashtag(item.tag)}
+              aria-label={`Filtrar por ${item.tag}`}
             >
-              {item.tag}
-              <span style="opacity:0.8"> {item.count}</span>
+              <div class="flex items-center justify-between gap-2 mb-1.5">
+                <span class="text-[11px] font-semibold truncate" style="
+                  color: #8befff;
+                  font-family: var(--font-display);
+                ">{item.tag}</span>
+                <span class="text-[11px] px-1.5 py-0.5 rounded-full" style="
+                  background: rgba(124,77,255,0.24);
+                  border: 1px solid rgba(124,77,255,0.35);
+                  color: #ded2ff;
+                  font-family: var(--font-display);
+                  line-height: 1;
+                ">{item.count}</span>
+              </div>
+
+              <div class="h-1.5 rounded-full overflow-hidden" style="
+                background: rgba(255,255,255,0.08);
+                border: 1px solid rgba(255,255,255,0.08);
+              ">
+                <div style="
+                  width: {Math.round(ratio * 100)}%;
+                  height: 100%;
+                  background: linear-gradient(90deg, #00bcd4, #7c4dff);
+                "></div>
+              </div>
+
+              <p class="mt-1.5 text-[10px]" style="color: var(--vault-on-bg-muted)">
+                {$activeHashtag === item.tag ? 'Filtro activo · click para limpiar' : 'Click para abrir feed filtrado'}
+              </p>
             </button>
           {/each}
         </div>
