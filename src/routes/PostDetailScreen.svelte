@@ -7,7 +7,7 @@
   import CategoryBadge from '../components/CategoryBadge.svelte'
   import { cleanThreadsUrl, getPostShortId } from '../lib/utils/url-parser'
   import { extractPostData, resolvePlayableVideoUrl, fetchOEmbedHtml } from '../lib/utils/post-extractor'
-  import { resolveDesktopVideo } from '../lib/utils/desktop-video'
+  import { downloadDesktopVideo, isTauriEnvironment, resolveDesktopVideo } from '../lib/utils/desktop-video'
   import { cachePostMediaLocally } from '../lib/utils/media-cache'
   import type { Post, PostMedia } from '../lib/types'
 
@@ -32,25 +32,35 @@
     source?: 'desktop' | 'web' | 'embed'
     embedHtml?: string   // HTML del reproductor oficial oEmbed de Threads
   }>>({})
+  let inlineVideoDownloadState = $state<Record<string, {
+    status: 'idle' | 'downloading' | 'done' | 'error'
+    filePath?: string
+    fileName?: string
+    progress?: number
+    detail?: string
+    error?: string
+  }>>({})
   // URLs resueltas en caliente para media type:'video' con CDN expirado
   let resolvedVideoSrcs = $state<Record<string, string>>({})
   let showFailedMedia = $state(false)
   let refreshedMediaOnce = $state(false)
   let category      = $derived($categories.find(c => c.id === post?.categoryId))
 
-  onMount(async () => {
-    const storage = await getStorage()
-    post      = await storage.getPost(postId)
-    noteValue = post?.note ?? ''
-    loading   = false
+  onMount(() => {
+    void (async () => {
+      const storage = await getStorage()
+      post      = await storage.getPost(postId)
+      noteValue = post?.note ?? ''
+      loading   = false
 
-    if (post?.media?.length) {
-      for (const media of post.media) {
-        if (media.type === 'video-link') {
-          void loadInlineVideo(media)
+      if (post?.media?.length) {
+        for (const media of post.media) {
+          if (media.type === 'video-link') {
+            void loadInlineVideo(media)
+          }
         }
       }
-    }
+    })()
 
     function onKeydown(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement).tagName
@@ -161,6 +171,44 @@
 
   function getInlineVideoState(media: PostMedia) {
     return inlineVideoState[media.id] ?? { status: 'idle' as const }
+  }
+
+  function getInlineVideoDownloadState(media: PostMedia) {
+    return inlineVideoDownloadState[media.id] ?? { status: 'idle' as const, progress: 0, detail: '' }
+  }
+
+  function getDownloadErrorMessage(error: unknown): string {
+    if (typeof error === 'string') return error
+    if (error instanceof Error) return error.message
+    try {
+      return JSON.stringify(error)
+    } catch {
+      return 'No se pudo descargar el video.'
+    }
+  }
+
+  async function persistDownloadedVideoPath(media: PostMedia, filePath: string) {
+    if (!post?.media?.length) return
+
+    const normalized = filePath.replace(/\\/g, '/')
+    const fileUrl = /^[a-zA-Z]:\//.test(normalized)
+      ? `file:///${normalized}`
+      : `file://${normalized}`
+
+    const updatedMedia = post.media.map((item) => {
+      if (item.id !== media.id) return item
+      return {
+        ...item,
+        cachedDataUrl: fileUrl,
+        cachedAt: Date.now(),
+      }
+    })
+
+    const updatedPost: Post = { ...post, media: updatedMedia }
+    const storage = await getStorage()
+    await storage.savePost(updatedPost)
+    post = updatedPost
+    await loadVault()
   }
 
   /*
@@ -305,6 +353,74 @@
   }
 
   async function downloadInlineVideo(media: PostMedia) {
+    if (!post) return
+    const currentDownload = getInlineVideoDownloadState(media)
+    if (currentDownload.status === 'downloading') return
+
+    if (isTauriEnvironment()) {
+      let fakeProgress = 6
+      const timer = setInterval(() => {
+        fakeProgress = Math.min(fakeProgress + Math.floor(Math.random() * 6 + 2), 92)
+        inlineVideoDownloadState = {
+          ...inlineVideoDownloadState,
+          [media.id]: {
+            ...(inlineVideoDownloadState[media.id] ?? { status: 'downloading' }),
+            status: 'downloading',
+            progress: fakeProgress,
+            detail: fakeProgress < 25
+              ? 'Resolviendo stream de Threads...'
+              : fakeProgress < 60
+                ? 'Conectando con el servidor de media...'
+                : 'Descargando archivo de video...',
+          },
+        }
+      }, 700)
+
+      inlineVideoDownloadState = {
+        ...inlineVideoDownloadState,
+        [media.id]: {
+          status: 'downloading',
+          progress: fakeProgress,
+          detail: 'Preparando descarga...',
+        },
+      }
+
+      try {
+        const result = await Promise.race([
+          downloadDesktopVideo(post.canonicalUrl ?? post.url),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('La descarga tardo demasiado. Reintenta o abre en Threads.')), 180_000)
+          ),
+        ])
+
+        clearInterval(timer)
+        await persistDownloadedVideoPath(media, result.filePath)
+        inlineVideoDownloadState = {
+          ...inlineVideoDownloadState,
+          [media.id]: {
+            status: 'done',
+            filePath: result.filePath,
+            fileName: result.fileName,
+            progress: 100,
+            detail: `Guardado en ${result.filePath}`,
+          },
+        }
+      } catch (error) {
+        clearInterval(timer)
+        const message = getDownloadErrorMessage(error)
+        inlineVideoDownloadState = {
+          ...inlineVideoDownloadState,
+          [media.id]: {
+            status: 'error',
+            error: message,
+            progress: 0,
+            detail: 'La descarga fallo.',
+          },
+        }
+      }
+      return
+    }
+
     const state  = getInlineVideoState(media)
     const source = state.downloadSrc ?? state.src
     if (!source) return
@@ -905,7 +1021,7 @@
                         >Reintentar</button>
                       {/if}
 
-                      {#if state.status === 'ready' && state.src}
+                      {#if state.status !== 'loading'}
                         <button
                           onclick={() => downloadInlineVideo(media)}
                           class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200"
@@ -915,7 +1031,9 @@
                             color: #e4d6ff;
                             font-family: var(--font-display);
                           "
-                        >Descargar</button>
+                        >
+                          {getInlineVideoDownloadState(media).status === 'downloading' ? 'Descargando...' : 'Descargar (Seal+)'}
+                        </button>
                       {/if}
 
                       <button
@@ -929,6 +1047,40 @@
                         "
                       >Ver en Threads ↗</button>
                     </div>
+
+                    {#if getInlineVideoDownloadState(media).status === 'downloading'}
+                      <div class="mt-2 w-full">
+                        <div class="h-2 rounded-full overflow-hidden"
+                             style="background: rgba(255,255,255,0.08); border: 1px solid rgba(124,77,255,0.25)">
+                          <div
+                            class="h-full transition-all duration-500"
+                            style="
+                              width: {getInlineVideoDownloadState(media).progress ?? 0}%;
+                              background: linear-gradient(90deg, #7c4dff, #00bcd4);
+                            "
+                          ></div>
+                        </div>
+                        <p class="text-xs mt-1.5" style="color: var(--vault-on-bg-muted)">
+                          {getInlineVideoDownloadState(media).detail ?? 'Procesando descarga...'}
+                        </p>
+                      </div>
+                    {:else if getInlineVideoDownloadState(media).status === 'done'}
+                      <div class="mt-2 rounded-lg px-2.5 py-2 text-xs" style="
+                        background: rgba(0,188,212,0.10);
+                        border: 1px solid rgba(0,188,212,0.26);
+                        color: #baf5ff;
+                      ">
+                        Descargado: {getInlineVideoDownloadState(media).filePath}
+                      </div>
+                    {:else if getInlineVideoDownloadState(media).status === 'error'}
+                      <div class="mt-2 rounded-lg px-2.5 py-2 text-xs" style="
+                        background: rgba(239,68,68,0.10);
+                        border: 1px solid rgba(239,68,68,0.25);
+                        color: #fca5a5;
+                      ">
+                        Error: {getInlineVideoDownloadState(media).error}
+                      </div>
+                    {/if}
                   </div>
                 {:else}
                   <img
@@ -994,7 +1146,7 @@
       para links externos (previene que la nueva pestaña acceda a window.opener).
     -->
     <button
-      onclick={() => openInBrowser(cleanThreadsUrl(post.url))}
+      onclick={() => post && openInBrowser(cleanThreadsUrl(post.url))}
       class="flex items-center justify-center gap-2.5 w-full py-3.5 rounded-2xl font-semibold transition-all duration-200"
       style="
         background: rgba(255,255,255,0.05);
