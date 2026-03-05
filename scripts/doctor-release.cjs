@@ -61,16 +61,29 @@ console.log(`[doctor:release] Platform=${process.platform} Node=${process.versio
 // 1) Integridad de proyecto
 checkFileExists('package.json');
 checkFileExists('src-tauri/tauri.conf.json');
-checkFileExists('src-tauri/bin/yt-dlp.exe', false);
-checkFileExists('src-tauri/bin/ffmpeg.exe', false);
+if (process.platform === 'win32') {
+  checkFileExists('src-tauri/bin/yt-dlp.exe', false);
+  checkFileExists('src-tauri/bin/ffmpeg.exe', false);
+} else {
+  addResult(
+    'file:src-tauri/bin/*.exe',
+    true,
+    'Skip en no-Windows (binarios .exe no aplican en este target)',
+    false
+  );
+}
 
 // 2) Permisos de escritura para build
 checkWritableDir('dist');
 checkWritableDir('src-tauri/target');
 
 // 3) Capacidad de spawn (requisito duro para vite/esbuild)
-checkSpawn('cmd.exe', ['/c', 'echo', 'spawn-ok']);
-checkSpawn('node', ['-v']);
+if (process.platform === 'win32') {
+  checkSpawn('cmd.exe', ['/c', 'echo', 'spawn-ok']);
+} else {
+  checkSpawn('sh', ['-lc', 'echo spawn-ok']);
+}
+checkSpawn(process.execPath, ['-v']);
 
 // 4) Sugerencia para bundles Linux
 if (process.platform !== 'linux') {
