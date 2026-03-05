@@ -65,6 +65,16 @@ jobs:
       - name: Instalar dependencias npm
         run: npm ci
 
+      - name: Preparar sidecars embebidos (Windows)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force src-tauri/bin | Out-Null
+          Invoke-WebRequest -Uri "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe" -OutFile "src-tauri/bin/yt-dlp.exe"
+          Copy-Item "src-tauri/bin/yt-dlp.exe" "src-tauri/bin/yt-dlp" -Force
+          choco install ffmpeg -y --no-progress
+          Copy-Item "C:\\ProgramData\\chocolatey\\bin\\ffmpeg.exe" "src-tauri/bin/ffmpeg.exe" -Force
+          Copy-Item "src-tauri/bin/ffmpeg.exe" "src-tauri/bin/ffmpeg" -Force
+
       - name: Doctor release (preflight)
         run: npm run doctor:release
 
@@ -133,6 +143,17 @@ jobs:
 
       - name: Instalar dependencias npm
         run: npm ci
+
+      - name: Preparar sidecars embebidos (Linux)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y yt-dlp ffmpeg
+          mkdir -p src-tauri/bin
+          cp /usr/bin/yt-dlp src-tauri/bin/yt-dlp
+          cp /usr/bin/ffmpeg src-tauri/bin/ffmpeg
+          # Placeholders para rutas .exe declaradas en recursos (no usadas en runtime Linux)
+          printf "placeholder-yt-dlp-exe-linux\n" > src-tauri/bin/yt-dlp.exe
+          printf "placeholder-ffmpeg-exe-linux\n" > src-tauri/bin/ffmpeg.exe
 
       - name: Doctor release (preflight)
         run: npm run doctor:release
