@@ -65,6 +65,9 @@ jobs:
       - name: Instalar dependencias npm
         run: npm ci
 
+      - name: Doctor release (preflight)
+        run: npm run doctor:release
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
@@ -130,6 +133,9 @@ jobs:
 
       - name: Instalar dependencias npm
         run: npm ci
+
+      - name: Doctor release (preflight)
+        run: npm run doctor:release
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
