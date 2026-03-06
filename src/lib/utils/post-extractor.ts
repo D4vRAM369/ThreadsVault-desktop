@@ -287,6 +287,34 @@ function extractPostId(url: string): string | null {
   return match?.[1] ?? null
 }
 
+function normalizeCandidateLine(line: string): string {
+  return line
+    .replace(/^\s*(?:\d+\.)\s*/, '')    // "1. texto"
+    .replace(/^\s*[-*•·]\s*/, '')       // "- texto" / "* texto"
+    .replace(/^\s*\.\s*/, '')           // ".texto"
+    .trim()
+}
+
+function isThreadPositionNoise(line: string): boolean {
+  return /^post\s+\d+\s+de\s+\d+$/i.test(line)
+    || /^\d+\s+de\s+\d+$/i.test(line)
+}
+
+function isImageAltNoise(line: string): boolean {
+  return /^!?\[image\s*\d*:/i.test(line)
+    || /profile picture/i.test(line)
+}
+
+function isInvalidExtractedText(value?: string): boolean {
+  if (!value?.trim()) return true
+  const line = normalizeCandidateLine(value.trim())
+  if (line.length < 6) return true
+  if (isThreadPositionNoise(line)) return true
+  if (isImageAltNoise(line)) return true
+  if (isGenericThreadsText(line)) return true
+  return false
+}
+
 function extractFallbackTextFromSource(source: string, postId: string | null): string | undefined {
   if (!source?.trim()) return undefined
   const lines = source.replace(/\r/g, '').split('\n').map((line) => line.trim())
@@ -305,8 +333,10 @@ function extractFallbackTextFromSource(source: string, postId: string | null): s
   for (let index = start; index < Math.min(lines.length, start + 28); index += 1) {
     const line = lines[index]
     if (!line) continue
-    if (line.length < 6) continue
-    if (/^!\[/.test(line)) continue
+    const candidate = normalizeCandidateLine(line)
+    if (candidate.length < 6) continue
+    if (/^!\[/.test(candidate)) continue
+    if (isImageAltNoise(candidate)) continue
     /*
       PBL: Bug fix — Jina convierte los enlaces embebidos en posts a markdown:
         [github.com/ripienaar/free-for-dev](https://github.com/...)
@@ -315,19 +345,20 @@ function extractFallbackTextFromSource(source: string, postId: string | null): s
       Fix: extraemos el texto visible del enlace [texto](url) si tiene ≥6 chars
       y no es una mención de usuario (@handle) ni un número de interacciones.
     */
-    if (/^\[/.test(line)) {
-      const linkText = /^\[([^\]]+)\]/.exec(line)?.[1]
+    if (/^\[/.test(candidate)) {
+      const linkText = /^\[([^\]]+)\]/.exec(candidate)?.[1]
       if (linkText && linkText.length >= 6 && !/^@/.test(linkText) && !/^\d+[kKmMbB]?$/.test(linkText)) {
         return linkText
       }
       continue
     }
-    if (/^\d+$/.test(line)) continue
-    if (/^https?:\/\//i.test(line)) continue
-    if (/^title:|^url source:|^markdown content:/i.test(line)) continue
-    if (/^sorry,\s*we'?re having trouble/i.test(line)) continue
-    if (isGenericThreadsText(line)) continue
-    return line
+    if (/^\d+$/.test(candidate)) continue
+    if (/^https?:\/\//i.test(candidate)) continue
+    if (/^title:|^url source:|^markdown content:/i.test(candidate)) continue
+    if (/^sorry,\s*we'?re having trouble/i.test(candidate)) continue
+    if (isThreadPositionNoise(candidate)) continue
+    if (isGenericThreadsText(candidate)) continue
+    return candidate
   }
 
   return undefined
@@ -360,19 +391,25 @@ function detectThreadPostIds(html: string, author: string, mainPostId: string): 
 async function extractSubPost(subPostId: string, authorHandle: string): Promise<ThreadPost | null> {
   const handle = authorHandle.replace(/^@/, '')
   const url = `https://www.threads.net/@${handle}/post/${subPostId}`
-  const html = await tryFetchText(url)
-  if (!html) return null
+  const [html, jinaMarkdown] = await Promise.all([
+    tryFetchText(url),
+    tryFetchText(`https://r.jina.ai/${url}`),
+  ])
+  if (!html && !jinaMarkdown) return null
+  const source = html ?? jinaMarkdown ?? ''
 
-  const ogDescription = extractMetaTag(html, 'og:description')
-  const twitterDesc   = extractMetaTag(html, 'twitter:description')
-  const ogImage       = extractMetaTag(html, 'og:image')
-  const ogVideo       = extractMetaTag(html, 'og:video')
-  const twitterImage  = extractMetaTag(html, 'twitter:image')
+  const ogDescription = extractMetaTag(source, 'og:description')
+  const twitterDesc   = extractMetaTag(source, 'twitter:description')
+  const ogImage       = extractMetaTag(source, 'og:image')
+  const ogVideo       = extractMetaTag(source, 'og:video')
+  const twitterImage  = extractMetaTag(source, 'twitter:image')
 
   const metadataText = firstDefined(ogDescription, twitterDesc)
-  const text = isGenericThreadsText(metadataText)
-    ? extractFallbackTextFromSource(html, subPostId)
-    : firstDefined(metadataText, extractFallbackTextFromSource(html, subPostId))
+  const markdownText = extractFallbackTextFromSource(jinaMarkdown ?? '', subPostId)
+  const htmlText = extractFallbackTextFromSource(source, subPostId)
+  const text = isInvalidExtractedText(metadataText)
+    ? firstDefined(markdownText, htmlText)
+    : firstDefined(metadataText, markdownText, htmlText)
 
   const seenUrls = new Set<string>()
   const media: PostMedia[] = []
@@ -387,6 +424,7 @@ async function extractSubPost(subPostId: string, authorHandle: string): Promise<
   }
   addItem(forceMediaEntries([ogVideo], 'video'))
   addItem(forceMediaEntries([ogImage, twitterImage], 'image'))
+  addItem(toMediaEntries(extractPostSectionMedia(jinaMarkdown ?? '', subPostId)))
 
   const hasRealVideo  = media.some((item) => item.type === 'video')
   const hasVideoThumb = media.some((item) => VIDEO_THUMB_CDN_RE.test(item.url))
@@ -508,55 +546,59 @@ export async function extractPostData(rawUrl: string): Promise<ExtractedPostData
     : canonicalUrl
 
   const author = selectAuthor(oembed, normalizedCanonical)
+  const authorFromInputUrl = parseThreadsAuthor(canonicalUrl)
 
   /*
-    PBL: Bug fix — cuando el canonical apunta a otro post (sub-post de un hilo),
-    el `source` HTML viene de threads.com y su og:description puede ser del post
-    equivocado (el post raíz). cleanThreadsUrl no cambia threads.com → threads.net,
-    así que directHtml también viene de threads.com.
+    PBL: Estrategia por defecto para sub-posts:
+    si tenemos postId y autor de la URL pegada por el usuario, intentamos SIEMPRE
+    extraer el sub-post específico desde threads.net. Así evitamos depender de que
+    canonicalMismatch sea detectable y reducimos casos donde el guardado inicial
+    trae texto e imágenes del post raíz en lugar del sub-post correcto.
 
-    Solución: si hay mismatch, re-fetcheamos el sub-post específico desde threads.net
-    usando extractSubPost(), que hardcodea threads.net y obtiene los og: correctos.
-    Esto evita que el usuario tenga que pulsar "Refrescar" para ver el texto del post.
+    BUG CORREGIDO: antes retornábamos early aquí con `previewImage/media` del
+    pipeline original (que viene de threads.com). Para sub-posts, threads.com
+    puede devolver og:image del post RAÍZ, no del sub-post específico.
+    Fix: usamos specificPost.media como fuente primaria (threads.net → og: correctos)
+    con fallback al pipeline original si specificPost no tiene media.
+
+    TAMBIÉN CORREGIDO: el return early anterior saltaba la detección de hilos
+    (detectThreadPostIds), rompiendo threadPosts para posts raíz de hilos.
+    Ahora no retornamos early — dejamos que thread detection siempre corra.
   */
-  if (canonicalMismatch && postId && author) {
-    const specificPost = await extractSubPost(postId, author)
-    if (specificPost) {
-      return {
-        canonicalUrl: normalizedCanonical,
-        author,
-        title:        firstDefined(oembed?.title),
-        text:         specificPost.text ?? extractedText,
-        previewImage: specificPost.media?.find((m) => m.type === 'image')?.url ?? previewImage,
-        previewVideo: specificPost.media?.find((m) => m.type === 'video')?.url ?? previewVideo,
-        media:        specificPost.media?.length ? specificPost.media : media,
-      }
-    }
+  let specificPost: ThreadPost | null = null
+  if (postId && authorFromInputUrl) {
+    specificPost = await extractSubPost(postId, authorFromInputUrl)
   }
 
   /*
     PBL: Detección de hilo — si el HTML contiene enlaces a sub-posts del mismo autor,
     los extraemos en paralelo con Promise.all para no añadir latencia acumulada.
     Solo intentamos si tenemos postId y autor válidos.
+    resolvedAuthor: consolida oEmbed author y author de la URL pegada por el usuario.
   */
+  const resolvedAuthor = author || authorFromInputUrl
   let threadPosts: ThreadPost[] | undefined
-  if (postId && author) {
-    const subIds = detectThreadPostIds(source, author, postId)
+  if (postId && resolvedAuthor) {
+    const subIds = detectThreadPostIds(source, resolvedAuthor, postId)
     if (subIds.length > 0) {
-      const results = await Promise.all(subIds.map((id) => extractSubPost(id, author)))
+      const results = await Promise.all(subIds.map((id) => extractSubPost(id, resolvedAuthor)))
       const valid = results.filter((t): t is ThreadPost => t !== null)
       if (valid.length > 0) threadPosts = valid
     }
   }
 
+  const safeSpecificText  = specificPost && !isInvalidExtractedText(specificPost.text)
+    ? specificPost.text : undefined
+  const safeExtractedText = isInvalidExtractedText(extractedText) ? undefined : extractedText
+
   return {
-    canonicalUrl: normalizedCanonical,
-    author,
-    title:        firstDefined(oembed?.title, ogTitle),
-    text:         extractedText,
-    previewImage,
-    previewVideo,
-    media,
+    canonicalUrl:  normalizedCanonical,
+    author:        resolvedAuthor || '@desconocido',
+    title:         firstDefined(oembed?.title, ogTitle),
+    text:          firstDefined(safeSpecificText, safeExtractedText),
+    previewImage:  specificPost?.media?.find((m) => m.type === 'image')?.url ?? previewImage,
+    previewVideo:  specificPost?.media?.find((m) => m.type === 'video')?.url ?? previewVideo,
+    media:         specificPost?.media?.length ? specificPost.media : media,
     threadPosts,
   }
 }
