@@ -445,7 +445,16 @@ async function extractSubPost(subPostId: string, authorHandle: string): Promise<
   return { id: subPostId, url, text, media: media.length > 0 ? media : undefined }
 }
 
-export async function extractPostData(rawUrl: string): Promise<ExtractedPostData> {
+interface ExtractOptions {
+  /**
+   * Omite la detección automática de sub-posts del hilo.
+   * Usar en modo multi-post: el usuario ya especificó todas las URLs,
+   * así que no hace falta inferir más — y ahorramos ~8s de fetches extra.
+   */
+  skipThreadDetection?: boolean
+}
+
+export async function extractPostData(rawUrl: string, options?: ExtractOptions): Promise<ExtractedPostData> {
   const sourceUrl = rawUrl.trim()
   const canonicalUrl = cleanThreadsUrl(sourceUrl)
   const postId = extractPostId(sourceUrl)
@@ -572,10 +581,14 @@ export async function extractPostData(rawUrl: string): Promise<ExtractedPostData
     los extraemos en paralelo con Promise.all para no añadir latencia acumulada.
     Solo intentamos si tenemos postId y autor válidos.
     resolvedAuthor: consolida oEmbed author y author de la URL pegada por el usuario.
+
+    skipThreadDetection=true se usa en modo multi-post: el usuario ya especificó todas
+    las URLs manualmente, así que inferir sub-posts es redundante y añade ~8s de latencia
+    innecesaria. Con el skip, cada extractPostData extra toma ~8s en vez de ~16s.
   */
   const resolvedAuthor = author || authorFromInputUrl
   let threadPosts: ThreadPost[] | undefined
-  if (postId && resolvedAuthor) {
+  if (!options?.skipThreadDetection && postId && resolvedAuthor) {
     const subIds = detectThreadPostIds(source, resolvedAuthor, postId)
     if (subIds.length > 0) {
       const results = await Promise.all(subIds.map((id) => extractSubPost(id, resolvedAuthor)))

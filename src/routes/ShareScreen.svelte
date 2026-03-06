@@ -95,9 +95,15 @@
       const validExtras = extraUrls
         .map(u => cleanThreadsUrl(u.trim()))
         .filter(u => isValidThreadsUrl(u))
+      /*
+        PBL: skipThreadDetection=true en las URLs extra — el usuario ya especificó
+        todas las URLs del hilo, así que detectar sub-posts dentro de cada URL
+        extra es redundante y añade ~8s de latencia por URL.
+        Con el skip: cada extra tarda ~8s (4 fetches paralelos) en vez de ~16s.
+      */
       const [mainResult, ...extraResults] = await Promise.all([
         withTimeout(extractPostData(url.trim()), 20000, signal),
-        ...validExtras.map(u => withTimeout(extractPostData(u), 20000, signal)),
+        ...validExtras.map(u => withTimeout(extractPostData(u, { skipThreadDetection: true }), 20000, signal)),
       ])
       extracted = mainResult
       const threadPostList: ThreadPost[] = extraResults

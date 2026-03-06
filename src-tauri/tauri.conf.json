@@ -22,7 +22,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.cdninstagram.com https://www.threads.net https://www.threads.com https://images.weserv.nl; media-src 'self' blob: https://*.cdninstagram.com; connect-src ipc: http://ipc.localhost https://r.jina.ai https://www.threads.net https://www.threads.com https://www.instagram.com https://*.cdninstagram.com; frame-src 'self'"
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.cdninstagram.com https://*.fbcdn.net https://www.threads.net https://www.threads.com https://images.weserv.nl; media-src 'self' blob: https://*.cdninstagram.com https://*.fbcdn.net; connect-src ipc: http://ipc.localhost https://r.jina.ai https://www.threads.net https://www.threads.com https://www.instagram.com https://*.cdninstagram.com https://*.fbcdn.net https://images.weserv.nl; frame-src 'self'"
     }
   },
   "bundle": {

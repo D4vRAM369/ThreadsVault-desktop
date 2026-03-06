@@ -12,8 +12,14 @@ const DEFAULT_OPTIONS: Required<CacheOptions> = {
   maxVideoBytes: 200 * 1024 * 1024,
 }
 
-function toProxyUrl(url: string): string {
-  return `https://r.jina.ai/http://${url.replace(/^https?:\/\//i, '')}`
+/*
+  PBL: images.weserv.nl es un proxy de imágenes (no de texto como Jina).
+  Añade CORS headers propios → fetch() puede descargar imágenes desde CDNs
+  que bloquean CORS (*.cdninstagram.com, *.fbcdn.net).
+  Formato: ?url=host/path-sin-scheme (la librería acepta ambos formatos).
+*/
+function toImageProxyUrl(url: string): string {
+  return `https://images.weserv.nl/?url=${encodeURIComponent(url.replace(/^https?:\/\//i, ''))}`
 }
 
 function isLikelyTextResponse(contentType: string): boolean {
@@ -30,7 +36,15 @@ async function blobToDataUrl(blob: Blob): Promise<string> {
 }
 
 async function downloadMediaBlob(url: string, mediaType: PostMedia['type']): Promise<Blob | null> {
-  const attempts = [url, toProxyUrl(url)]
+  /*
+    PBL: Para imágenes intentamos dos estrategias:
+      1. Directo — falla si el CDN no tiene CORS headers (cdninstagram, fbcdn)
+      2. Proxy weserv.nl — añade CORS, puede cachear cualquier imagen pública
+
+    Para vídeos solo el intento directo: weserv.nl no sirve vídeos.
+    El timeout es 6s por intento — 12s máximo para imágenes, 6s para vídeos.
+  */
+  const attempts = mediaType === 'image' ? [url, toImageProxyUrl(url)] : [url]
 
   for (const attempt of attempts) {
     const controller = new AbortController()
