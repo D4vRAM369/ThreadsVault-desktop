@@ -306,8 +306,22 @@ function extractFallbackTextFromSource(source: string, postId: string | null): s
     const line = lines[index]
     if (!line) continue
     if (line.length < 6) continue
-    if (/^\[/.test(line)) continue
     if (/^!\[/.test(line)) continue
+    /*
+      PBL: Bug fix — Jina convierte los enlaces embebidos en posts a markdown:
+        [github.com/ripienaar/free-for-dev](https://github.com/...)
+      Sin este fix, saltábamos TODAS las líneas que empiezan con "[", dejando
+      sin texto los posts cuyo único contenido es un enlace.
+      Fix: extraemos el texto visible del enlace [texto](url) si tiene ≥6 chars
+      y no es una mención de usuario (@handle) ni un número de interacciones.
+    */
+    if (/^\[/.test(line)) {
+      const linkText = /^\[([^\]]+)\]/.exec(line)?.[1]
+      if (linkText && linkText.length >= 6 && !/^@/.test(linkText) && !/^\d+[kKmMbB]?$/.test(linkText)) {
+        return linkText
+      }
+      continue
+    }
     if (/^\d+$/.test(line)) continue
     if (/^https?:\/\//i.test(line)) continue
     if (/^title:|^url source:|^markdown content:/i.test(line)) continue
@@ -479,7 +493,17 @@ export async function extractPostData(rawUrl: string): Promise<ExtractedPostData
   const extractedText = isGenericThreadsText(metadataText)
     ? fallbackText
     : firstDefined(metadataText, fallbackText)
-  const normalizedCanonical = isLikelyThreadsPostUrl(canonicalFromHtml)
+  /*
+    PBL: Bug fix — Threads pone <link rel="canonical"> al POST RAÍZ del hilo
+    para todos los sub-posts (estrategia SEO). Sin este check, guardábamos la URL
+    del post 1 como canonicalUrl aunque el usuario hubiese pegado la URL del post 2,
+    haciendo que "Refrescar" extrajese siempre el texto del post equivocado.
+    Fix: si el canonical del HTML apunta a un postId diferente al de la URL original,
+    ignoramos el canonical y mantenemos la URL que el usuario pegó.
+  */
+  const htmlPostId = canonicalFromHtml ? extractPostId(canonicalFromHtml) : null
+  const canonicalMismatch = Boolean(postId && htmlPostId && htmlPostId !== postId)
+  const normalizedCanonical = isLikelyThreadsPostUrl(canonicalFromHtml) && !canonicalMismatch
     ? cleanThreadsUrl(canonicalFromHtml!)
     : canonicalUrl
 
