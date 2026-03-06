@@ -288,6 +288,12 @@
         e.preventDefault()
         focusSearch()
       }
+
+      // Ctrl+N / Cmd+N -> nuevo post (abre ShareScreen con cursor en URL)
+      if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+        e.preventDefault()
+        window.location.hash = '#/share'
+      }
     }
 
     window.addEventListener('threadsvault:focus-search', onFocusSearch)

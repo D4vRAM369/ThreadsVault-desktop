@@ -14,6 +14,7 @@
   let saving        = $state(false)
   let extracting    = $state(false)
   let duplicatePost = $state<Post | null>(null)
+  let urlInputEl: HTMLInputElement | undefined
 
   // AbortController para cancelar la extracción si el componente se desmonta
   let abortController: AbortController | null = null
@@ -38,6 +39,8 @@
     const shared = params.get('url') || params.get('text') || ''
     if (shared) url = shared
     if ($categories.length > 0) selectedCatId = $categories[0].id
+    // Auto-focus URL input: Ctrl+N → cursor directo en el campo de URL
+    urlInputEl?.focus()
   })
 
   async function handleSave(skipDuplicateCheck = false) {
@@ -160,11 +163,19 @@
       <input
         id="url-input"
         type="url"
+        bind:this={urlInputEl}
         bind:value={url}
         onpaste={(e) => {
           e.preventDefault()
           const pasted = e.clipboardData?.getData('text') ?? ''
           url = cleanThreadsUrl(pasted.trim())
+        }}
+        onkeydown={(e) => {
+          // Enter en el campo URL dispara el guardado (flujo Ctrl+N → Ctrl+V → Enter)
+          if (e.key === 'Enter' && !saving) {
+            e.preventDefault()
+            void handleSave()
+          }
         }}
         placeholder="https://www.threads.net/@usuario/post/..."
         class="w-full px-4 py-3 rounded-xl text-sm outline-none transition-all duration-200"
