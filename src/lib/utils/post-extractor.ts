@@ -301,24 +301,41 @@ function isThreadPositionNoise(line: string): boolean {
 }
 
 /*
-  PBL: Jina Reader convierte los enlaces de los posts a markdown:
-    "GitHub repo: github.com/foo" → "GitHub repo: [github.com/foo](https://l.threads.com/?u=...)"
-  Sin este fix, guardamos la sintaxis `[texto](url_tracking)` como texto del post.
+  PBL: Jina Reader convierte los enlaces de posts a markdown con URL de tracking:
+    "GitHub repo: github.com/hipocap" →
+    "GitHub repo: [github.com/hipoc...](https://l.threads.com/?u=https%3A%2F%2Fgithub.com%2Fhipocap)"
+  Sin limpieza guardamos la sintaxis de corchetes y URLs de tracking.
 
-  Fix:
-    1. [texto visible](url)  → texto visible  (extrae el texto del enlace)
-    2. URLs de redirección Threads/Meta que queden sueltas → eliminadas
-    3. Colapsar espacios extra resultantes
-
-  NO elimina URLs simples (e.g. "check github.com/foo") — preserva el contenido.
+  Problemas resueltos:
+    1. [texto truncado](l.threads.com/?u=URL_REAL) → URL_REAL sin https://
+       (Threads muestra "hipoc..." pero el parámetro ?u= tiene la URL completa)
+    2. [texto](url_cualquiera) → texto (fallback genérico)
+    3. URLs de tracking l.threads.com / l.instagram.com sueltas → eliminadas
+    4. og:description concatena párrafos sin espacio: "frase.Siguiente" → "frase. Siguiente"
 */
+function resolveThreadsTrackingUrl(url: string): string | null {
+  // "https://l.threads.com/?u=ENCODED_URL&e=TOKEN" → "github.com/hipocap/hipocap"
+  try {
+    const parsed = new URL(url)
+    if (/l\.(threads|instagram)\.com/i.test(parsed.hostname)) {
+      const inner = parsed.searchParams.get('u')
+      if (inner) return decodeURIComponent(inner).replace(/^https?:\/\//i, '')
+    }
+  } catch { /* URL inválida — ignorar */ }
+  return null
+}
+
 function cleanMarkdownLinks(text: string | undefined): string | undefined {
   if (!text?.trim()) return undefined
   const cleaned = text
-    // [texto visible](url) → texto visible
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
-    // Eliminar URLs de redirección de Threads/Meta que queden sueltas tras el paso anterior
+    // [texto](tracking_url) → URL real decodificada (o texto si no es tracking)
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, (_, displayText, url) => {
+      return resolveThreadsTrackingUrl(url) ?? displayText
+    })
+    // Eliminar URLs de tracking sueltas que hayan quedado
     .replace(/https?:\/\/l\.(?:threads|instagram)\.com\/\S*/gi, '')
+    // og:description concatena párrafos: "frase.OtraPalabra" → "frase. OtraPalabra"
+    .replace(/([.!?])([A-Z])/g, '$1 $2')
     // Colapsar espacios extra y limpiar
     .replace(/\s{2,}/g, ' ')
     .trim()
