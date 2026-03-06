@@ -510,6 +510,31 @@ export async function extractPostData(rawUrl: string): Promise<ExtractedPostData
   const author = selectAuthor(oembed, normalizedCanonical)
 
   /*
+    PBL: Bug fix — cuando el canonical apunta a otro post (sub-post de un hilo),
+    el `source` HTML viene de threads.com y su og:description puede ser del post
+    equivocado (el post raíz). cleanThreadsUrl no cambia threads.com → threads.net,
+    así que directHtml también viene de threads.com.
+
+    Solución: si hay mismatch, re-fetcheamos el sub-post específico desde threads.net
+    usando extractSubPost(), que hardcodea threads.net y obtiene los og: correctos.
+    Esto evita que el usuario tenga que pulsar "Refrescar" para ver el texto del post.
+  */
+  if (canonicalMismatch && postId && author) {
+    const specificPost = await extractSubPost(postId, author)
+    if (specificPost) {
+      return {
+        canonicalUrl: normalizedCanonical,
+        author,
+        title:        firstDefined(oembed?.title),
+        text:         specificPost.text ?? extractedText,
+        previewImage: specificPost.media?.find((m) => m.type === 'image')?.url ?? previewImage,
+        previewVideo: specificPost.media?.find((m) => m.type === 'video')?.url ?? previewVideo,
+        media:        specificPost.media?.length ? specificPost.media : media,
+      }
+    }
+  }
+
+  /*
     PBL: Detección de hilo — si el HTML contiene enlaces a sub-posts del mismo autor,
     los extraemos en paralelo con Promise.all para no añadir latencia acumulada.
     Solo intentamos si tenemos postId y autor válidos.
