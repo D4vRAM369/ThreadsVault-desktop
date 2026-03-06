@@ -9,7 +9,7 @@ export interface DesktopVideoDownloadResult {
   filePath: string
   fileName: string
   downloadDir: string
-  source: 'seal-plus'
+  source: 'direct' | 'yt-dlp-fallback'
 }
 
 export function isTauriEnvironment(): boolean {

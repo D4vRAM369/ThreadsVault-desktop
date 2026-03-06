@@ -359,19 +359,24 @@
 
     if (isTauriEnvironment()) {
       let fakeProgress = 6
+      let elapsedTicks = 0
       const timer = setInterval(() => {
+        elapsedTicks += 1
         fakeProgress = Math.min(fakeProgress + Math.floor(Math.random() * 6 + 2), 92)
+        const isFallbackStage = elapsedTicks >= 10
         inlineVideoDownloadState = {
           ...inlineVideoDownloadState,
           [media.id]: {
             ...(inlineVideoDownloadState[media.id] ?? { status: 'downloading' }),
             status: 'downloading',
             progress: fakeProgress,
-            detail: fakeProgress < 25
-              ? 'Resolviendo stream de Threads...'
-              : fakeProgress < 60
-                ? 'Conectando con el servidor de media...'
-                : 'Descargando archivo de video...',
+            detail: isFallbackStage
+              ? 'Reintentando con fallback (yt-dlp)...'
+              : fakeProgress < 25
+                ? 'Resolviendo stream de Threads...'
+                : fakeProgress < 60
+                  ? 'Intentando descarga directa...'
+                  : 'Procesando descarga...',
           },
         }
       }, 700)
@@ -402,7 +407,9 @@
             filePath: result.filePath,
             fileName: result.fileName,
             progress: 100,
-            detail: `Guardado en ${result.filePath}`,
+            detail: result.source === 'yt-dlp-fallback'
+              ? `Descarga completada con fallback yt-dlp. Guardado en ${result.filePath}`
+              : `Descarga directa completada. Guardado en ${result.filePath}`,
           },
         }
       } catch (error) {
@@ -1045,7 +1052,7 @@
                             font-family: var(--font-display);
                           "
                         >
-                          {getInlineVideoDownloadState(media).status === 'downloading' ? 'Descargando...' : 'Descargar (Seal+)'}
+                          {getInlineVideoDownloadState(media).status === 'downloading' ? 'Descargando...' : 'Descargar video'}
                         </button>
                       {/if}
 

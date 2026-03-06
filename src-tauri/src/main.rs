@@ -2,8 +2,10 @@
 
 use regex::Regex;
 use serde::Serialize;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
+use tauri::Manager;
 
 // ---------------------------------------------------------------------------
 // Constantes — API privada de Threads (reverse-engineered, sin autenticación)
@@ -75,6 +77,116 @@ struct VideoDownloadResult {
     file_name: String,
     download_dir: String,
     source: &'static str,
+}
+
+fn first_existing_path(candidates: &[PathBuf]) -> Option<PathBuf> {
+    candidates.iter().find(|path| path.exists()).cloned()
+}
+
+fn resolve_sidecar_binary(app: &tauri::AppHandle, base_name: &str) -> Option<PathBuf> {
+    #[cfg(target_os = "windows")]
+    let file_name = format!("{base_name}.exe");
+    #[cfg(not(target_os = "windows"))]
+    let file_name = base_name.to_string();
+
+    let mut candidates: Vec<PathBuf> = Vec::new();
+
+    // Dev: src-tauri/target/debug/{app}.exe -> ../../bin/{binary}
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            candidates.push(exe_dir.join("..").join("..").join("bin").join(&file_name));
+        }
+    }
+
+    // Bundle: resources directory in installed app.
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        candidates.push(resource_dir.join("bin").join(&file_name));
+        candidates.push(resource_dir.join(&file_name));
+    }
+
+    // CWD fallback (useful for custom launches/tests).
+    if let Ok(cwd) = std::env::current_dir() {
+        candidates.push(cwd.join("src-tauri").join("bin").join(&file_name));
+        candidates.push(cwd.join("bin").join(&file_name));
+    }
+
+    first_existing_path(&candidates)
+}
+
+fn extract_downloaded_file_from_stdout(stdout: &str) -> Option<String> {
+    stdout
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .last()
+        .map(|line| line.to_string())
+}
+
+fn file_name_from_path(path: &Path) -> String {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("video.mp4")
+        .to_string()
+}
+
+fn download_with_yt_dlp(
+    app: &tauri::AppHandle,
+    post_url: &str,
+    output_prefix: &str,
+    download_dir: &Path,
+) -> Result<VideoDownloadResult, String> {
+    let yt_dlp = resolve_sidecar_binary(app, "yt-dlp")
+        .ok_or_else(|| String::from("No se encontro yt-dlp sidecar en recursos/bin."))?;
+    let ffmpeg = resolve_sidecar_binary(app, "ffmpeg");
+
+    let output_template = format!("{output_prefix}.%(ext)s");
+    let mut command = Command::new(&yt_dlp);
+    command
+        .arg(post_url)
+        .arg("--no-playlist")
+        .arg("--no-warnings")
+        .arg("--newline")
+        .arg("--restrict-filenames")
+        .arg("--merge-output-format")
+        .arg("mp4")
+        .arg("--print")
+        .arg("after_move:filepath")
+        .arg("-P")
+        .arg(download_dir)
+        .arg("-o")
+        .arg(output_template);
+
+    if let Some(ffmpeg_path) = ffmpeg {
+        command.arg("--ffmpeg-location").arg(ffmpeg_path);
+    }
+
+    let output = command
+        .output()
+        .map_err(|e| format!("No se pudo ejecutar yt-dlp: {e}"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let detail = if !stderr.is_empty() { stderr } else { stdout };
+        return Err(format!(
+            "yt-dlp termino con error (exit {}). {}",
+            output.status.code().unwrap_or(-1),
+            detail
+        ));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let downloaded_path = extract_downloaded_file_from_stdout(&stdout)
+        .ok_or_else(|| String::from("yt-dlp finalizo sin reportar la ruta del archivo."))?;
+    let file_path = PathBuf::from(&downloaded_path);
+    let file_name = file_name_from_path(&file_path);
+
+    Ok(VideoDownloadResult {
+        file_path: downloaded_path,
+        file_name,
+        download_dir: download_dir.to_string_lossy().to_string(),
+        source: "yt-dlp-fallback",
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -511,7 +623,7 @@ fn open_url(url: String) -> Result<(), String> {
 
 #[tauri::command]
 async fn download_threads_video(
-    _app: tauri::AppHandle,
+    app: tauri::AppHandle,
     post_url: String,
 ) -> Result<VideoDownloadResult, String> {
     if !is_supported_threads_url(&post_url) {
@@ -527,10 +639,9 @@ async fn download_threads_video(
         .map(|duration| duration.as_secs())
         .unwrap_or(0);
     let output_prefix = format!("threadsvault-{shortcode}-{unix_ts}");
-    // Flujo principal: usa el mismo resolver completo de la app
-    // (GraphQL + fallback HTML) para evitar depender del extractor de yt-dlp.
+    // Metodo principal: resolver interno (GraphQL + HTML) + descarga directa.
     let resolved = resolve_threads_video(post_url.clone()).await?;
-    if let Some(video_url) = resolved.download_url.or(resolved.playable_url) {
+    if let Some(video_url) = resolved.download_url.clone().or(resolved.playable_url.clone()) {
         let direct_output = download_dir.join(format!("{output_prefix}.mp4"));
 
         let client = reqwest::Client::builder()
@@ -541,48 +652,41 @@ async fn download_threads_video(
             .build()
             .map_err(|e| e.to_string())?;
 
-        let response = client
+        let direct_response = client
             .get(&video_url)
             .header("Referer", "https://www.threads.net/")
             .header("Accept", "*/*")
             .send()
-            .await
-            .map_err(|e| format!("No se pudo iniciar la descarga directa: {e}"))?;
+            .await;
 
-        if !response.status().is_success() {
-            return Err(format!(
-                "No se pudo descargar el stream directo (HTTP {}).",
-                response.status()
-            ));
+        if let Ok(response) = direct_response {
+            if response.status().is_success() {
+                if let Ok(body) = response.bytes().await {
+                    if std::fs::write(&direct_output, &body).is_ok() {
+                        let file_name = file_name_from_path(&direct_output);
+                        return Ok(VideoDownloadResult {
+                            file_path: direct_output.to_string_lossy().to_string(),
+                            file_name,
+                            download_dir: download_dir.to_string_lossy().to_string(),
+                            source: "direct",
+                        });
+                    }
+                }
+            }
         }
-
-        let body = response
-            .bytes()
-            .await
-            .map_err(|e| format!("Error leyendo datos del video: {e}"))?;
-
-        std::fs::write(&direct_output, &body).map_err(|e| e.to_string())?;
-
-        let file_name = direct_output
-            .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or("video.mp4")
-            .to_string();
-
-        return Ok(VideoDownloadResult {
-            file_path: direct_output.to_string_lossy().to_string(),
-            file_name,
-            download_dir: download_dir.to_string_lossy().to_string(),
-            source: "seal-plus",
-        });
     }
 
-    Err(format!(
-        "No se pudo resolver una URL de video descargable para este post. {}",
-        resolved
-            .reason
-            .unwrap_or_else(|| String::from("Threads no expone stream publico en este caso."))
-    ))
+    // Fallback automatico: extractor robusto de yt-dlp sidecar.
+    match download_with_yt_dlp(&app, &post_url, &output_prefix, &download_dir) {
+        Ok(result) => Ok(result),
+        Err(fallback_error) => Err(format!(
+            "Descarga directa y fallback fallaron. {}. Detalle fallback: {}",
+            resolved
+                .reason
+                .unwrap_or_else(|| String::from("Threads no expone stream publico en este caso.")),
+            fallback_error
+        )),
+    }
 }
 
 // ---------------------------------------------------------------------------
