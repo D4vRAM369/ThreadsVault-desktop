@@ -5,7 +5,7 @@
   import { parseThreadsAuthor, isValidThreadsUrl, cleanThreadsUrl } from '../lib/utils/url-parser'
   import { extractPostData } from '../lib/utils/post-extractor'
   import { cachePostMediaLocally } from '../lib/utils/media-cache'
-  import type { Post } from '../lib/types'
+  import type { Post, ThreadPost } from '../lib/types'
 
   let url           = $state('')
   let note          = $state('')
@@ -15,6 +15,10 @@
   let extracting    = $state(false)
   let duplicatePost = $state<Post | null>(null)
   let urlInputEl: HTMLInputElement | undefined
+
+  // UX multi-post: casilla de verificación + URLs adicionales
+  let isMultiPost = $state(false)
+  let extraUrls   = $state<string[]>([''])
 
   // AbortController para cancelar la extracción si el componente se desmonta
   let abortController: AbortController | null = null
@@ -77,9 +81,39 @@
     const signal = abortController.signal
 
     let extracted: Awaited<ReturnType<typeof extractPostData>> | null = null
+    let manualThreadPosts: ThreadPost[] | undefined
     extracting = true
-    // PBL: 12s — los 3 fetches corren en paralelo (~8s max cada uno)
-    extracted = await withTimeout(extractPostData(url.trim()), 12000, signal)
+
+    if (isMultiPost) {
+      /*
+        PBL: modo multi-post — el usuario especificó manualmente las URLs de todas
+        las publicaciones del hilo. Extraemos en paralelo con Promise.all para no
+        sumar los timeouts (máx ~12s en total en vez de 12s × N).
+        extraUrls contiene las URLs de las publicaciones adicionales (post 2, 3…).
+        La URL principal (post 1) ya está en `url`.
+      */
+      const validExtras = extraUrls
+        .map(u => cleanThreadsUrl(u.trim()))
+        .filter(u => isValidThreadsUrl(u))
+      const [mainResult, ...extraResults] = await Promise.all([
+        withTimeout(extractPostData(url.trim()), 16000, signal),
+        ...validExtras.map(u => withTimeout(extractPostData(u), 16000, signal)),
+      ])
+      extracted = mainResult
+      const threadPostList: ThreadPost[] = extraResults
+        .filter((r): r is NonNullable<typeof r> => r !== null)
+        .map(r => ({
+          id: r.canonicalUrl.match(/\/post\/([A-Za-z0-9_-]+)/)?.[1] ?? crypto.randomUUID(),
+          url:   r.canonicalUrl,
+          text:  r.text,
+          media: r.media?.length ? r.media : undefined,
+        }))
+      if (threadPostList.length > 0) manualThreadPosts = threadPostList
+    } else {
+      // PBL: 12s — los 3 fetches corren en paralelo (~8s max cada uno)
+      extracted = await withTimeout(extractPostData(url.trim()), 12000, signal)
+    }
+
     extracting = false
     abortController = null
 
@@ -103,7 +137,8 @@
       extractedText: extracted?.text,
       canonicalUrl: extracted?.canonicalUrl ?? cleanUrl,
       media: extracted?.media ?? [],
-      threadPosts: extracted?.threadPosts,
+      // manualThreadPosts tiene prioridad — el usuario definió explícitamente las URLs
+      threadPosts: manualThreadPosts ?? extracted?.threadPosts,
     }
 
     await savePost(post)
@@ -188,6 +223,75 @@
         onfocus={(e) => (e.target as HTMLElement).style.borderColor = 'rgba(124,77,255,0.5)'}
         onblur={(e) => (e.target as HTMLElement).style.borderColor = 'var(--vault-border)'}
       />
+    </div>
+
+    <!--
+      PBL: UX multi-post — si el usuario marca la casilla, aparecen campos para
+      las URLs de las publicaciones adicionales del hilo (post 2, 3…).
+      Todas se extraen en paralelo y se guardan como un único post con threadPosts[].
+      Así el usuario no necesita Ctrl+N 4 veces + fusionar manualmente.
+    -->
+    <div>
+      <label class="flex items-start gap-3 cursor-pointer select-none" for="multi-post-check">
+        <input
+          type="checkbox"
+          id="multi-post-check"
+          bind:checked={isMultiPost}
+          class="mt-0.5 w-4 h-4 cursor-pointer flex-shrink-0"
+          style="accent-color: var(--vault-primary)"
+          onchange={() => { if (isMultiPost) extraUrls = [''] }}
+        />
+        <span>
+          <span class="text-sm font-medium" style="color: var(--vault-on-bg)">
+            Este post tiene más de 1 publicación adjunta
+          </span>
+          <span class="block text-xs mt-0.5" style="color: var(--vault-on-bg-muted)">
+            Pega la URL de cada publicación adicional del hilo
+          </span>
+        </span>
+      </label>
+
+      {#if isMultiPost}
+        <div class="flex flex-col gap-2 mt-3">
+          {#each extraUrls as _, i}
+            <div class="flex items-center gap-2">
+              <input
+                type="url"
+                value={extraUrls[i]}
+                placeholder="URL del post {i + 2}…"
+                class="flex-1 px-4 py-2.5 rounded-xl text-sm outline-none transition-all duration-200"
+                style="
+                  background: rgba(255,255,255,0.04);
+                  color: var(--vault-on-bg);
+                  border: 1px solid var(--vault-border);
+                  font-family: var(--font-body);
+                "
+                onpaste={(e) => {
+                  e.preventDefault()
+                  const pasted = e.clipboardData?.getData('text') ?? ''
+                  extraUrls[i] = cleanThreadsUrl(pasted.trim())
+                }}
+                oninput={(e) => { extraUrls[i] = e.currentTarget.value }}
+                onfocus={(e) => (e.target as HTMLElement).style.borderColor = 'rgba(124,77,255,0.5)'}
+                onblur={(e) => (e.target as HTMLElement).style.borderColor = 'var(--vault-border)'}
+              />
+              {#if extraUrls.length > 1}
+                <button
+                  onclick={() => { extraUrls = extraUrls.filter((_, idx) => idx !== i) }}
+                  class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-200"
+                  style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); color: #fca5a5; font-size: 1.1rem; line-height:1"
+                  aria-label="Eliminar URL"
+                >×</button>
+              {/if}
+            </div>
+          {/each}
+          <button
+            onclick={() => { extraUrls = [...extraUrls, ''] }}
+            class="self-start px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200"
+            style="background: rgba(124,77,255,0.12); border: 1px solid rgba(124,77,255,0.25); color: var(--vault-primary)"
+          >+ Añadir otra URL</button>
+        </div>
+      {/if}
     </div>
 
     <!-- Nota -->
@@ -298,7 +402,11 @@
         el.style.boxShadow = '0 4px 20px var(--vault-primary-glow)'
       }}
     >
-      {saving ? (extracting ? '🔍 Extrayendo texto y media...' : '💾 Guardando...') : '🔒 Guardar en bóveda'}
+      {saving
+        ? (extracting
+            ? (isMultiPost ? '🔍 Extrayendo publicaciones...' : '🔍 Extrayendo texto y media...')
+            : '💾 Guardando...')
+        : '🔒 Guardar en bóveda'}
     </button>
   </div>
 </div>
