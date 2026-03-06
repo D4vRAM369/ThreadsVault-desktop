@@ -155,7 +155,18 @@ export async function loadVault() {
 function needsMediaRefresh(post: Post): boolean {
   const hasImageMedia = Boolean(post.media?.some((media) => media.type === 'image'))
   const hasVideoFallback = Boolean(post.media?.some((media) => media.type === 'video-link'))
-  return !post.previewImage || !hasImageMedia || hasVideoFallback
+  /*
+    PBL: Bug fix — posts con imagen extraída (url) pero sin caché local (cachedDataUrl).
+    El código antiguo usaba r.jina.ai como proxy de imágenes, que devolvía texto/HTML
+    (isLikelyTextResponse → skip) → cachedDataUrl nunca se guardaba.
+    El nuevo código usa images.weserv.nl que sí sirve imágenes con CORS → caching funciona.
+    Sin este check, estos posts nunca se reintentaban porque hasImageMedia = true ya era
+    suficiente para considerarlos "sanos". La URL del CDN expira en ~24-48h → "POST" placeholder.
+  */
+  const hasUncachedImages = Boolean(
+    post.media?.some((media) => media.type === 'image' && !media.cachedDataUrl)
+  )
+  return !post.previewImage || !hasImageMedia || hasVideoFallback || hasUncachedImages
 }
 
 export async function refreshStalePostMedia(limit: number = 6) {
