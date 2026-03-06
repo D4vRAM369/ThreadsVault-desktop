@@ -300,6 +300,31 @@ function isThreadPositionNoise(line: string): boolean {
     || /^\d+\s+de\s+\d+$/i.test(line)
 }
 
+/*
+  PBL: Jina Reader convierte los enlaces de los posts a markdown:
+    "GitHub repo: github.com/foo" → "GitHub repo: [github.com/foo](https://l.threads.com/?u=...)"
+  Sin este fix, guardamos la sintaxis `[texto](url_tracking)` como texto del post.
+
+  Fix:
+    1. [texto visible](url)  → texto visible  (extrae el texto del enlace)
+    2. URLs de redirección Threads/Meta que queden sueltas → eliminadas
+    3. Colapsar espacios extra resultantes
+
+  NO elimina URLs simples (e.g. "check github.com/foo") — preserva el contenido.
+*/
+function cleanMarkdownLinks(text: string | undefined): string | undefined {
+  if (!text?.trim()) return undefined
+  const cleaned = text
+    // [texto visible](url) → texto visible
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    // Eliminar URLs de redirección de Threads/Meta que queden sueltas tras el paso anterior
+    .replace(/https?:\/\/l\.(?:threads|instagram)\.com\/\S*/gi, '')
+    // Colapsar espacios extra y limpiar
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+  return cleaned.length >= 6 ? cleaned : undefined
+}
+
 function isImageAltNoise(line: string): boolean {
   return /^!?\[image\s*\d*:/i.test(line)
     || /profile picture/i.test(line)
@@ -442,7 +467,7 @@ async function extractSubPost(subPostId: string, authorHandle: string): Promise<
     media.push({ id: crypto.randomUUID(), type: 'video-link', url })
   }
 
-  return { id: subPostId, url, text, media: media.length > 0 ? media : undefined }
+  return { id: subPostId, url, text: cleanMarkdownLinks(text), media: media.length > 0 ? media : undefined }
 }
 
 interface ExtractOptions {
@@ -605,7 +630,7 @@ export async function extractPostData(rawUrl: string, options?: ExtractOptions):
     canonicalUrl:  normalizedCanonical,
     author:        resolvedAuthor || '@desconocido',
     title:         firstDefined(oembed?.title, ogTitle),
-    text:          firstDefined(safeSpecificText, safeExtractedText),
+    text:          cleanMarkdownLinks(firstDefined(safeSpecificText, safeExtractedText)),
     previewImage:  specificPost?.media?.find((m) => m.type === 'image')?.url ?? previewImage,
     previewVideo:  specificPost?.media?.find((m) => m.type === 'video')?.url ?? previewVideo,
     media:         specificPost?.media?.length ? specificPost.media : media,
