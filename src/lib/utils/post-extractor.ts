@@ -369,14 +369,24 @@ function extractFallbackTextFromSource(source: string, postId: string | null): s
   Threads embebe en el HTML los enlaces a los posts del hilo con el patrón:
     /@handle/post/ID  o  /post/ID
   Extraemos todos los IDs distintos al mainPostId, en orden de aparición.
+
+  BUG CORREGIDO: el HTML de Threads incluye URLs en JSON-blobs con escapes
+  Unicode (\\u002F en lugar de /) y JSON (\\/ en lugar de /). El regex
+  necesita que normalicemos esos escapes antes de buscar el patrón.
+  Ejemplo de raw HTML que fallaba:
+    "url":"https:\\u002F\\u002Fwww.threads.net\\u002F@handle\\u002Fpost\\u002FID"
 */
 function detectThreadPostIds(html: string, author: string, mainPostId: string): string[] {
   if (!html || !author || !mainPostId) return []
+  // Normalizar escapes comunes en JSON-blobs embebidos en el HTML
+  const normalized = html
+    .replace(/\\u002F/gi, '/')
+    .replace(/\\\//g, '/')
   const handle = author.replace(/^@/, '')
   const pattern = new RegExp(`/@?${handle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/post/([A-Za-z0-9_-]+)`, 'gi')
   const found = new Set<string>()
   let match: RegExpExecArray | null
-  while ((match = pattern.exec(html)) !== null) {
+  while ((match = pattern.exec(normalized)) !== null) {
     const id = match[1]
     if (id !== mainPostId) found.add(id)
   }
@@ -439,13 +449,17 @@ export async function extractPostData(rawUrl: string): Promise<ExtractedPostData
   const sourceUrl = rawUrl.trim()
   const canonicalUrl = cleanThreadsUrl(sourceUrl)
   const postId = extractPostId(sourceUrl)
+  // authorFromInputUrl es síncrono (parse de URL) → disponible antes del primer await
+  const authorFromInputUrl = parseThreadsAuthor(canonicalUrl)
 
   /*
-    PBL: Ejecutamos los 3 orígenes EN PARALELO con Promise.all.
-    Antes eran secuenciales (await + await + await) = hasta 13.5s.
-    Ahora el tiempo total = max(cada timeout individual) = ~8s.
-    Esto garantiza que Jina siempre tiene tiempo de responder antes
-    del timeout exterior de ShareScreen.
+    PBL: Ejecutamos los 4 orígenes EN PARALELO con Promise.all.
+    Antes: 3 fetches paralelos + extractSubPost secuencial = hasta 8s + 8s = 16s.
+    Ahora: 4 fetches paralelos = max(cada uno) = ~8s total.
+    El 4º fetch es extractSubPost para el post específico (threads.net).
+    Esto es especialmente importante para sub-posts: threads.com puede devolver
+    el og:image del post RAÍZ, mientras threads.net tiene el og:image correcto
+    del sub-post.
 
     Orden de preferencia para el HTML fuente:
     1. directHtml  — fetch directo (funciona en Tauri, CORS en browser)
@@ -455,10 +469,13 @@ export async function extractPostData(rawUrl: string): Promise<ExtractedPostData
     `https://`, forzando una redirección en Threads que añadía latencia
     y podía fallar. Ahora usamos `https://r.jina.ai/${canonicalUrl}`.
   */
-  const [oembed, directHtml, jinaHtml] = await Promise.all([
+  const [oembed, directHtml, jinaHtml, specificPostEarly] = await Promise.all([
     tryFetchJson(`https://www.threads.net/oembed?url=${encodeURIComponent(sourceUrl)}`),
     tryFetchText(sourceUrl),
     tryFetchText(`https://r.jina.ai/${canonicalUrl}`),
+    postId && authorFromInputUrl
+      ? extractSubPost(postId, authorFromInputUrl)
+      : Promise.resolve(null),
   ])
 
   const source = directHtml ?? jinaHtml ?? ''
@@ -546,29 +563,9 @@ export async function extractPostData(rawUrl: string): Promise<ExtractedPostData
     : canonicalUrl
 
   const author = selectAuthor(oembed, normalizedCanonical)
-  const authorFromInputUrl = parseThreadsAuthor(canonicalUrl)
-
-  /*
-    PBL: Estrategia por defecto para sub-posts:
-    si tenemos postId y autor de la URL pegada por el usuario, intentamos SIEMPRE
-    extraer el sub-post específico desde threads.net. Así evitamos depender de que
-    canonicalMismatch sea detectable y reducimos casos donde el guardado inicial
-    trae texto e imágenes del post raíz en lugar del sub-post correcto.
-
-    BUG CORREGIDO: antes retornábamos early aquí con `previewImage/media` del
-    pipeline original (que viene de threads.com). Para sub-posts, threads.com
-    puede devolver og:image del post RAÍZ, no del sub-post específico.
-    Fix: usamos specificPost.media como fuente primaria (threads.net → og: correctos)
-    con fallback al pipeline original si specificPost no tiene media.
-
-    TAMBIÉN CORREGIDO: el return early anterior saltaba la detección de hilos
-    (detectThreadPostIds), rompiendo threadPosts para posts raíz de hilos.
-    Ahora no retornamos early — dejamos que thread detection siempre corra.
-  */
-  let specificPost: ThreadPost | null = null
-  if (postId && authorFromInputUrl) {
-    specificPost = await extractSubPost(postId, authorFromInputUrl)
-  }
+  // authorFromInputUrl ya fue calculado antes del Promise.all inicial (línea ~442)
+  // specificPost ya fue obtenido en paralelo con oEmbed/directHtml/jinaHtml
+  const specificPost = specificPostEarly
 
   /*
     PBL: Detección de hilo — si el HTML contiene enlaces a sub-posts del mismo autor,

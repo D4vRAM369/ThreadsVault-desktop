@@ -96,8 +96,8 @@
         .map(u => cleanThreadsUrl(u.trim()))
         .filter(u => isValidThreadsUrl(u))
       const [mainResult, ...extraResults] = await Promise.all([
-        withTimeout(extractPostData(url.trim()), 16000, signal),
-        ...validExtras.map(u => withTimeout(extractPostData(u), 16000, signal)),
+        withTimeout(extractPostData(url.trim()), 20000, signal),
+        ...validExtras.map(u => withTimeout(extractPostData(u), 20000, signal)),
       ])
       extracted = mainResult
       const threadPostList: ThreadPost[] = extraResults
@@ -110,8 +110,8 @@
         }))
       if (threadPostList.length > 0) manualThreadPosts = threadPostList
     } else {
-      // PBL: 12s — los 3 fetches corren en paralelo (~8s max cada uno)
-      extracted = await withTimeout(extractPostData(url.trim()), 12000, signal)
+      // PBL: 20s — 4 fetches en paralelo (~8s) + thread detection (~8s) = ~16s máx
+      extracted = await withTimeout(extractPostData(url.trim()), 20000, signal)
     }
 
     extracting = false
