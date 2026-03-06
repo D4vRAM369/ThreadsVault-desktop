@@ -8,11 +8,17 @@
     category,
     onDelete,
     index = 0,
+    selectionMode = false,
+    selected = false,
+    onToggleSelect,
   }: {
     post: Post
     category: Category | undefined
     onDelete: (id: string) => void
     index?: number
+    selectionMode?: boolean
+    selected?: boolean
+    onToggleSelect?: (id: string) => void
   } = $props()
 
   let confirmingDelete = $state(false)
@@ -107,11 +113,11 @@
   aria-label="Abrir detalle del post"
   class="rounded-2xl p-4 mb-3 cursor-pointer group relative overflow-hidden"
   style="
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.11);
+    background: {selected ? 'rgba(124,77,255,0.12)' : 'rgba(255,255,255,0.06)'};
+    border: 1px solid {selected ? 'rgba(124,77,255,0.45)' : 'rgba(255,255,255,0.11)'};
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    box-shadow: 0 4px 24px rgba(0,0,0,0.28);
+    box-shadow: {selected ? '0 4px 24px rgba(124,77,255,0.18)' : '0 4px 24px rgba(0,0,0,0.28)'};
     transition: transform 0.22s cubic-bezier(0.16,1,0.3,1),
                 box-shadow 0.22s ease,
                 border-color 0.22s ease,
@@ -119,6 +125,10 @@
   "
   onclick={(e) => {
     if (confirmingDelete) return
+    if (selectionMode) {
+      onToggleSelect?.(post.id)
+      return
+    }
     handleRipple(e)
     // PBL: setTimeout deja que el usuario VEA el ripple antes de navegar
     setTimeout(() => { window.location.hash = `#/post/${post.id}` }, 120)
@@ -214,6 +224,20 @@
           <span>{post.media.filter(m => m.type !== 'video-link').length || post.media.length} media</span>
         </div>
       {/if}
+
+      {#if post.threadPosts?.length}
+        <div class="mt-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-full ml-1" style="
+          background: rgba(124,77,255,0.12);
+          border: 1px solid rgba(124,77,255,0.28);
+          color: #c8b4ff;
+          font-size: 10px;
+          letter-spacing: 0.04em;
+          font-family: var(--font-display);
+        ">
+          <span>🧵</span>
+          <span>Hilo {post.threadPosts.length + 1} posts</span>
+        </div>
+      {/if}
     </div>
 
     <!--
@@ -259,40 +283,54 @@
       {/if}
     {/if}
 
-    <!-- Zona de confirmación/borrado -->
-    {#if confirmingDelete}
-      <div
-        class="flex items-center gap-1.5 shrink-0"
-      >
-        <span class="text-xs whitespace-nowrap" style="color: var(--vault-on-bg-muted)">¿Eliminar?</span>
-        <button
-          class="px-2.5 py-1 rounded-lg text-xs font-semibold text-white"
-          style="background: rgba(239,68,68,0.75); font-family: var(--font-display)"
-          onclick={(e) => { e.stopPropagation(); onDelete(post.id) }}
-        >Sí</button>
-        <button
-          class="px-2.5 py-1 rounded-lg text-xs font-semibold"
-          style="background: rgba(255,255,255,0.08); color: var(--vault-on-bg); font-family: var(--font-display)"
-          onclick={(e) => { e.stopPropagation(); confirmingDelete = false }}
-        >No</button>
+    <!-- Checkbox overlay en modo selección -->
+    {#if selectionMode}
+      <div class="shrink-0 flex items-center justify-center w-7 h-7 rounded-full transition-all duration-150" style="
+        background: {selected ? 'var(--vault-primary)' : 'rgba(255,255,255,0.08)'};
+        border: 2px solid {selected ? 'var(--vault-primary)' : 'rgba(255,255,255,0.25)'};
+      ">
+        {#if selected}
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+        {/if}
       </div>
-    {:else}
-      <button
-        class="shrink-0 w-7 h-7 rounded-full flex items-center justify-center
-               opacity-0 group-hover:opacity-40 hover:!opacity-90
-               transition-all duration-200"
-        style="
-          background: rgba(255,255,255,0.06);
-          border: 1px solid rgba(255,255,255,0.09);
-          color: var(--vault-on-bg-muted);
-        "
-        onclick={(e) => { e.stopPropagation(); confirmingDelete = true }}
-        aria-label="Eliminar post"
-      >
-        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <path d="M18 6L6 18M6 6l12 12"/>
-        </svg>
-      </button>
+    {/if}
+
+    <!-- Zona de confirmación/borrado (solo fuera del modo selección) -->
+    {#if !selectionMode}
+      {#if confirmingDelete}
+        <div class="flex items-center gap-1.5 shrink-0">
+          <span class="text-xs whitespace-nowrap" style="color: var(--vault-on-bg-muted)">¿Eliminar?</span>
+          <button
+            class="px-2.5 py-1 rounded-lg text-xs font-semibold text-white"
+            style="background: rgba(239,68,68,0.75); font-family: var(--font-display)"
+            onclick={(e) => { e.stopPropagation(); onDelete(post.id) }}
+          >Sí</button>
+          <button
+            class="px-2.5 py-1 rounded-lg text-xs font-semibold"
+            style="background: rgba(255,255,255,0.08); color: var(--vault-on-bg); font-family: var(--font-display)"
+            onclick={(e) => { e.stopPropagation(); confirmingDelete = false }}
+          >No</button>
+        </div>
+      {:else}
+        <button
+          class="shrink-0 w-7 h-7 rounded-full flex items-center justify-center
+                 opacity-0 group-hover:opacity-40 hover:!opacity-90
+                 transition-all duration-200"
+          style="
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.09);
+            color: var(--vault-on-bg-muted);
+          "
+          onclick={(e) => { e.stopPropagation(); confirmingDelete = true }}
+          aria-label="Eliminar post"
+        >
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M18 6L6 18M6 6l12 12"/>
+          </svg>
+        </button>
+      {/if}
     {/if}
   </div>
 

@@ -1,4 +1,4 @@
-import type { PostMedia, PostMediaType } from '../types'
+import type { PostMedia, PostMediaType, ThreadPost } from '../types'
 import { cleanThreadsUrl, parseThreadsAuthor } from './url-parser'
 
 export interface ExtractedPostData {
@@ -9,6 +9,7 @@ export interface ExtractedPostData {
   previewImage?: string
   previewVideo?: string
   media: PostMedia[]
+  threadPosts?: ThreadPost[]
 }
 
 interface OEmbedPayload {
@@ -318,6 +319,70 @@ function extractFallbackTextFromSource(source: string, postId: string | null): s
   return undefined
 }
 
+/*
+  PBL: Detecta IDs de sub-posts del hilo parseando el HTML del post principal.
+  Threads embebe en el HTML los enlaces a los posts del hilo con el patrón:
+    /@handle/post/ID  o  /post/ID
+  Extraemos todos los IDs distintos al mainPostId, en orden de aparición.
+*/
+function detectThreadPostIds(html: string, author: string, mainPostId: string): string[] {
+  if (!html || !author || !mainPostId) return []
+  const handle = author.replace(/^@/, '')
+  const pattern = new RegExp(`/@?${handle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/post/([A-Za-z0-9_-]+)`, 'gi')
+  const found = new Set<string>()
+  let match: RegExpExecArray | null
+  while ((match = pattern.exec(html)) !== null) {
+    const id = match[1]
+    if (id !== mainPostId) found.add(id)
+  }
+  return Array.from(found)
+}
+
+/*
+  PBL: Extrae datos básicos de un sub-post del hilo (texto + media).
+  Reutilizamos las mismas funciones que extractPostData pero devuelve
+  un ThreadPost más compacto (sin oEmbed para reducir latencia).
+*/
+async function extractSubPost(subPostId: string, authorHandle: string): Promise<ThreadPost | null> {
+  const handle = authorHandle.replace(/^@/, '')
+  const url = `https://www.threads.net/@${handle}/post/${subPostId}`
+  const html = await tryFetchText(url)
+  if (!html) return null
+
+  const ogDescription = extractMetaTag(html, 'og:description')
+  const twitterDesc   = extractMetaTag(html, 'twitter:description')
+  const ogImage       = extractMetaTag(html, 'og:image')
+  const ogVideo       = extractMetaTag(html, 'og:video')
+  const twitterImage  = extractMetaTag(html, 'twitter:image')
+
+  const metadataText = firstDefined(ogDescription, twitterDesc)
+  const text = isGenericThreadsText(metadataText)
+    ? extractFallbackTextFromSource(html, subPostId)
+    : firstDefined(metadataText, extractFallbackTextFromSource(html, subPostId))
+
+  const seenUrls = new Set<string>()
+  const media: PostMedia[] = []
+  const addItem = (items: PostMedia[]) => {
+    for (const item of items) {
+      if (item.type === 'image' && isLikelyAvatarUrl(item.url)) continue
+      if (!seenUrls.has(item.url)) {
+        seenUrls.add(item.url)
+        media.push(item)
+      }
+    }
+  }
+  addItem(forceMediaEntries([ogVideo], 'video'))
+  addItem(forceMediaEntries([ogImage, twitterImage], 'image'))
+
+  const hasRealVideo  = media.some((item) => item.type === 'video')
+  const hasVideoThumb = media.some((item) => VIDEO_THUMB_CDN_RE.test(item.url))
+  if (!hasRealVideo && hasVideoThumb) {
+    media.push({ id: crypto.randomUUID(), type: 'video-link', url })
+  }
+
+  return { id: subPostId, url, text, media: media.length > 0 ? media : undefined }
+}
+
 export async function extractPostData(rawUrl: string): Promise<ExtractedPostData> {
   const sourceUrl = rawUrl.trim()
   const canonicalUrl = cleanThreadsUrl(sourceUrl)
@@ -418,14 +483,32 @@ export async function extractPostData(rawUrl: string): Promise<ExtractedPostData
     ? cleanThreadsUrl(canonicalFromHtml!)
     : canonicalUrl
 
+  const author = selectAuthor(oembed, normalizedCanonical)
+
+  /*
+    PBL: Detección de hilo — si el HTML contiene enlaces a sub-posts del mismo autor,
+    los extraemos en paralelo con Promise.all para no añadir latencia acumulada.
+    Solo intentamos si tenemos postId y autor válidos.
+  */
+  let threadPosts: ThreadPost[] | undefined
+  if (postId && author) {
+    const subIds = detectThreadPostIds(source, author, postId)
+    if (subIds.length > 0) {
+      const results = await Promise.all(subIds.map((id) => extractSubPost(id, author)))
+      const valid = results.filter((t): t is ThreadPost => t !== null)
+      if (valid.length > 0) threadPosts = valid
+    }
+  }
+
   return {
     canonicalUrl: normalizedCanonical,
-    author:       selectAuthor(oembed, normalizedCanonical),
+    author,
     title:        firstDefined(oembed?.title, ogTitle),
     text:         extractedText,
     previewImage,
     previewVideo,
     media,
+    threadPosts,
   }
 }
 

@@ -44,7 +44,19 @@
   let resolvedVideoSrcs = $state<Record<string, string>>({})
   let showFailedMedia = $state(false)
   let refreshedMediaOnce = $state(false)
-  let category      = $derived($categories.find(c => c.id === post?.categoryId))
+  let category           = $derived($categories.find(c => c.id === post?.categoryId))
+  let currentThreadIndex = $state(0)
+  let threadTotal        = $derived(1 + (post?.threadPosts?.length ?? 0))
+  let currentSubText     = $derived(
+    currentThreadIndex === 0
+      ? post?.extractedText
+      : post?.threadPosts?.[currentThreadIndex - 1]?.text
+  )
+  let currentSubMedia    = $derived<PostMedia[]>(
+    currentThreadIndex === 0
+      ? (post?.media ?? [])
+      : (post?.threadPosts?.[currentThreadIndex - 1]?.media ?? [])
+  )
 
   onMount(() => {
     void (async () => {
@@ -67,6 +79,15 @@
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
 
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        // Thread navigation has priority over vault navigation
+        if (post?.threadPosts?.length) {
+          const newIdx = e.key === 'ArrowLeft' ? currentThreadIndex - 1 : currentThreadIndex + 1
+          if (newIdx >= 0 && newIdx < threadTotal) {
+            e.preventDefault()
+            navigateThread(newIdx)
+            return
+          }
+        }
         const all = get(posts)
         const idx = all.findIndex(p => p.id === postId)
         if (idx === -1) return
@@ -82,6 +103,21 @@
     window.addEventListener('keydown', onKeydown)
     return () => window.removeEventListener('keydown', onKeydown)
   })
+
+  function navigateThread(newIndex: number) {
+    currentThreadIndex = newIndex
+    failedMediaIds     = new Set()
+    mediaSourceIndex   = {}
+    inlineVideoState   = {}
+    showFailedMedia    = false
+    // Auto-load video-links for the newly visible sub-post
+    const newMedia = newIndex === 0
+      ? (post?.media ?? [])
+      : (post?.threadPosts?.[newIndex - 1]?.media ?? [])
+    for (const m of newMedia) {
+      if (m.type === 'video-link') void loadInlineVideo(m)
+    }
+  }
 
   async function handleDelete() {
     if (!post) return
@@ -524,8 +560,8 @@
   }
 
   function areAllMediaFailed(): boolean {
-    if (!post?.media?.length) return false
-    return post.media.every((media) => failedMediaIds.has(media.id))
+    if (!currentSubMedia.length) return false
+    return currentSubMedia.every((m) => failedMediaIds.has(m.id))
   }
 
   function failedMediaCount(): number {
@@ -533,15 +569,15 @@
   }
 
   function visibleMedia(): PostMedia[] {
-    if (!post?.media?.length) return []
+    if (!currentSubMedia.length) return []
     const baseMedia = showFailedMedia
-      ? post.media
-      : post.media.filter((media) => !failedMediaIds.has(media.id))
+      ? currentSubMedia
+      : currentSubMedia.filter((m) => !failedMediaIds.has(m.id))
 
-    // Si el post tiene vídeo, ocultamos solo la miniatura CDN del vídeo para evitar
-    // duplicar tarjeta de imagen + tarjeta de reproductor en el mismo post.
-    if (hasVideoMedia()) {
-      return baseMedia.filter((media) => !isVideoThumbnailImage(media))
+    // Si el sub-post tiene vídeo, ocultamos la miniatura CDN para evitar duplicados.
+    const hasVideo = currentSubMedia.some((m) => m.type === 'video' || m.type === 'video-link')
+    if (hasVideo) {
+      return baseMedia.filter((m) => !isVideoThumbnailImage(m))
     }
 
     return baseMedia
@@ -729,6 +765,33 @@
         <span class="truncate">post/{getPostShortId(post.url)}</span>
       </a>
 
+      {#if post.threadPosts?.length}
+        <div class="flex items-center justify-between mb-4 rounded-xl px-3.5 py-2" style="
+          background: rgba(0,188,212,0.07);
+          border: 1px solid rgba(0,188,212,0.22);
+        ">
+          <button
+            onclick={() => navigateThread(currentThreadIndex - 1)}
+            disabled={currentThreadIndex === 0}
+            class="w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-150 disabled:opacity-30"
+            style="background: rgba(0,188,212,0.12); border: 1px solid rgba(0,188,212,0.25); color: #baf5ff"
+            aria-label="Sub-post anterior"
+          >←</button>
+          <span class="text-xs font-semibold" style="
+            color: #baf5ff;
+            font-family: var(--font-display);
+            letter-spacing: 0.06em;
+          ">🧵 HILO · {currentThreadIndex + 1} / {threadTotal}</span>
+          <button
+            onclick={() => navigateThread(currentThreadIndex + 1)}
+            disabled={currentThreadIndex >= threadTotal - 1}
+            class="w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-150 disabled:opacity-30"
+            style="background: rgba(0,188,212,0.12); border: 1px solid rgba(0,188,212,0.25); color: #baf5ff"
+            aria-label="Sub-post siguiente"
+          >→</button>
+        </div>
+      {/if}
+
       <!-- Nota personal — edición inline -->
       <div class="mb-4">
         {#if editingNote}
@@ -874,9 +937,9 @@
             "
           >{refreshingContent ? 'Extrayendo...' : 'Refrescar'}</button>
         </div>
-        {#if post.extractedText}
+        {#if currentSubText}
           <p class="text-sm leading-relaxed" style="color: var(--vault-on-bg); opacity: 0.9">
-            {post.extractedText}
+            {currentSubText}
           </p>
         {:else}
           <p class="text-xs" style="color: var(--vault-on-bg-muted); font-style: italic">
@@ -885,7 +948,7 @@
         {/if}
       </div>
 
-      {#if post.media?.length}
+      {#if currentSubMedia.length > 0}
         <div class="mb-4">
           <div class="flex items-center justify-between gap-2 mb-2">
             <p class="text-xs font-semibold uppercase" style="

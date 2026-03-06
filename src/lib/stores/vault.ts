@@ -253,3 +253,60 @@ export async function reorderCategories(ordered: Category[]) {
   )
   categories.set(ordered.map((cat, i) => ({ ...cat, order: i })))
 }
+
+// ── Acciones: Bulk ────────────────────────────────────────
+
+/**
+ * Fusiona los posts seleccionados en un hilo.
+ * El más antiguo se convierte en el post principal y los demás
+ * se convierten en threadPosts del mismo. Los duplicados se eliminan.
+ */
+export async function mergePostsIntoThread(postIds: string[]): Promise<void> {
+  if (postIds.length < 2) return
+  const storage = await getStorage()
+  const allPosts = await storage.getPosts()
+  const targets = postIds
+    .map((id) => allPosts.find((p) => p.id === id))
+    .filter((p): p is Post => p !== null && p !== undefined)
+    .sort((a, b) => a.savedAt - b.savedAt)
+
+  if (targets.length < 2) return
+
+  const [principal, ...rest] = targets
+  const newThreadPosts = rest.map((p) => ({
+    id: p.id,
+    url: p.canonicalUrl ?? p.url,
+    text: p.extractedText,
+    media: p.media,
+  }))
+
+  const merged: Post = {
+    ...principal,
+    threadPosts: [...(principal.threadPosts ?? []), ...newThreadPosts],
+  }
+
+  await storage.savePost(merged)
+  await Promise.all(rest.map((p) => storage.deletePost(p.id)))
+  await loadVault()
+}
+
+/** Mueve los posts seleccionados a una categoría. */
+export async function movePostsToCategory(postIds: string[], categoryId: string): Promise<void> {
+  if (!postIds.length) return
+  const storage = await getStorage()
+  const allPosts = await storage.getPosts()
+  const targets = postIds
+    .map((id) => allPosts.find((p) => p.id === id))
+    .filter((p): p is Post => p !== null && p !== undefined)
+
+  await Promise.all(targets.map((p) => storage.savePost({ ...p, categoryId })))
+  await loadVault()
+}
+
+/** Elimina múltiples posts a la vez. */
+export async function bulkDeletePosts(postIds: string[]): Promise<void> {
+  if (!postIds.length) return
+  const storage = await getStorage()
+  await Promise.all(postIds.map((id) => storage.deletePost(id)))
+  await loadVault()
+}

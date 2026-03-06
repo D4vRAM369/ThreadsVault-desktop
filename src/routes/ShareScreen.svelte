@@ -100,6 +100,7 @@
       extractedText: extracted?.text,
       canonicalUrl: extracted?.canonicalUrl ?? cleanUrl,
       media: extracted?.media ?? [],
+      threadPosts: extracted?.threadPosts,
     }
 
     await savePost(post)

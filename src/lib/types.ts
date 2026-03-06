@@ -10,6 +10,13 @@ export interface PostMedia {
   cachedAt?: number
 }
 
+export interface ThreadPost {
+  id: string        // short ID del post en Threads (ej: "DVi0HYoDOYp")
+  url: string       // URL canónica completa
+  text?: string     // texto extraído (opcional)
+  media?: PostMedia[]
+}
+
 export interface Post {
   id: string            // crypto.randomUUID()
   url: string
@@ -23,6 +30,7 @@ export interface Post {
   extractedText?: string
   canonicalUrl?: string
   media?: PostMedia[]
+  threadPosts?: ThreadPost[]   // sub-posts 2/N, 3/N, etc. del hilo
 }
 
 export interface Category {

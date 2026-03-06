@@ -2,7 +2,8 @@
   import { onMount } from 'svelte'
   import { posts, categories, appState, filteredPosts, hashtagStats,
            searchQuery, activeCategory, activeHashtag, deletePost, refreshStalePostMedia, loadVault, reorderCategories,
-           mediaRefreshState, mediaRefreshResult } from '../lib/stores/vault'
+           mediaRefreshState, mediaRefreshResult,
+           mergePostsIntoThread, movePostsToCategory, bulkDeletePosts } from '../lib/stores/vault'
   import type { Category } from '../lib/types'
   import PostCard from '../components/PostCard.svelte'
   import EmptyState from '../components/EmptyState.svelte'
@@ -211,6 +212,60 @@
 
   let refreshToastMsg = $derived(getRefreshToastMsg($mediaRefreshState, $mediaRefreshResult))
 
+  // ── Bulk selection ────────────────────────────────────────
+  let selectionMode      = $state(false)
+  let selectedPostIds    = $state(new Set<string>())
+  let showCategoryPicker = $state(false)
+  let bulkActionState    = $state<'idle' | 'working'>('idle')
+
+  function toggleSelectionMode() {
+    selectionMode = !selectionMode
+    if (!selectionMode) {
+      selectedPostIds    = new Set()
+      showCategoryPicker = false
+    }
+  }
+
+  function toggleSelectPost(id: string) {
+    const next = new Set(selectedPostIds)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    selectedPostIds = next
+  }
+
+  async function handleBulkMove(categoryId: string) {
+    if (bulkActionState === 'working') return
+    bulkActionState = 'working'
+    try {
+      await movePostsToCategory(Array.from(selectedPostIds), categoryId)
+      toggleSelectionMode()
+    } finally {
+      bulkActionState = 'idle'
+    }
+  }
+
+  async function handleBulkMerge() {
+    if (bulkActionState === 'working' || selectedPostIds.size < 2) return
+    bulkActionState = 'working'
+    try {
+      await mergePostsIntoThread(Array.from(selectedPostIds))
+      toggleSelectionMode()
+    } finally {
+      bulkActionState = 'idle'
+    }
+  }
+
+  async function handleBulkDelete() {
+    if (bulkActionState === 'working') return
+    bulkActionState = 'working'
+    try {
+      await bulkDeletePosts(Array.from(selectedPostIds))
+      toggleSelectionMode()
+    } finally {
+      bulkActionState = 'idle'
+    }
+  }
+
   let searchInput: HTMLInputElement
 
   function focusSearch() {
@@ -315,6 +370,31 @@
             <polyline points="23 4 23 10 17 10"/>
             <polyline points="1 20 1 14 7 14"/>
             <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+          </svg>
+        </button>
+
+        <button
+          class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center transition-all duration-200"
+          style="
+            background: {selectionMode ? 'rgba(124,77,255,0.22)' : 'var(--vault-surface)'};
+            border: 1px solid {selectionMode ? 'rgba(124,77,255,0.5)' : 'var(--vault-border)'};
+          "
+          onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = selectionMode ? 'rgba(124,77,255,0.3)' : 'var(--vault-surface-hover)'}
+          onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = selectionMode ? 'rgba(124,77,255,0.22)' : 'var(--vault-surface)'}
+          onclick={toggleSelectionMode}
+          aria-label="Seleccionar posts"
+          title={selectionMode ? 'Cancelar selección' : 'Seleccionar posts'}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+               style="color: {selectionMode ? '#c8b4ff' : 'var(--vault-on-bg-muted)'}">
+            {#if selectionMode}
+              <path d="M18 6L6 18M6 6l12 12"/>
+            {:else}
+              <rect x="3" y="3" width="7" height="7" rx="1"/>
+              <rect x="14" y="3" width="7" height="7" rx="1"/>
+              <rect x="3" y="14" width="7" height="7" rx="1"/>
+              <rect x="14" y="14" width="7" height="7" rx="1"/>
+            {/if}
           </svg>
         </button>
 
@@ -563,6 +643,9 @@
             index={i}
             category={getCategoryById(post.categoryId)}
             onDelete={deletePost}
+            {selectionMode}
+            selected={selectedPostIds.has(post.id)}
+            onToggleSelect={toggleSelectPost}
           />
         </div>
       {/each}
@@ -587,6 +670,79 @@
         "
       >
         {refreshToastMsg}
+      </div>
+    </div>
+  {/if}
+
+  <!-- Barra bulk fija en la parte inferior cuando hay selección activa -->
+  {#if selectionMode}
+    <div class="fixed bottom-0 left-0 right-0 z-50 flex flex-col" style="
+      background: rgba(8,8,16,0.94);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border-top: 1px solid rgba(124,77,255,0.28);
+      box-shadow: 0 -8px 32px rgba(0,0,0,0.5);
+    ">
+      <!-- Selector de categoría expandible -->
+      {#if showCategoryPicker}
+        <div class="flex flex-wrap gap-2 px-4 pt-3 pb-2">
+          {#each $categories as cat}
+            <button
+              onclick={() => handleBulkMove(cat.id)}
+              disabled={bulkActionState === 'working'}
+              class="px-3.5 py-1.5 rounded-full text-xs font-semibold text-white transition-all duration-150 disabled:opacity-50"
+              style="background: {cat.color}; font-family: var(--font-display)"
+            >{cat.emoji ?? '📌'} {cat.name}</button>
+          {/each}
+        </div>
+        <div class="h-px mx-4" style="background: rgba(255,255,255,0.07)"></div>
+      {/if}
+
+      <div class="flex items-center gap-2 px-4 py-3">
+        <!-- Contador de selección -->
+        <span class="text-xs font-semibold mr-1" style="color: var(--vault-on-bg-muted); font-family: var(--font-display)">
+          {selectedPostIds.size} seleccionado{selectedPostIds.size !== 1 ? 's' : ''}
+        </span>
+
+        <!-- Mover a categoría -->
+        <button
+          onclick={() => { showCategoryPicker = !showCategoryPicker }}
+          disabled={selectedPostIds.size === 0 || bulkActionState === 'working'}
+          class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 disabled:opacity-40"
+          style="background: rgba(124,77,255,0.18); border: 1px solid rgba(124,77,255,0.35); color: #c8b4ff; font-family: var(--font-display)"
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+          </svg>
+          Mover
+        </button>
+
+        <!-- Fusionar en hilo (solo cuando hay 2+) -->
+        {#if selectedPostIds.size >= 2}
+          <button
+            onclick={handleBulkMerge}
+            disabled={bulkActionState === 'working'}
+            class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 disabled:opacity-40"
+            style="background: rgba(0,188,212,0.14); border: 1px solid rgba(0,188,212,0.30); color: #baf5ff; font-family: var(--font-display)"
+          >
+            <span>🧵</span>
+            {bulkActionState === 'working' ? 'Fusionando...' : 'Fusionar hilo'}
+          </button>
+        {/if}
+
+        <!-- Eliminar -->
+        <button
+          onclick={handleBulkDelete}
+          disabled={selectedPostIds.size === 0 || bulkActionState === 'working'}
+          class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 disabled:opacity-40 ml-auto"
+          style="background: rgba(239,68,68,0.14); border: 1px solid rgba(239,68,68,0.30); color: #fca5a5; font-family: var(--font-display)"
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+          </svg>
+          {bulkActionState === 'working' ? 'Eliminando...' : 'Eliminar'}
+        </button>
       </div>
     </div>
   {/if}
