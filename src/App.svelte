@@ -41,8 +41,8 @@
     zoomLevel = clamped
     localStorage.setItem(ZOOM_KEY, String(clamped))
     if ('__TAURI_INTERNALS__' in window) {
-      const { getCurrentWebviewWindow } = await import('@tauri-apps/api/webviewWindow')
-      await getCurrentWebviewWindow().setZoom(clamped)
+      const { getCurrentWebview } = await import('@tauri-apps/api/webview')
+      await getCurrentWebview().setZoom(clamped)
     }
   }
 

@@ -6,6 +6,7 @@
   "permissions": [
     "core:default",
     "core:window:allow-set-title",
+    "core:webview:allow-set-webview-zoom",
     "sql:allow-load",
     "sql:allow-execute",
     "sql:allow-select",

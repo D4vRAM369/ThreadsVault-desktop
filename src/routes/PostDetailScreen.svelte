@@ -47,6 +47,13 @@
   let category           = $derived($categories.find(c => c.id === post?.categoryId))
   let currentThreadIndex = $state(0)
   let threadTotal        = $derived(1 + (post?.threadPosts?.length ?? 0))
+  let hasThreadNavigation = $derived((post?.threadPosts?.length ?? 0) > 0)
+  let currentThreadUrl   = $derived(
+    currentThreadIndex === 0
+      ? cleanThreadsUrl(post?.canonicalUrl ?? post?.url ?? '')
+      : cleanThreadsUrl(post?.threadPosts?.[currentThreadIndex - 1]?.url ?? post?.canonicalUrl ?? post?.url ?? '')
+  )
+  let currentThreadShortId = $derived(getPostShortId(currentThreadUrl))
   let currentSubText     = $derived(
     currentThreadIndex === 0
       ? post?.extractedText
@@ -79,14 +86,14 @@
       if (tag === 'INPUT' || tag === 'TEXTAREA') return
 
       if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-        // Thread navigation has priority over vault navigation
-        if (post?.threadPosts?.length) {
+        // Si el post actual es un hilo, las flechas solo navegan dentro del hilo.
+        if (hasThreadNavigation) {
+          e.preventDefault()
           const newIdx = e.key === 'ArrowLeft' ? currentThreadIndex - 1 : currentThreadIndex + 1
           if (newIdx >= 0 && newIdx < threadTotal) {
-            e.preventDefault()
             navigateThread(newIdx)
-            return
           }
+          return
         }
         const all = get(posts)
         const idx = all.findIndex(p => p.id === postId)
@@ -277,15 +284,30 @@
     if (!post || refreshingContent) return
     refreshingContent = true
     try {
-      const extracted = await extractPostData(post.canonicalUrl ?? post.url)
-      const updated: Post = {
-        ...post,
-        author:       extracted.author || post.author,
-        previewTitle: extracted.title ?? post.previewTitle,
-        extractedText: extracted.text !== undefined ? extracted.text : post.extractedText,
-        previewImage: extracted.previewImage ?? post.previewImage,
-        previewVideo: extracted.previewVideo ?? post.previewVideo,
-      }
+      const targetUrl = currentThreadUrl || post.canonicalUrl || post.url
+      const extracted = await extractPostData(targetUrl)
+      const updated: Post =
+        currentThreadIndex === 0
+          ? {
+              ...post,
+              author:       extracted.author || post.author,
+              previewTitle: extracted.title ?? post.previewTitle,
+              extractedText: extracted.text !== undefined ? extracted.text : post.extractedText,
+              previewImage: extracted.previewImage ?? post.previewImage,
+              previewVideo: extracted.previewVideo ?? post.previewVideo,
+            }
+          : {
+              ...post,
+              threadPosts: (post.threadPosts ?? []).map((threadPost, index) => {
+                if (index !== currentThreadIndex - 1) return threadPost
+                return {
+                  ...threadPost,
+                  url: cleanThreadsUrl(extracted.canonicalUrl || threadPost.url),
+                  text: extracted.text !== undefined ? extracted.text : threadPost.text,
+                  media: extracted.media?.length ? extracted.media : threadPost.media,
+                }
+              }),
+            }
       const storage = await getStorage()
       await storage.savePost(updated)
       post = updated
@@ -730,7 +752,7 @@
         El chip visual indica que es un enlace externo (↗ icon).
       -->
       <a
-        href={cleanThreadsUrl(post.url)}
+        href={currentThreadUrl}
         target="_blank"
         rel="noopener noreferrer"
         class="inline-flex items-center gap-1.5 mb-4 transition-all duration-200"
@@ -762,10 +784,10 @@
           <polyline points="15 3 21 3 21 9"/>
           <line x1="10" y1="14" x2="21" y2="3"/>
         </svg>
-        <span class="truncate">post/{getPostShortId(post.url)}</span>
+        <span class="truncate">post/{currentThreadShortId}</span>
       </a>
 
-      {#if post.threadPosts?.length}
+      {#if hasThreadNavigation}
         <div class="flex items-center justify-between mb-4 rounded-xl px-3.5 py-2" style="
           background: rgba(0,188,212,0.07);
           border: 1px solid rgba(0,188,212,0.22);
@@ -781,7 +803,7 @@
             color: #baf5ff;
             font-family: var(--font-display);
             letter-spacing: 0.06em;
-          ">🧵 HILO · {currentThreadIndex + 1} / {threadTotal}</span>
+          ">🧵 HILO · {currentThreadIndex + 1} / {threadTotal} · {currentThreadShortId}</span>
           <button
             onclick={() => navigateThread(currentThreadIndex + 1)}
             disabled={currentThreadIndex >= threadTotal - 1}
@@ -1229,7 +1251,7 @@
       para links externos (previene que la nueva pestaña acceda a window.opener).
     -->
     <button
-      onclick={() => post && openInBrowser(cleanThreadsUrl(post.url))}
+      onclick={() => currentThreadUrl && openInBrowser(currentThreadUrl)}
       class="flex items-center justify-center gap-2.5 w-full py-3.5 rounded-2xl font-semibold transition-all duration-200"
       style="
         background: rgba(255,255,255,0.05);

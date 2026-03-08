@@ -351,7 +351,7 @@
     </button>
 
     <div style="
-      max-height: {showShortcuts ? '280px' : '0'};
+      max-height: {showShortcuts ? '420px' : '0'};
       overflow: hidden;
       transition: max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1);
     ">
@@ -362,6 +362,9 @@
           { keys: ['/'],            desc: 'Buscar posts',                  ctx: 'En vault' },
           { keys: ['Ctrl', 'F'],    desc: 'Buscar en la app',              ctx: 'Global' },
           { keys: ['←', '→'],      desc: 'Navegar entre posts',           ctx: 'En post' },
+          { keys: ['Ctrl', '='],   desc: 'Acercar (zoom in)',              ctx: 'Global' },
+          { keys: ['Ctrl', '-'],   desc: 'Alejar (zoom out)',              ctx: 'Global' },
+          { keys: ['Ctrl', '0'],   desc: 'Zoom normal',                   ctx: 'Global' },
         ] as shortcut}
           <div class="flex items-center gap-3 py-1">
             <div class="flex items-center gap-1 shrink-0" style="min-width: 110px">
