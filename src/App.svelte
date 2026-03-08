@@ -3,6 +3,14 @@
   import { loadVault, posts } from './lib/stores/vault'
   import type { Post } from './lib/types'
 
+  // ── Zoom global ──────────────────────────────────────────
+  const ZOOM_STEP = 0.1
+  const ZOOM_MIN  = 0.6
+  const ZOOM_MAX  = 2.0
+  const ZOOM_KEY  = 'tv_zoom'
+
+  let zoomLevel = parseFloat(localStorage.getItem(ZOOM_KEY) ?? '1')
+
   let currentRoute = $state(window.location.hash || '#/')
 
   function computeTitle(route: string, allPosts: Post[]): string {
@@ -28,7 +36,21 @@
     }
   })
 
+  async function applyZoom(level: number) {
+    const clamped = Math.round(Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, level)) * 10) / 10
+    zoomLevel = clamped
+    localStorage.setItem(ZOOM_KEY, String(clamped))
+    if ('__TAURI_INTERNALS__' in window) {
+      const { getCurrentWebviewWindow } = await import('@tauri-apps/api/webviewWindow')
+      await getCurrentWebviewWindow().setZoom(clamped)
+    }
+  }
+
   onMount(() => {
+    if (zoomLevel !== 1.0) {
+      void applyZoom(zoomLevel)
+    }
+
     loadVault()
 
     const onHashChange = () => { currentRoute = window.location.hash || '#/' }
@@ -38,6 +60,12 @@
       const hasPrimaryModifier = e.ctrlKey || e.metaKey
       const isCtrlF = hasPrimaryModifier && !e.shiftKey && !e.altKey && (key === 'f' || e.code === 'KeyF')
       const isCtrlN = hasPrimaryModifier && !e.shiftKey && !e.altKey && (key === 'n' || e.code === 'KeyN')
+      const isCtrlPlus  = hasPrimaryModifier && !e.shiftKey && !e.altKey &&
+                          (key === '=' || key === '+' || e.code === 'Equal')
+      const isCtrlMinus = hasPrimaryModifier && !e.shiftKey && !e.altKey &&
+                          (key === '-' || e.code === 'Minus')
+      const isCtrlZero  = hasPrimaryModifier && !e.shiftKey && !e.altKey &&
+                          (key === '0' || e.code === 'Digit0')
 
       // Global: Ctrl/Cmd+F -> busqueda interna de la app
       if (isCtrlF) {
@@ -57,6 +85,10 @@
         window.location.hash = '#/share'
         return
       }
+
+      if (isCtrlPlus)  { e.preventDefault(); void applyZoom(zoomLevel + ZOOM_STEP); return }
+      if (isCtrlMinus) { e.preventDefault(); void applyZoom(zoomLevel - ZOOM_STEP); return }
+      if (isCtrlZero)  { e.preventDefault(); void applyZoom(1.0); return }
 
       const tag  = (e.target as HTMLElement).tagName
       const edit = (e.target as HTMLElement).isContentEditable
