@@ -30,3 +30,9 @@ docs/
 
 # Claude Code config local
 .claude/
+SKILLS.md
+
+# Temporales y binarios locales
+.tmp/
+.tmp-sealplus/
+src-tauri/bin/
