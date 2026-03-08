@@ -36,3 +36,7 @@ SKILLS.md
 .tmp/
 .tmp-sealplus/
 src-tauri/bin/
+*.backup
+
+# Letta AI local sessions
+.letta/
