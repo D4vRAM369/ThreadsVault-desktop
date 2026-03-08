@@ -23,6 +23,7 @@ interface SqlitePostRow {
   extractedText: string | null
   canonicalUrl: string | null
   mediaJson: string | null
+  threadPostsJson: string | null
 }
 
 interface SqliteCategoryRow {
@@ -76,6 +77,7 @@ export class SqliteStorage implements StorageAdapter {
     await this._ensureColumn('posts', 'extractedText', 'TEXT')
     await this._ensureColumn('posts', 'canonicalUrl', 'TEXT')
     await this._ensureColumn('posts', 'mediaJson', 'TEXT')
+    await this._ensureColumn('posts', 'threadPostsJson', 'TEXT')
     await this._ensureColumn('categories', 'emoji', 'TEXT')
     await this._ensureColumn('categories', 'sortOrder', 'INTEGER NOT NULL DEFAULT 0')
   }
@@ -107,6 +109,15 @@ export class SqliteStorage implements StorageAdapter {
       }
     }
 
+    let threadPosts = undefined
+    if (row.threadPostsJson) {
+      try {
+        threadPosts = JSON.parse(row.threadPostsJson)
+      } catch {
+        threadPosts = undefined
+      }
+    }
+
     return {
       id: row.id,
       url: row.url,
@@ -120,6 +131,7 @@ export class SqliteStorage implements StorageAdapter {
       extractedText: row.extractedText ?? undefined,
       canonicalUrl: row.canonicalUrl ?? undefined,
       media,
+      threadPosts,
     }
   }
 
@@ -136,8 +148,8 @@ export class SqliteStorage implements StorageAdapter {
   async savePost(post: Post): Promise<void> {
     await this.db.execute(
       `INSERT OR REPLACE INTO posts
-        (id, url, author, note, categoryId, savedAt, previewTitle, previewImage, previewVideo, extractedText, canonicalUrl, mediaJson)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+        (id, url, author, note, categoryId, savedAt, previewTitle, previewImage, previewVideo, extractedText, canonicalUrl, mediaJson, threadPostsJson)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
       [
         post.id,
         post.url,
@@ -151,6 +163,7 @@ export class SqliteStorage implements StorageAdapter {
         post.extractedText ?? null,
         post.canonicalUrl ?? null,
         post.media?.length ? JSON.stringify(post.media) : null,
+        post.threadPosts?.length ? JSON.stringify(post.threadPosts) : null,
       ]
     )
   }
