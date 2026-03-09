@@ -297,12 +297,39 @@
       }
     }
 
+    /*
+      PBL: Por qué el panel rebotaba incluso con histéresis.
+
+      La animación grid-template-rows cambia la altura del <header sticky>.
+      Chrome tiene "scroll anchoring": cuando un elemento sobre el viewport
+      cambia de tamaño, el browser ajusta window.scrollY automáticamente
+      para que el contenido que el usuario está viendo no salte de posición.
+      Ese ajuste automático de scrollY dispara nuestro onScroll, que puede
+      volver a cambiar scrolledDown, iniciando un bucle de oscillación.
+
+      Fix en dos capas:
+      1. overflow-anchor: none  en el div colapsable → ese elemento no
+         se usa como ancla del scroll anchoring (CSS, sin JS).
+      2. suppressScroll: tras cada cambio de estado, ignoramos eventos de
+         scroll durante 380ms (un poco más que la animación de 320ms).
+         Así el ajuste automático de Chrome no puede revertir el estado.
+    */
     let ticking = false
+    let suppressScroll = false
     function onScroll() {
-      if (ticking) return
+      if (ticking || suppressScroll) return
       ticking = true
       requestAnimationFrame(() => {
-        scrolledDown = window.scrollY > 50
+        const y = window.scrollY
+        if (!scrolledDown && y > 90) {
+          scrolledDown = true
+          suppressScroll = true
+          setTimeout(() => { suppressScroll = false }, 380)
+        } else if (scrolledDown && y < 40) {
+          scrolledDown = false
+          suppressScroll = true
+          setTimeout(() => { suppressScroll = false }, 380)
+        }
         ticking = false
       })
     }
@@ -321,15 +348,18 @@
 <div class="w-full max-w-6xl mx-auto px-5 sm:px-6 lg:px-10 pb-24">
 
   <!--
-    PBL: -mx-4 cancela el px-4 del padre → header full-width en mobile.
-    backdrop-filter:blur(28px) crea el efecto cristal esmerilado.
-    El fondo rgba semi-transparente deja pasar algo del color de los blobs.
+    PBL: will-change:transform + translateZ(0) elevan el header a su propia
+    capa de composición en la GPU → el blur backdrop-filter se calcula en GPU.
+    El panel de hashtags colapsa con grid-template-rows al hacer scroll.
+    Ver onScroll() para el fix del bounce (suppressScroll + overflow-anchor).
   -->
   <header class="sticky top-0 z-20 -mx-5 sm:-mx-6 lg:-mx-10 px-5 sm:px-6 lg:px-10 pt-5 sm:pt-6 pb-4" style="
     background: rgba(8, 8, 16, 0.82);
     backdrop-filter: blur(28px);
     -webkit-backdrop-filter: blur(28px);
     border-bottom: 1px solid rgba(255,255,255,0.08);
+    will-change: transform;
+    transform: translateZ(0);
   ">
     <!-- Logo + acciones -->
     <div class="flex items-center justify-between mb-4">
@@ -435,9 +465,12 @@
     </div>
 
     <!--
-      PBL: Dashboard de hashtags.
-      Muestra top tags extraídos de notas + texto extraído.
-      click = filtra por hashtag; segundo click = limpia filtro.
+      PBL: Dashboard de hashtags colapsable.
+      overflow-anchor:none → este div no actúa como ancla del scroll anchoring
+      de Chrome. Sin esto, cuando el div cambia de altura (colapsa), Chrome
+      ajusta window.scrollY para "mantener" el contenido visible, disparando
+      onScroll() de nuevo y creando el bucle de rebote.
+      La segunda capa de protección es suppressScroll en onScroll().
     -->
     <div style="
       display: grid;
@@ -445,6 +478,7 @@
       opacity: {scrolledDown ? '0' : '1'};
       transition: grid-template-rows 0.32s ease, opacity 0.22s ease;
       pointer-events: {scrolledDown ? 'none' : 'auto'};
+      overflow-anchor: none;
     ">
       <div style="overflow: hidden;">
       <div class="rounded-2xl sm:rounded-3xl p-3.5 sm:p-4 mb-3" style="

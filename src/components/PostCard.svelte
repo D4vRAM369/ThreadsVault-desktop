@@ -2,6 +2,8 @@
   import type { Post, Category } from '../lib/types'
   import CategoryBadge from './CategoryBadge.svelte'
   import { getPostDisplayPath } from '../lib/utils/url-parser'
+  import { savePost, loadVault } from '../lib/stores/vault'
+  import { invoke } from '@tauri-apps/api/core'
 
   let {
     post,
@@ -24,6 +26,11 @@
   let confirmingDelete = $state(false)
   let previewSourceIndex = $state(0)
   let previewCandidates = $derived(getPreviewCandidates())
+
+  // Note modal state
+  let editingNote = $state(false)
+  let noteValue = $state(post.note ?? '')
+  let savingNote = $state(false)
 
   function formatDate(ts: number): string {
     return new Date(ts).toLocaleDateString('es', {
@@ -99,6 +106,42 @@
     })
     el.appendChild(ripple)
     setTimeout(() => ripple.remove(), 550)
+  }
+
+  async function handleSaveNote() {
+    savingNote = true
+    try {
+      const updated: Post = { ...post, note: noteValue.trim() }
+      await savePost(updated)
+      post = updated
+      await loadVault()
+      editingNote = false
+    } finally {
+      savingNote = false
+    }
+  }
+
+  // Detecta si un texto es una URL sin esquema (ej: "github.com/user/repo")
+  function looksLikeUrl(text: string | undefined): boolean {
+    if (!text?.trim()) return false
+    return /^[\w][\w.-]+\.[a-z]{2,}(\/|$)/i.test(text) && !text.includes(' ')
+  }
+
+  async function openExternal(url: string) {
+    if ('__TAURI_INTERNALS__' in window) {
+      await invoke('open_url', { url })
+    } else {
+      window.open(url, '_blank', 'noopener')
+    }
+  }
+
+  async function handleDeleteNote() {
+    const updated: Post = { ...post, note: '' }
+    await savePost(updated)
+    post = updated
+    noteValue = ''
+    await loadVault()
+    editingNote = false
   }
 </script>
 
@@ -187,28 +230,136 @@
       ">{getPostDisplayPath(post.url)}</p>
 
       <!--
-        PBL: Mostramos texto extraído del post como preview.
-        Preferimos la nota del usuario; si no hay, el texto extraído.
-        line-clamp: limita a 2 líneas para no ocupar demasiado espacio.
+        PBL: Texto del post como preview principal.
+        La nota personal es secundaria — se muestra como chip discreto
+        con borde azul para no opacar el contenido guardado.
       -->
+      {#if post.extractedText}
+        {#if looksLikeUrl(post.extractedText)}
+          <!--
+            Link post: el contenido del post ES una URL externa.
+            Mostramos como chip clicable con icono de enlace + redirect button.
+          -->
+          <div class="mt-2 flex items-center gap-1.5" style="min-width:0">
+            <div class="flex items-center gap-1.5 flex-1 px-2 py-1.5 rounded-lg overflow-hidden" style="
+              background: rgba(124,77,255,0.07);
+              border: 1px solid rgba(124,77,255,0.18);
+              min-width: 0;
+            ">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(124,77,255,0.75)" stroke-width="2.5" class="shrink-0">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                <polyline points="15 3 21 3 21 9"/>
+                <line x1="10" y1="14" x2="21" y2="3"/>
+              </svg>
+              <span style="
+                font-size: 11px;
+                font-family: var(--font-mono);
+                color: rgba(200,180,255,0.80);
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                flex: 1;
+                min-width: 0;
+              ">{post.extractedText}</span>
+            </div>
+            <button
+              onclick={(e) => { e.stopPropagation(); void openExternal(`https://${post.extractedText}`) }}
+              class="shrink-0 flex items-center justify-center rounded-lg transition-all duration-150"
+              style="
+                width: 26px; height: 26px;
+                background: rgba(124,77,255,0.14);
+                border: 1px solid rgba(124,77,255,0.30);
+                color: rgba(200,180,255,0.90);
+              "
+              onmouseenter={(e) => {
+                const el = e.currentTarget as HTMLElement
+                el.style.background = 'rgba(124,77,255,0.28)'
+                el.style.borderColor = 'rgba(124,77,255,0.55)'
+              }}
+              onmouseleave={(e) => {
+                const el = e.currentTarget as HTMLElement
+                el.style.background = 'rgba(124,77,255,0.14)'
+                el.style.borderColor = 'rgba(124,77,255,0.30)'
+              }}
+              aria-label="Abrir enlace externo"
+            >
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M5 12h14M12 5l7 7-7 7"/>
+              </svg>
+            </button>
+          </div>
+        {:else}
+          <p class="text-sm mt-2 leading-relaxed" style="
+            color: var(--vault-on-bg-muted);
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            font-style: italic;
+          ">{post.extractedText}</p>
+        {/if}
+      {/if}
+
       {#if post.note}
-        <p class="text-sm mt-2 leading-relaxed" style="
-          color: var(--vault-on-bg);
-          opacity: 0.88;
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        ">{post.note}</p>
-      {:else if post.extractedText}
-        <p class="text-sm mt-2 leading-relaxed" style="
-          color: var(--vault-on-bg-muted);
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-          font-style: italic;
-        ">{post.extractedText}</p>
+        <!-- Note chip — clickable, opens inline modal -->
+        <button
+          class="note-chip mt-1.5 flex items-center gap-1.5 py-1 px-2 w-full text-left"
+          style="
+            border-left: 2px solid rgba(0,188,212,0.55);
+            border-radius: 0 5px 5px 0;
+            background: rgba(0,188,212,0.05);
+            border-top: 1px solid transparent;
+            border-right: 1px solid transparent;
+            border-bottom: 1px solid transparent;
+            cursor: pointer;
+            transition: background 0.18s ease, border-color 0.18s ease;
+          "
+          onclick={(e) => { e.stopPropagation(); noteValue = post.note ?? ''; editingNote = true }}
+          onmouseenter={(e) => {
+            const el = e.currentTarget as HTMLElement
+            el.style.background = 'rgba(0,188,212,0.11)'
+            el.style.borderTopColor = 'rgba(0,188,212,0.20)'
+            el.style.borderRightColor = 'rgba(0,188,212,0.20)'
+            el.style.borderBottomColor = 'rgba(0,188,212,0.20)'
+          }}
+          onmouseleave={(e) => {
+            const el = e.currentTarget as HTMLElement
+            el.style.background = 'rgba(0,188,212,0.05)'
+            el.style.borderTopColor = 'transparent'
+            el.style.borderRightColor = 'transparent'
+            el.style.borderBottomColor = 'transparent'
+          }}
+          aria-label="Editar nota personal"
+        >
+          <!-- Pencil icon with glow dot -->
+          <span class="shrink-0 relative flex items-center justify-center" style="width:16px; height:16px">
+            <span class="absolute inset-0 rounded-full" style="
+              background: rgba(0,188,212,0.18);
+              border: 1px solid rgba(0,188,212,0.38);
+            "></span>
+            <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="rgba(0,188,212,0.90)" stroke-width="2.5" style="position:relative; z-index:1">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+          </span>
+          <p style="
+            font-size: 10px;
+            line-height: 1.4;
+            color: rgba(178,235,242,0.65);
+            font-style: italic;
+            display: -webkit-box;
+            -webkit-line-clamp: 1;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            font-family: var(--font-body);
+            flex: 1;
+            min-width: 0;
+          ">{post.note}</p>
+          <!-- Edit hint arrow -->
+          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="rgba(0,188,212,0.45)" stroke-width="2.5" class="shrink-0">
+            <path d="M9 18l6-6-6-6"/>
+          </svg>
+        </button>
       {/if}
 
       {#if post.media?.length}
@@ -347,4 +498,102 @@
       letter-spacing: 0.02em;
     ">{formatDate(post.savedAt)}</span>
   </div>
+
+  <!-- Note edit modal — rendered inside the card, overlays it -->
+  {#if editingNote}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="absolute inset-0 rounded-2xl flex flex-col justify-end"
+      style="
+        background: rgba(8,8,16,0.88);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        z-index: 10;
+        padding: 14px;
+      "
+      onclick={(e) => e.stopPropagation()}
+    >
+      <div class="flex items-center gap-1.5 mb-2">
+        <span class="flex items-center justify-center" style="
+          width: 18px; height: 18px;
+          background: rgba(0,188,212,0.18);
+          border: 1px solid rgba(0,188,212,0.40);
+          border-radius: 50%;
+        ">
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="rgba(0,188,212,0.95)" stroke-width="2.5">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+        </span>
+        <span style="
+          font-size: 10px;
+          font-family: var(--font-display);
+          letter-spacing: 0.07em;
+          color: rgba(0,188,212,0.75);
+          text-transform: uppercase;
+        ">NOTA PERSONAL</span>
+      </div>
+
+      <div class="rounded-xl overflow-hidden mb-2.5" style="
+        background: rgba(0,188,212,0.05);
+        border: 1px solid rgba(0,188,212,0.25);
+        border-left: 2px solid rgba(0,188,212,0.60);
+      ">
+        <textarea
+          bind:value={noteValue}
+          rows="3"
+          placeholder="Escribe tu nota…"
+          class="w-full bg-transparent resize-none text-sm leading-relaxed outline-none px-3 py-2"
+          style="
+            color: var(--vault-on-bg);
+            font-family: var(--font-body);
+            font-size: 12px;
+          "
+          onclick={(e) => e.stopPropagation()}
+          onkeydown={(e) => {
+            e.stopPropagation()
+            if (e.key === 'Escape') { editingNote = false; noteValue = post.note ?? '' }
+          }}
+        ></textarea>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button
+          onclick={(e) => { e.stopPropagation(); void handleSaveNote() }}
+          disabled={savingNote}
+          class="px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-all duration-150"
+          style="
+            background: rgba(0,188,212,0.28);
+            border: 1px solid rgba(0,188,212,0.45);
+            font-family: var(--font-display);
+            opacity: {savingNote ? '0.6' : '1'};
+          "
+        >{savingNote ? 'Guardando…' : 'Guardar'}</button>
+
+        <button
+          onclick={(e) => { e.stopPropagation(); editingNote = false; noteValue = post.note ?? '' }}
+          class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150"
+          style="
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.12);
+            color: var(--vault-on-bg-muted);
+            font-family: var(--font-display);
+          "
+        >Cancelar</button>
+
+        {#if post.note}
+          <button
+            onclick={(e) => { e.stopPropagation(); void handleDeleteNote() }}
+            class="px-3 py-1.5 rounded-lg text-xs font-semibold ml-auto transition-all duration-150"
+            style="
+              background: rgba(239,68,68,0.10);
+              border: 1px solid rgba(239,68,68,0.25);
+              color: #fca5a5;
+              font-family: var(--font-display);
+            "
+          >Eliminar nota</button>
+        {/if}
+      </div>
+    </div>
+  {/if}
 </article>

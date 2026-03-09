@@ -131,28 +131,133 @@ function extractEscapedMediaFromText(text: string): string[] {
 function extractPostSectionMedia(jinaMarkdown: string, postId: string | null): string[] {
   if (!jinaMarkdown) return []
 
+  /*
+    PBL: Bug fix — el header de Jina contiene la URL del post en la línea
+    "URL Source: https://...threads.net/.../post/ID". Si buscamos /post/ID
+    en todo el markdown, la PRIMERA aparición siempre es esa línea de header.
+    El ancla quedaba en el header → los chars siguientes eran el contenido del
+    POST RAÍZ (que aparece primero en el markdown del thread), no del sub-post.
+
+    Fix: buscar /post/ID SOLO dentro del área de contenido, es decir,
+    a partir de "Markdown Content:" (línea separadora que Jina incluye siempre).
+    Así el ancla cae en el enlace real del sub-post dentro del hilo.
+  */
+  const contentMarker = /\nMarkdown Content:\s*\n?/i.exec(jinaMarkdown)
+  const searchArea = contentMarker
+    ? jinaMarkdown.slice(contentMarker.index + contentMarker[0].length)
+    : jinaMarkdown
+
   if (postId) {
-    const postMatch = new RegExp(`/post/${postId}\\b`, 'i').exec(jinaMarkdown)
+    const postMatch = new RegExp(`/post/${postId}\\b`, 'i').exec(searchArea)
     if (postMatch) {
       // 4000 chars cubre posts con 2-4 imágenes (cada URL CDN ~300-500 chars)
-      const postSection = jinaMarkdown.slice(postMatch.index, postMatch.index + 4000)
+      const postSection = searchArea.slice(postMatch.index, postMatch.index + 4000)
       return [
         ...extractMediaFromText(postSection),
         ...extractEscapedMediaFromText(postSection),
       ]
     }
-    // postId no encontrado → Jina sirvió perfil/feed en vez del post → no extraer media
+    // postId no encontrado en área de contenido → Jina sirvió perfil/feed → no extraer media
     return []
   }
 
-  // Sin postId: comportamiento original (primeros 3000 chars tras "Markdown Content:")
-  const contentMatch = /Markdown Content:\s*/i.exec(jinaMarkdown)
-  const start = contentMatch ? contentMatch.index + contentMatch[0].length : 0
-  const postSection = jinaMarkdown.slice(start, start + 3000)
+  // Sin postId: primeros 3000 chars del área de contenido
+  const postSection = searchArea.slice(0, 3000)
   return [
     ...extractMediaFromText(postSection),
     ...extractEscapedMediaFromText(postSection),
   ]
+}
+
+/*
+  PBL: Extrae texto Y media de un sub-post a partir del markdown de Jina,
+  acotando la sección del sub-post entre su ancla y el inicio del siguiente post.
+
+  Problema que resuelve (en cadena):
+  1. El header de Jina contiene la URL del sub-post → falso ancla resuelto buscando
+     solo dentro de "Markdown Content:".
+  2. "Related threads" aparece en la primera línea ÚTIL después del ancla del sub-post
+     (antes del texto real). Resuelto: "Related threads" está en isGenericThreadsText.
+  3. La ventana de 4000 chars se solapaba con la sección "Related threads", que
+     incluye previews con CDN URLs del video del post raíz → video asignado al
+     sub-post erróneamente. Resuelto: la sección se ACOTA entre el ancla del sub-post
+     y la primera aparición de otro /post/ID (o "Related threads"/"Related posts"),
+     lo que garantiza que solo se extrae media perteneciente a este sub-post.
+
+  Retorna null si el postId no aparece en el área de contenido de Jina.
+*/
+interface PostSectionData {
+  text: string | undefined
+  mediaUrls: string[]
+}
+
+function extractPostSectionFromJina(jinaMarkdown: string, postId: string): PostSectionData | null {
+  if (!jinaMarkdown?.trim()) return null
+
+  // 1. Saltar cabecera de Jina (Title / URL Source / Markdown Content)
+  const contentMarker = /\nMarkdown Content:\s*\n?/i.exec(jinaMarkdown)
+  const contentArea = contentMarker
+    ? jinaMarkdown.slice(contentMarker.index + contentMarker[0].length)
+    : jinaMarkdown
+
+  // 2. Encontrar la línea ancla del sub-post en el área de contenido
+  const anchorRe = new RegExp(`/post/${postId}\\b`, 'i')
+  const anchorMatch = anchorRe.exec(contentArea)
+  if (!anchorMatch) return null
+
+  // 3. Avanzar al inicio del cuerpo (línea siguiente a la del ancla)
+  const anchorLineEnd = contentArea.indexOf('\n', anchorMatch.index)
+  const bodyStart = anchorLineEnd >= 0 ? anchorLineEnd + 1 : anchorMatch.index + anchorMatch[0].length
+  const bodyFull = contentArea.slice(bodyStart)
+
+  // 4. Acotar el cuerpo hasta el SIGUIENTE /post/ID o sección "Related threads"
+  //    Esto evita que la ventana se extienda a secciones de otros posts.
+  const sectionEndRe = /\/post\/[A-Za-z0-9_-]+\b|\nRelated threads\b|\nRelated posts\b/i
+  const sectionEndMatch = sectionEndRe.exec(bodyFull)
+  const body = sectionEndMatch ? bodyFull.slice(0, sectionEndMatch.index) : bodyFull.slice(0, 2000)
+
+  // 5. Extraer texto: primera línea útil del cuerpo acotado
+  const lines = body.replace(/\r/g, '').split('\n').map((l) => l.trim())
+  let text: string | undefined
+  for (const line of lines) {
+    if (!line) continue
+    const candidate = normalizeCandidateLine(line)
+    if (candidate.length < 6) continue
+    if (/^!\[/.test(candidate)) continue
+    if (isImageAltNoise(candidate)) continue
+    if (isGenericThreadsText(candidate)) continue
+    if (isThreadPositionNoise(candidate)) continue
+    if (/^\d+$/.test(candidate)) continue
+    if (/^https?:\/\//i.test(candidate)) continue
+    if (/^title:|^url source:|^markdown content:/i.test(candidate)) continue
+    if (/^\[/.test(candidate)) {
+      const fullMatch = /^\[([^\]]+)\]\((https?:\/\/[^)]+)\)/.exec(candidate)
+      if (!fullMatch) continue
+      const [, displayText, rawUrl] = fullMatch
+      if (displayText?.startsWith('!')) continue
+      const resolved = resolveThreadsTrackingUrl(rawUrl)
+      const urlText = resolved ?? rawUrl.replace(/^https?:\/\//i, '')
+      if (urlText.length >= 6 && !/^@/.test(urlText) && !/threads\.net/i.test(urlText)) {
+        text = urlText
+        break
+      }
+      if (displayText && displayText.length >= 6 && !/^@/.test(displayText) && !/^\d+[kKmMbB]?$/.test(displayText)) {
+        text = displayText
+        break
+      }
+      continue
+    }
+    text = candidate
+    break
+  }
+
+  // 6. Extraer media del cuerpo acotado (sin solaparse con otros posts)
+  const mediaUrls = [
+    ...extractMediaFromText(body),
+    ...extractEscapedMediaFromText(body),
+  ]
+
+  return { text, mediaUrls }
 }
 
 /*
@@ -284,7 +389,7 @@ function isLikelyThreadsPostUrl(url?: string): boolean {
 
 function isGenericThreadsText(value?: string): boolean {
   if (!value) return false
-  return /join threads to share ideas|threads\s*•\s*log in|log in with your instagram/i.test(value)
+  return /join threads to share ideas|threads\s*•\s*log in|log in with your instagram|^related threads$|^related posts$/i.test(value)
 }
 
 function extractPostId(url: string): string | null {
@@ -352,6 +457,16 @@ function isImageAltNoise(line: string): boolean {
     || /profile picture/i.test(line)
 }
 
+/*
+  PBL: Detecta si un texto es una URL sin esquema (ej: "github.com/user/repo").
+  Usado para identificar "link posts" — posts cuyo contenido ES un enlace externo.
+  Criterios: al menos un punto, sin espacios, empieza por carácter de dominio.
+  No detecta URLs relativas ni paths puros (sin dominio).
+*/
+function looksLikeUrlWithoutScheme(text: string): boolean {
+  return /^[\w][\w.-]+\.[a-z]{2,}(\/|$)/i.test(text) && !text.includes(' ')
+}
+
 function isInvalidExtractedText(value?: string): boolean {
   if (!value?.trim()) return true
   const line = normalizeCandidateLine(value.trim())
@@ -367,13 +482,35 @@ function extractFallbackTextFromSource(source: string, postId: string | null): s
   const lines = source.replace(/\r/g, '').split('\n').map((line) => line.trim())
   if (!lines.length) return undefined
 
+  /*
+    PBL: Bug fix — el header de Jina contiene la URL del post:
+      "URL Source: https://www.threads.net/@autor/post/DVo3xyVDtKL"
+    Si buscamos /post/ID en todas las líneas, la primera coincidencia es
+    SIEMPRE esa línea de header, no el enlace real del sub-post dentro del hilo.
+
+    Resultado del bug: anchoredText = texto del POST RAÍZ (que aparece en las
+    líneas siguientes al header: "Markdown Content:" → contenido del hilo desde
+    el post 1) en vez del texto del sub-post.
+
+    Fix: empezar a buscar el ancla solo DESPUÉS de "Markdown Content:"
+    (el separador que Jina incluye siempre). Así la primera coincidencia de
+    /post/ID en el área de contenido es el enlace real del sub-post.
+  */
+  const markdownContentIdx = lines.findIndex((l) => /^markdown content:/i.test(l))
+  const contentSearchFrom = markdownContentIdx >= 0 ? markdownContentIdx + 1 : 0
+
   const postLineIndex = postId
-    ? lines.findIndex((line) => new RegExp(`/post/${postId}\\b`, 'i').test(line))
+    ? (() => {
+        const rel = lines
+          .slice(contentSearchFrom)
+          .findIndex((line) => new RegExp(`/post/${postId}\\b`, 'i').test(line))
+        return rel >= 0 ? contentSearchFrom + rel : -1
+      })()
     : -1
 
-  // BUG CORREGIDO: si tenemos postId pero no aparece en la fuente, Jina devolvió
-  // otra página (perfil/feed del usuario). Es más seguro retornar undefined que
-  // devolver texto del primer post visible, que puede ser un post diferente.
+  // BUG CORREGIDO: si tenemos postId pero no aparece en el área de contenido,
+  // Jina devolvió otra página (perfil/feed). Retornar undefined es más seguro
+  // que devolver texto del primer post visible (que puede ser otro post).
   if (postId && postLineIndex === -1) return undefined
 
   const start = postLineIndex >= 0 ? postLineIndex + 1 : 0
@@ -389,16 +526,29 @@ function extractFallbackTextFromSource(source: string, postId: string | null): s
         [github.com/ripienaar/free-for-dev](https://github.com/...)
       Sin este fix, saltábamos TODAS las líneas que empiezan con "[", dejando
       sin texto los posts cuyo único contenido es un enlace.
-      Fix: extraemos el texto visible del enlace [texto](url) si tiene ≥6 chars
-      y no es una mención de usuario (@handle) ni un número de interacciones.
+
+      BUG CORREGIDO 2: Threads trunca el texto visible del enlace en Jina:
+        [github.com/user/re...](https://l.threads.com/?u=https%3A%2F%2Fgithub.com%2Fuser%2Frepo)
+      Si devolvíamos el linkText visible, guardábamos "github.com/user/re..."
+      con puntos suspensivos literales en vez de la URL completa.
+
+      Fix: extraemos la URL completa del parámetro ?u= del tracking URL y la
+      devolvemos sin el prefijo https:// (consistente con cleanMarkdownLinks).
+      Si no es un tracking URL, usamos la URL destino directamente.
     */
     if (/^\[/.test(candidate)) {
-      const linkText = /^\[([^\]]+)\]/.exec(candidate)?.[1]
-      // Imagen enlazada: [![alt](img_url)](link_url) → linkText empieza con "!"
-      // Sin este check, devolvemos "![image 0: diagrama" como texto extraído.
-      if (linkText?.startsWith('!')) continue
-      if (linkText && linkText.length >= 6 && !/^@/.test(linkText) && !/^\d+[kKmMbB]?$/.test(linkText)) {
-        return linkText
+      const fullMatch = /^\[([^\]]+)\]\((https?:\/\/[^)]+)\)/.exec(candidate)
+      if (!fullMatch) continue
+      const [, displayText, rawUrl] = fullMatch
+      // Imagen enlazada: [![alt](img_url)](link_url) → displayText empieza con "!"
+      if (displayText?.startsWith('!')) continue
+      // Resolver el tracking URL para obtener la URL real completa
+      const resolved = resolveThreadsTrackingUrl(rawUrl)
+      const urlText = resolved ?? rawUrl.replace(/^https?:\/\//i, '')
+      if (urlText.length >= 6 && !/^@/.test(urlText)) return urlText
+      // Fallback: texto visible si no hay URL resoluble
+      if (displayText && displayText.length >= 6 && !/^@/.test(displayText) && !/^\d+[kKmMbB]?$/.test(displayText)) {
+        return displayText
       }
       continue
     }
@@ -445,42 +595,43 @@ function detectThreadPostIds(html: string, author: string, mainPostId: string): 
 
 /*
   PBL: Extrae datos básicos de un sub-post del hilo (texto + media).
-  Reutilizamos las mismas funciones que extractPostData pero devuelve
-  un ThreadPost más compacto (sin oEmbed para reducir latencia).
+  Usa extractPostSectionFromJina que acota la sección al bloque exacto del
+  sub-post (entre su ancla y el siguiente /post/ID o "Related threads"),
+  evitando contaminación de texto/media de otros posts del hilo.
+
+  Pipeline de fallback:
+  1. Jina del sub-post propio  → extractPostSectionFromJina (sección acotada)
+  2. Jina del post raíz        → extractPostSectionFromJina (mismo algoritmo)
+  3. og:video explícito        → fiable aunque sea del raíz (para video-link)
+  4. og:image / twitter:image  → solo si Jina no encontró imágenes
 */
-async function extractSubPost(subPostId: string, authorHandle: string): Promise<ThreadPost | null> {
+async function extractSubPost(
+  subPostId: string,
+  authorHandle: string,
+  rootThreadJina?: string,
+): Promise<ThreadPost | null> {
   const handle = authorHandle.replace(/^@/, '')
   const url = `https://www.threads.net/@${handle}/post/${subPostId}`
   const [html, jinaMarkdown] = await Promise.all([
     tryFetchText(url),
     tryFetchText(`https://r.jina.ai/${url}`),
   ])
-  if (!html && !jinaMarkdown) return null
+  if (!html && !jinaMarkdown && !rootThreadJina) return null
   const source = html ?? jinaMarkdown ?? ''
 
-  const ogDescription = extractMetaTag(source, 'og:description')
-  const twitterDesc   = extractMetaTag(source, 'twitter:description')
-  const ogImage       = extractMetaTag(source, 'og:image')
-  const ogVideo       = extractMetaTag(source, 'og:video')
-  const twitterImage  = extractMetaTag(source, 'twitter:image')
+  // Extraer sección acotada desde el Jina propio del sub-post
+  const ownSection = jinaMarkdown
+    ? extractPostSectionFromJina(jinaMarkdown, subPostId)
+    : null
 
-  const metadataText = firstDefined(ogDescription, twitterDesc)
-  const markdownText = extractFallbackTextFromSource(jinaMarkdown ?? '', subPostId)
-  const htmlText     = extractFallbackTextFromSource(source, subPostId)
-  /*
-    PBL: Bug fix — Threads devuelve og:description del POST RAÍZ para todas las URLs
-    de sub-posts del hilo (estrategia SEO). Si usamos og:description como prioridad,
-    el texto del sub-post 3/4 sería reemplazado por el del 1/4.
+  // Fallback: sección acotada desde el Jina del post raíz
+  const rootSection = (!ownSection || (!ownSection.text && ownSection.mediaUrls.length === 0)) && rootThreadJina
+    ? extractPostSectionFromJina(rootThreadJina, subPostId)
+    : null
 
-    Solución: markdownText y htmlText están anclados al subPostId específico
-    (ver extractFallbackTextFromSource). Los usamos primero; og:description solo
-    si los anclados no encuentran nada.
-  */
-  const anchoredText = firstDefined(markdownText, htmlText)
-  const text = anchoredText !== undefined
-    ? anchoredText
-    : (isInvalidExtractedText(metadataText) ? undefined : metadataText)
+  const text = ownSection?.text ?? rootSection?.text
 
+  // Construir media
   const seenUrls = new Set<string>()
   const media: PostMedia[] = []
   const addItem = (items: PostMedia[]) => {
@@ -492,17 +643,25 @@ async function extractSubPost(subPostId: string, authorHandle: string): Promise<
       }
     }
   }
-  /*
-    PBL: Mismo problema con og:image — puede ser la imagen del post raíz.
-    Jina section media está anclado al subPostId → prioridad.
-    og:image solo como fallback si Jina no encontró imágenes del sub-post.
-  */
-  const jinaSection = toMediaEntries(extractPostSectionMedia(jinaMarkdown ?? '', subPostId))
-  addItem(jinaSection)
-  addItem(forceMediaEntries([ogVideo], 'video'))
-  const hasJinaImages = jinaSection.some(m => m.type === 'image')
+
+  // Media de Jina (sección acotada — sin solapamiento con otros posts)
+  const jinaMedia = ownSection?.mediaUrls.length
+    ? toMediaEntries(ownSection.mediaUrls)
+    : rootSection?.mediaUrls.length
+      ? toMediaEntries(rootSection.mediaUrls)
+      : []
+  addItem(jinaMedia)
+
+  // og:video: único meta fiable (explicita el tipo, raramente aparece en el raíz)
+  addItem(forceMediaEntries([extractMetaTag(source, 'og:video')], 'video'))
+
+  // og:image solo si Jina no encontró imágenes (og:image = imagen del raíz normalmente)
+  const hasJinaImages = media.some((m) => m.type === 'image')
   if (!hasJinaImages) {
-    addItem(forceMediaEntries([ogImage, twitterImage], 'image'))
+    addItem(forceMediaEntries([
+      extractMetaTag(source, 'og:image'),
+      extractMetaTag(source, 'twitter:image'),
+    ], 'image'))
   }
 
   const hasRealVideo  = media.some((item) => item.type === 'video')
@@ -660,7 +819,12 @@ export async function extractPostData(rawUrl: string, options?: ExtractOptions):
   if (!options?.skipThreadDetection && postId && resolvedAuthor) {
     const subIds = detectThreadPostIds(source, resolvedAuthor, postId)
     if (subIds.length > 0) {
-      const results = await Promise.all(subIds.map((id) => extractSubPost(id, resolvedAuthor)))
+      // PBL: pasamos jinaHtml (Jina del post raíz) como fuente de fallback.
+      // El Jina del raíz contiene el hilo completo → permite extraer texto
+      // y media del sub-post cuando su fetch individual devuelve el raíz.
+      const results = await Promise.all(
+        subIds.map((id) => extractSubPost(id, resolvedAuthor, jinaHtml ?? undefined))
+      )
       const valid = results.filter((t): t is ThreadPost => t !== null)
       if (valid.length > 0) threadPosts = valid
     }
@@ -670,12 +834,39 @@ export async function extractPostData(rawUrl: string, options?: ExtractOptions):
     ? specificPost.text : undefined
   const safeExtractedText = isInvalidExtractedText(extractedText) ? undefined : extractedText
 
+  const finalText = cleanMarkdownLinks(firstDefined(safeSpecificText, safeExtractedText))
+  let finalPreviewImage = specificPost?.media?.find((m) => m.type === 'image')?.url ?? previewImage
+
+  /*
+    PBL: Thumbnail para "link posts" — posts cuyo contenido ES un enlace externo.
+    Si el texto extraído es una URL (ej: "github.com/user/repo") y no tenemos
+    ninguna imagen de previsualización, intentamos obtener el og:image de la
+    página enlazada. Esto mejora la UI mostrando el social preview del repositorio,
+    artículo, o vídeo enlazado.
+
+    Limitaciones:
+    - Solo funciona en Tauri (fetch directo sin CORS). En browser mode falla
+      silenciosamente (tryFetchText devuelve null).
+    - Timeout heredado de tryFetchText: 8s. Si la página es lenta, el guardado
+      total puede tardar más. Esto es un tradeoff aceptable para link posts.
+    - Sitios sin og:image (o con imágenes que parecen avatares) → sin cambio.
+  */
+  if (finalText && looksLikeUrlWithoutScheme(finalText) && !finalPreviewImage) {
+    const linkedHtml = await tryFetchText(`https://${finalText}`)
+    if (linkedHtml) {
+      const linkedOgImage = extractMetaTag(linkedHtml, 'og:image')
+      if (linkedOgImage && !isLikelyAvatarUrl(linkedOgImage)) {
+        finalPreviewImage = linkedOgImage
+      }
+    }
+  }
+
   return {
     canonicalUrl:  normalizedCanonical,
     author:        resolvedAuthor || '@desconocido',
     title:         firstDefined(oembed?.title, ogTitle),
-    text:          cleanMarkdownLinks(firstDefined(safeSpecificText, safeExtractedText)),
-    previewImage:  specificPost?.media?.find((m) => m.type === 'image')?.url ?? previewImage,
+    text:          finalText,
+    previewImage:  finalPreviewImage,
     previewVideo:  specificPost?.media?.find((m) => m.type === 'video')?.url ?? previewVideo,
     media:         specificPost?.media?.length ? specificPost.media : media,
     threadPosts,
