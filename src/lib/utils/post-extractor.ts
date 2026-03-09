@@ -237,7 +237,7 @@ function extractPostSectionFromJina(jinaMarkdown: string, postId: string): PostS
       if (displayText?.startsWith('!')) continue
       const resolved = resolveThreadsTrackingUrl(rawUrl)
       const urlText = resolved ?? rawUrl.replace(/^https?:\/\//i, '')
-      if (urlText.length >= 6 && !/^@/.test(urlText) && !/threads\.net/i.test(urlText)) {
+      if (urlText.length >= 6 && !/^@/.test(urlText) && !/threads\.(?:net|com)/i.test(urlText)) {
         text = urlText
         break
       }
@@ -389,7 +389,41 @@ function isLikelyThreadsPostUrl(url?: string): boolean {
 
 function isGenericThreadsText(value?: string): boolean {
   if (!value) return false
-  return /join threads to share ideas|threads\s*•\s*log in|log in with your instagram|^related threads$|^related posts$/i.test(value)
+  const v = value.trim()
+  // Etiquetas de metadatos de perfil que Jina renderiza como bullets antes del texto real
+  if (/^(?:author|follow|followers?|following|published|likes?|reposts?|replies|related\s+threads|related\s+posts)$/i.test(v)) return true
+  // Strings de login/auth page — red de seguridad por si isJinaLoginPage no la detectó
+  return /join threads to share ideas|threads\s*•\s*log in|log in or sign up|log in with your (?:instagram|facebook)|log in to (?:threads|instagram)|sign in (?:with|to) (?:instagram|facebook|threads)|sign up for threads|continue with (?:instagram|facebook)|create (?:a )?new account|forgot (?:your )?password|don'?t have an account|join the conversation|see what people are talking about|what'?s on your mind/i.test(v)
+}
+
+/*
+  PBL: Detecta si Jina devolvió la login page de Threads en vez del post real.
+  Cuando Threads rate-limita o bloquea a Jina, redirige al login. Jina renderiza
+  esa página y la devuelve como si fuera el post solicitado.
+
+  Descartamos esa respuesta (tratándola como null) para que la extracción falle
+  limpiamente ("No se extrajo texto. Pulsa Refrescar") en vez de guardar el texto
+  del UI del login como contenido del post.
+
+  Señales:
+  1. Title genérico — la login page tiene título "Threads", los posts tienen el texto real
+  2. Frases del login UI en el área de contenido
+*/
+function isJinaLoginPage(jinaMarkdown: string): boolean {
+  if (!jinaMarkdown) return false
+
+  // Señal 1: Title genérico → login page
+  const titleMatch = /^Title:\s*(.+)$/im.exec(jinaMarkdown)
+  const title = titleMatch?.[1]?.trim() ?? ''
+  if (/^(?:threads|log in to threads|sign in to threads|instagram)$/i.test(title)) return true
+
+  // Señal 2: frases del login UI en los primeros 1500 chars del contenido
+  const contentMarker = /\nMarkdown Content:\s*\n?/i.exec(jinaMarkdown)
+  const contentArea = contentMarker
+    ? jinaMarkdown.slice(contentMarker.index + contentMarker[0].length, contentMarker.index + 1500)
+    : jinaMarkdown.slice(0, 1500)
+
+  return /log in or sign up|continue with (?:instagram|facebook)|see what people are talking about/i.test(contentArea)
 }
 
 function extractPostId(url: string): string | null {
@@ -545,7 +579,8 @@ function extractFallbackTextFromSource(source: string, postId: string | null): s
       // Resolver el tracking URL para obtener la URL real completa
       const resolved = resolveThreadsTrackingUrl(rawUrl)
       const urlText = resolved ?? rawUrl.replace(/^https?:\/\//i, '')
-      if (urlText.length >= 6 && !/^@/.test(urlText)) return urlText
+      // PBL: misma regla que extractPostSectionFromJina — no devolver URLs de threads.net/instagram.com
+      if (urlText.length >= 6 && !/^@/.test(urlText) && !/(?:threads\.(?:net|com)|instagram\.com)/i.test(urlText)) return urlText
       // Fallback: texto visible si no hay URL resoluble
       if (displayText && displayText.length >= 6 && !/^@/.test(displayText) && !/^\d+[kKmMbB]?$/.test(displayText)) {
         return displayText
@@ -690,30 +725,24 @@ export async function extractPostData(rawUrl: string, options?: ExtractOptions):
   const authorFromInputUrl = parseThreadsAuthor(canonicalUrl)
 
   /*
-    PBL: Ejecutamos los 4 orígenes EN PARALELO con Promise.all.
-    Antes: 3 fetches paralelos + extractSubPost secuencial = hasta 8s + 8s = 16s.
-    Ahora: 4 fetches paralelos = max(cada uno) = ~8s total.
-    El 4º fetch es extractSubPost para el post específico (threads.net).
-    Esto es especialmente importante para sub-posts: threads.com puede devolver
-    el og:image del post RAÍZ, mientras threads.net tiene el og:image correcto
-    del sub-post.
-
+    PBL: 3 orígenes EN PARALELO con Promise.all.
     Orden de preferencia para el HTML fuente:
     1. directHtml  — fetch directo (funciona en Tauri, CORS en browser)
     2. jinaHtml    — Jina Reader (headless proxy, funciona en browser)
 
-    BUG CORREGIDO: antes el Jina URL usaba `http://` en lugar de
-    `https://`, forzando una redirección en Threads que añadía latencia
-    y podía fallar. Ahora usamos `https://r.jina.ai/${canonicalUrl}`.
+    BUG CORREGIDO: el 4º fetch (extractSubPost del post raíz) era un duplicado
+    exacto del jinaHtml → 2 requests concurrentes a la MISMA URL de Jina →
+    rate-limiting → Jina devolvía login page → extracción fallida en primera llamada.
+    Fix: derivar specificPost de jinaHtml ya fetcheado (sin fetch extra).
   */
-  const [oembed, directHtml, jinaHtml, specificPostEarly] = await Promise.all([
+  const [oembed, directHtml, rawJinaHtml] = await Promise.all([
     tryFetchJson(`https://www.threads.net/oembed?url=${encodeURIComponent(sourceUrl)}`),
     tryFetchText(sourceUrl),
     tryFetchText(`https://r.jina.ai/${canonicalUrl}`),
-    postId && authorFromInputUrl
-      ? extractSubPost(postId, authorFromInputUrl)
-      : Promise.resolve(null),
   ])
+  // Si Jina devolvió la login page de Threads, la descartamos (tratamos como null).
+  // Así la extracción falla limpiamente en vez de guardar texto del UI de login.
+  const jinaHtml = rawJinaHtml && !isJinaLoginPage(rawJinaHtml) ? rawJinaHtml : null
 
   const source = directHtml ?? jinaHtml ?? ''
 
@@ -800,9 +829,52 @@ export async function extractPostData(rawUrl: string, options?: ExtractOptions):
     : canonicalUrl
 
   const author = selectAuthor(oembed, normalizedCanonical)
-  // authorFromInputUrl ya fue calculado antes del Promise.all inicial (línea ~442)
-  // specificPost ya fue obtenido en paralelo con oEmbed/directHtml/jinaHtml
-  const specificPost = specificPostEarly
+
+  /*
+    PBL: specificPost derivado de jinaHtml (sin fetch extra).
+    Antes: extractSubPost hacía un 2º request a r.jina.ai/misma-URL → rate-limiting.
+    Ahora: extractPostSectionFromJina(jinaHtml, postId) reutiliza el markdown ya
+    fetcheado → misma calidad de extracción, 0 requests adicionales.
+
+    La sección acotada (hasta el siguiente /post/ID) garantiza que solo se extraen
+    texto y media del post correcto, sin contaminación de posts adyacentes.
+  */
+  const specificPost: ThreadPost | null = (() => {
+    if (!postId || !jinaHtml) return null
+    const section = extractPostSectionFromJina(jinaHtml, postId)
+    if (!section) return null
+
+    const seen = new Set<string>()
+    const items: PostMedia[] = []
+    const addItem = (m: PostMedia) => {
+      if (isLikelyAvatarUrl(m.url)) return
+      if (seen.has(m.url)) return
+      seen.add(m.url)
+      items.push(m)
+    }
+
+    // 1. Vídeos de meta tags (tipo explícito, más fiables que inferencia)
+    for (const m of forceMediaEntries([ogVideo, ogVideoSecure, twitterVideo], 'video')) addItem(m)
+    // 2. CDN images/videos de la sección acotada de Jina
+    for (const m of toMediaEntries(section.mediaUrls)) addItem(m)
+    // 3. og:image solo si Jina no encontró imágenes (og:image puede ser del post raíz)
+    if (!items.some((m) => m.type === 'image')) {
+      for (const m of forceMediaEntries([ogImage, twitterImage], 'image')) addItem(m)
+    }
+    // 4. video-link si hay thumbnail de vídeo pero sin stream directo
+    const hasSectionVideo = items.some((m) => m.type === 'video')
+    const hasSectionThumb = items.some((m) => VIDEO_THUMB_CDN_RE.test(m.url))
+    if (!hasSectionVideo && hasSectionThumb) {
+      items.push({ id: crypto.randomUUID(), type: 'video-link', url: canonicalUrl })
+    }
+
+    return {
+      id: postId,
+      url: canonicalUrl,
+      text: cleanMarkdownLinks(section.text),
+      media: items.length ? items : undefined,
+    }
+  })()
 
   /*
     PBL: Detección de hilo — si el HTML contiene enlaces a sub-posts del mismo autor,
