@@ -107,9 +107,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
-          projectPath: .
-          tauriScript: npm run tauri
-          releaseName: 'ThreadsVault Desktop v${{ github.ref_name }}'
+          releaseName: 'ThreadsVault Desktop ${{ github.ref_name }}'
           releaseDraft: true
           prerelease: false
 
@@ -189,9 +187,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tagName: ${{ github.ref_name }}
-          projectPath: .
-          tauriScript: npm run tauri
-          releaseName: 'ThreadsVault Desktop v${{ github.ref_name }}'
+          releaseName: 'ThreadsVault Desktop ${{ github.ref_name }}'
           releaseDraft: true
           prerelease: false
 
