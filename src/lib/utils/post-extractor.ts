@@ -466,10 +466,20 @@ async function extractSubPost(subPostId: string, authorHandle: string): Promise<
 
   const metadataText = firstDefined(ogDescription, twitterDesc)
   const markdownText = extractFallbackTextFromSource(jinaMarkdown ?? '', subPostId)
-  const htmlText = extractFallbackTextFromSource(source, subPostId)
-  const text = isInvalidExtractedText(metadataText)
-    ? firstDefined(markdownText, htmlText)
-    : firstDefined(metadataText, markdownText, htmlText)
+  const htmlText     = extractFallbackTextFromSource(source, subPostId)
+  /*
+    PBL: Bug fix — Threads devuelve og:description del POST RAÍZ para todas las URLs
+    de sub-posts del hilo (estrategia SEO). Si usamos og:description como prioridad,
+    el texto del sub-post 3/4 sería reemplazado por el del 1/4.
+
+    Solución: markdownText y htmlText están anclados al subPostId específico
+    (ver extractFallbackTextFromSource). Los usamos primero; og:description solo
+    si los anclados no encuentran nada.
+  */
+  const anchoredText = firstDefined(markdownText, htmlText)
+  const text = anchoredText !== undefined
+    ? anchoredText
+    : (isInvalidExtractedText(metadataText) ? undefined : metadataText)
 
   const seenUrls = new Set<string>()
   const media: PostMedia[] = []
@@ -482,9 +492,18 @@ async function extractSubPost(subPostId: string, authorHandle: string): Promise<
       }
     }
   }
+  /*
+    PBL: Mismo problema con og:image — puede ser la imagen del post raíz.
+    Jina section media está anclado al subPostId → prioridad.
+    og:image solo como fallback si Jina no encontró imágenes del sub-post.
+  */
+  const jinaSection = toMediaEntries(extractPostSectionMedia(jinaMarkdown ?? '', subPostId))
+  addItem(jinaSection)
   addItem(forceMediaEntries([ogVideo], 'video'))
-  addItem(forceMediaEntries([ogImage, twitterImage], 'image'))
-  addItem(toMediaEntries(extractPostSectionMedia(jinaMarkdown ?? '', subPostId)))
+  const hasJinaImages = jinaSection.some(m => m.type === 'image')
+  if (!hasJinaImages) {
+    addItem(forceMediaEntries([ogImage, twitterImage], 'image'))
+  }
 
   const hasRealVideo  = media.some((item) => item.type === 'video')
   const hasVideoThumb = media.some((item) => VIDEO_THUMB_CDN_RE.test(item.url))

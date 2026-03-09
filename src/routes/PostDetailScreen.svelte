@@ -315,14 +315,30 @@
               ...post,
               threadPosts: (post.threadPosts ?? []).map((threadPost, index) => {
                 if (index !== currentThreadIndex - 1) return threadPost
+                // Solo actualizar si el nuevo texto es más completo que el existente.
+                // Previene sobrescribir texto correcto del sub-post con el del raíz (1/4).
+                const newText = extracted.text
+                const bestText = newText && newText.length > (threadPost.text?.length ?? 0)
+                  ? newText
+                  : threadPost.text
                 return {
                   ...threadPost,
                   url: cleanThreadsUrl(extracted.canonicalUrl || threadPost.url),
-                  text: extracted.text !== undefined ? extracted.text : threadPost.text,
+                  text: bestText,
                   media: extracted.media?.length ? extracted.media : threadPost.media,
                 }
               }),
             }
+
+      // No guardar si el sub-post no cambió (evita escritura innecesaria a SQLite)
+      if (currentThreadIndex > 0) {
+        const current = post.threadPosts?.[currentThreadIndex - 1]
+        const next = (updated as Post).threadPosts?.[currentThreadIndex - 1]
+        if (current?.text === next?.text && current?.media?.length === next?.media?.length) {
+          return
+        }
+      }
+
       const storage = await getStorage()
       await storage.savePost(updated)
       post = updated
