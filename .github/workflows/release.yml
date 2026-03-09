@@ -106,9 +106,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ''
-          releaseName: ''
-          releaseDraft: false
+          tagName: ${{ github.ref_name }}
+          projectPath: .
+          includeTauri: false
+          releaseName: 'ThreadsVault Desktop v${{ github.ref_name }}'
+          releaseDraft: true
           prerelease: false
 
       - name: Subir artifacts (Windows)
@@ -186,9 +188,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ''
-          releaseName: ''
-          releaseDraft: false
+          tagName: ${{ github.ref_name }}
+          projectPath: .
+          includeTauri: false
+          releaseName: 'ThreadsVault Desktop v${{ github.ref_name }}'
+          releaseDraft: true
           prerelease: false
 
       - name: Subir artifacts (Linux)
