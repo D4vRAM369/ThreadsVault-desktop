@@ -108,7 +108,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           projectPath: .
-          includeTauri: false
+          tauriScript: npm run tauri
           releaseName: 'ThreadsVault Desktop v${{ github.ref_name }}'
           releaseDraft: true
           prerelease: false
@@ -190,7 +190,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           projectPath: .
-          includeTauri: false
+          tauriScript: npm run tauri
           releaseName: 'ThreadsVault Desktop v${{ github.ref_name }}'
           releaseDraft: true
           prerelease: false
