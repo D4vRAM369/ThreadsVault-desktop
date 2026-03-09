@@ -40,3 +40,10 @@ src-tauri/bin/
 
 # Letta AI local sessions
 .letta/
+
+# Pruebas y arreglos temporales
+fixing-extractor-jina/
+*.txt
+*.json
+!package.json
+!tsconfig*.json

@@ -128,7 +128,7 @@ function extractEscapedMediaFromText(text: string): string[] {
   Fix: si tenemos postId, buscamos su primera aparición en el markdown y extraemos
   media desde ese punto. Si el postId no aparece → Jina sirvió otra página → retornamos [].
 */
-function extractPostSectionMedia(jinaMarkdown: string, postId: string | null): string[] {
+export function extractPostSectionMedia(jinaMarkdown: string, postId: string | null): string[] {
   if (!jinaMarkdown) return []
 
   /*
@@ -148,16 +148,29 @@ function extractPostSectionMedia(jinaMarkdown: string, postId: string | null): s
     : jinaMarkdown
 
   if (postId) {
+    // PBL: Si el postId es el principal (header), tomamos desde el inicio.
+    // Evitamos clipping si el /post/ID aparece tarde (en imágenes).
+    const urlSourceMatch = /^URL Source:\s*(.+)$/im.exec(jinaMarkdown)
+    const urlSource = urlSourceMatch?.[1]?.trim() ?? ''
+    const isMainPost = urlSource.includes(`/post/${postId}`) || urlSource.includes(`/t/${postId}`)
+
     const postMatch = new RegExp(`/post/${postId}\\b`, 'i').exec(searchArea)
+
+    if (isMainPost || !postMatch) {
+      const postSection = searchArea.slice(0, 4000)
+      return [
+        ...extractMediaFromText(postSection),
+        ...extractEscapedMediaFromText(postSection),
+      ]
+    }
+
     if (postMatch) {
-      // 4000 chars cubre posts con 2-4 imágenes (cada URL CDN ~300-500 chars)
       const postSection = searchArea.slice(postMatch.index, postMatch.index + 4000)
       return [
         ...extractMediaFromText(postSection),
         ...extractEscapedMediaFromText(postSection),
       ]
     }
-    // postId no encontrado en área de contenido → Jina sirvió perfil/feed → no extraer media
     return []
   }
 
@@ -191,7 +204,7 @@ interface PostSectionData {
   mediaUrls: string[]
 }
 
-function extractPostSectionFromJina(jinaMarkdown: string, postId: string): PostSectionData | null {
+export function extractPostSectionFromJina(jinaMarkdown: string, postId: string): PostSectionData | null {
   if (!jinaMarkdown?.trim()) return null
 
   // 1. Saltar cabecera de Jina (Title / URL Source / Markdown Content)
@@ -203,18 +216,37 @@ function extractPostSectionFromJina(jinaMarkdown: string, postId: string): PostS
   // 2. Encontrar la línea ancla del sub-post en el área de contenido
   const anchorRe = new RegExp(`/post/${postId}\\b`, 'i')
   const anchorMatch = anchorRe.exec(contentArea)
-  if (!anchorMatch) return null
 
-  // 3. Avanzar al inicio del cuerpo (línea siguiente a la del ancla)
-  const anchorLineEnd = contentArea.indexOf('\n', anchorMatch.index)
-  const bodyStart = anchorLineEnd >= 0 ? anchorLineEnd + 1 : anchorMatch.index + anchorMatch[0].length
-  const bodyFull = contentArea.slice(bodyStart)
+  // PBL: Si el postId es el del post principal (el que Jina reporta como URL Source),
+  // tomamos desde el inicio. El ancla suele ser de una imagen o un enlace interno
+  // que aparece DESPUÉS del texto del post principal.
+  const urlSourceMatch = /^URL Source:\s*(.+)$/im.exec(jinaMarkdown)
+  const urlSource = urlSourceMatch?.[1]?.trim() ?? ''
+  const isMainPost = urlSource.includes(`/post/${postId}`) || urlSource.includes(`/t/${postId}`)
+
+  let bodyFull: string
+  if (isMainPost) {
+    bodyFull = contentArea
+  } else if (anchorMatch) {
+    const anchorLineEnd = contentArea.indexOf('\n', anchorMatch.index)
+    const bodyStart = anchorLineEnd >= 0 ? anchorLineEnd + 1 : anchorMatch.index + anchorMatch[0].length
+    bodyFull = contentArea.slice(bodyStart)
+  } else {
+    // Si no hay anchor y no es el principal, bajamos al modo resiliente (toda el área)
+    bodyFull = contentArea
+  }
 
   // 4. Acotar el cuerpo hasta el SIGUIENTE /post/ID o sección "Related threads"
-  //    Esto evita que la ventana se extienda a secciones de otros posts.
-  const sectionEndRe = /\/post\/[A-Za-z0-9_-]+\b|\nRelated threads\b|\nRelated posts\b/i
+  //    o el login prompt del final.
+  // PBL: Evitamos que el ID del post actual actúe como límite de fin de sección
+  // si aparece más adelante (ej. en enlaces de imágenes).
+  const nextPostRe = new RegExp(`\\/post\\/(?!${postId}\\b)[A-Za-z0-9_-]+\\b`, 'i')
+  const sectionEndRe = new RegExp(
+    `${nextPostRe.source}|\\nRelated threads\\b|\\nRelated posts\\b|\\nLog in or sign up\\b|\\nContinue with Instagram\\b`,
+    'i'
+  )
   const sectionEndMatch = sectionEndRe.exec(bodyFull)
-  const body = sectionEndMatch ? bodyFull.slice(0, sectionEndMatch.index) : bodyFull.slice(0, 2000)
+  const body = sectionEndMatch ? bodyFull.slice(0, sectionEndMatch.index) : bodyFull.slice(0, 2500)
 
   // 5. Extraer texto: primera línea útil del cuerpo acotado
   const lines = body.replace(/\r/g, '').split('\n').map((l) => l.trim())
@@ -393,7 +425,7 @@ function isGenericThreadsText(value?: string): boolean {
   // Etiquetas de metadatos de perfil que Jina renderiza como bullets antes del texto real
   if (/^(?:author|follow|followers?|following|published|likes?|reposts?|replies|related\s+threads|related\s+posts)$/i.test(v)) return true
   // Strings de login/auth page — red de seguridad por si isJinaLoginPage no la detectó
-  return /join threads to share ideas|threads\s*•\s*log in|log in or sign up|log in with your (?:instagram|facebook)|log in to (?:threads|instagram)|sign in (?:with|to) (?:instagram|facebook|threads)|sign up for threads|continue with (?:instagram|facebook)|create (?:a )?new account|forgot (?:your )?password|don'?t have an account|join the conversation|see what people are talking about|what'?s on your mind/i.test(v)
+  return /join threads to share ideas|threads\s*•\s*log in|log in or sign up|log in with (?:your\s+)?(?:instagram|facebook|username)|log in to (?:threads|instagram)|sign in (?:with|to) (?:instagram|facebook|threads)|sign up for threads|continue with (?:instagram|facebook)|create (?:a )?new account|forgot (?:your )?password|don'?t have an account|join the conversation|see what people are talking about|what'?s on your mind/i.test(v)
 }
 
 /*
@@ -412,18 +444,32 @@ function isGenericThreadsText(value?: string): boolean {
 function isJinaLoginPage(jinaMarkdown: string): boolean {
   if (!jinaMarkdown) return false
 
-  // Señal 1: Title genérico → login page
+  // Señal 1: Title de login page — "Threads", "Log in to Threads", "Log in • Threads", etc.
   const titleMatch = /^Title:\s*(.+)$/im.exec(jinaMarkdown)
   const title = titleMatch?.[1]?.trim() ?? ''
-  if (/^(?:threads|log in to threads|sign in to threads|instagram)$/i.test(title)) return true
+
+  // Si el título es genérico de Threads/Instagram, es muy probable que sea login page
+  const isGenericTitle = /^(?:threads|instagram)$|^(?:log|sign)\s+in\b/i.test(title)
 
   // Señal 2: frases del login UI en los primeros 1500 chars del contenido
   const contentMarker = /\nMarkdown Content:\s*\n?/i.exec(jinaMarkdown)
   const contentArea = contentMarker
-    ? jinaMarkdown.slice(contentMarker.index + contentMarker[0].length, contentMarker.index + 1500)
-    : jinaMarkdown.slice(0, 1500)
+    ? jinaMarkdown.slice(contentMarker.index + contentMarker[0].length, contentMarker.index + 2500)
+    : jinaMarkdown.slice(0, 2500)
 
-  return /log in or sign up|continue with (?:instagram|facebook)|see what people are talking about/i.test(contentArea)
+  // Buscamos patrones de login explicitos
+  const hasLoginPhrases = /log in or sign up|log in with username|continue with (?:instagram|facebook)|see what people are talking about/i.test(contentArea)
+
+  // PBL: Decisión combinada. 
+  // Si el título es genérico y hay frases de login → LOGIN PAGE.
+  // Si el título NO es genérico (ej. tiene el texto del post), aceptamos el post 
+  // incluso si Jina añade ruido de login al final.
+  if (isGenericTitle && hasLoginPhrases) return true
+
+  // Caso especial: si no hay título pero hay muchas frases de login al principio
+  if (!title && hasLoginPhrases && contentArea.length < 1000) return true
+
+  return false
 }
 
 function extractPostId(url: string): string | null {
@@ -535,11 +581,11 @@ function extractFallbackTextFromSource(source: string, postId: string | null): s
 
   const postLineIndex = postId
     ? (() => {
-        const rel = lines
-          .slice(contentSearchFrom)
-          .findIndex((line) => new RegExp(`/post/${postId}\\b`, 'i').test(line))
-        return rel >= 0 ? contentSearchFrom + rel : -1
-      })()
+      const rel = lines
+        .slice(contentSearchFrom)
+        .findIndex((line) => new RegExp(`/post/${postId}\\b`, 'i').test(line))
+      return rel >= 0 ? contentSearchFrom + rel : -1
+    })()
     : -1
 
   // BUG CORREGIDO: si tenemos postId pero no aparece en el área de contenido,
@@ -580,10 +626,13 @@ function extractFallbackTextFromSource(source: string, postId: string | null): s
       const resolved = resolveThreadsTrackingUrl(rawUrl)
       const urlText = resolved ?? rawUrl.replace(/^https?:\/\//i, '')
       // PBL: misma regla que extractPostSectionFromJina — no devolver URLs de threads.net/instagram.com
-      if (urlText.length >= 6 && !/^@/.test(urlText) && !/(?:threads\.(?:net|com)|instagram\.com)/i.test(urlText)) return urlText
+      if (urlText.length >= 6 && !/^@/.test(urlText) && !/(?:threads\.(?:net|com)|instagram\.com)/i.test(urlText)) {
+        return urlText
+      }
       // Fallback: texto visible si no hay URL resoluble
       if (displayText && displayText.length >= 6 && !/^@/.test(displayText) && !/^\d+[kKmMbB]?$/.test(displayText)) {
-        return displayText
+        // Ignorar si es login literal o relacionados
+        if (!isGenericThreadsText(displayText)) return displayText
       }
       continue
     }
@@ -699,7 +748,7 @@ async function extractSubPost(
     ], 'image'))
   }
 
-  const hasRealVideo  = media.some((item) => item.type === 'video')
+  const hasRealVideo = media.some((item) => item.type === 'video')
   const hasVideoThumb = media.some((item) => VIDEO_THUMB_CDN_RE.test(item.url))
   if (!hasRealVideo && hasVideoThumb) {
     media.push({ id: crypto.randomUUID(), type: 'video-link', url })
@@ -735,25 +784,32 @@ export async function extractPostData(rawUrl: string, options?: ExtractOptions):
     rate-limiting → Jina devolvía login page → extracción fallida en primera llamada.
     Fix: derivar specificPost de jinaHtml ya fetcheado (sin fetch extra).
   */
+  // PBL: Añadimos cache-busting (?t=...) a la URL de Threads que le pasamos a Jina.
+  // Esto asegura que si el usuario pulsa "Refrescar" tras un fallo anterior, 
+  // Jina no nos devuelva su versión cacheada (que probablemente sea la login page).
+  const timestamp = Date.now()
+  const sep = canonicalUrl.includes('?') ? '&' : '?'
+  const jinaTargetUrl = `${canonicalUrl}${sep}t=${timestamp}`
+
   const [oembed, directHtml, rawJinaHtml] = await Promise.all([
     tryFetchJson(`https://www.threads.net/oembed?url=${encodeURIComponent(sourceUrl)}`),
     tryFetchText(sourceUrl),
-    tryFetchText(`https://r.jina.ai/${canonicalUrl}`),
+    tryFetchText(`https://r.jina.ai/${jinaTargetUrl}`),
   ])
   // Si Jina devolvió la login page de Threads, la descartamos (tratamos como null).
   // Así la extracción falla limpiamente en vez de guardar texto del UI de login.
   const jinaHtml = rawJinaHtml && !isJinaLoginPage(rawJinaHtml) ? rawJinaHtml : null
 
-  const source = directHtml ?? jinaHtml ?? ''
+  const source = jinaHtml ?? directHtml ?? ''
 
-  const ogTitle        = extractMetaTag(source, 'og:title')
-  const ogDescription  = extractMetaTag(source, 'og:description')
-  const twitterDesc    = extractMetaTag(source, 'twitter:description')
-  const ogImage        = extractMetaTag(source, 'og:image')
-  const ogVideo        = extractMetaTag(source, 'og:video')
-  const ogVideoSecure  = extractMetaTag(source, 'og:video:secure_url')
-  const twitterImage   = extractMetaTag(source, 'twitter:image')
-  const twitterVideo   = extractMetaTag(source, 'twitter:player:stream')
+  const ogTitle = extractMetaTag(source, 'og:title')
+  const ogDescription = extractMetaTag(source, 'og:description')
+  const twitterDesc = extractMetaTag(source, 'twitter:description')
+  const ogImage = extractMetaTag(source, 'og:image')
+  const ogVideo = extractMetaTag(source, 'og:video')
+  const ogVideoSecure = extractMetaTag(source, 'og:video:secure_url')
+  const twitterImage = extractMetaTag(source, 'twitter:image')
+  const twitterVideo = extractMetaTag(source, 'twitter:player:stream')
   const canonicalFromHtml = extractCanonical(source)
   const playableVideoUrls = [
     ...extractPlayableVideoUrls(directHtml ?? source),
@@ -801,16 +857,16 @@ export async function extractPostData(rawUrl: string, options?: ExtractOptions):
     Si lo detectamos y no tenemos stream real → añadimos 'video-link' con la URL
     canónica del post para que el usuario pueda abrirlo en Threads desde la app.
   */
-  const hasRealVideo  = media.some((item) => item.type === 'video')
+  const hasRealVideo = media.some((item) => item.type === 'video')
   const hasVideoThumb = media.some((item) => VIDEO_THUMB_CDN_RE.test(item.url))
   if (!hasRealVideo && hasVideoThumb) {
     media.push({ id: crypto.randomUUID(), type: 'video-link', url: canonicalUrl })
   }
 
-  const previewVideo  = media.find((item) => item.type === 'video')?.url
-  const previewImage  = media.find((item) => item.type === 'image')?.url
-  const metadataText  = firstDefined(ogDescription, twitterDesc, oembed?.title)
-  const fallbackText  = extractFallbackTextFromSource(source, postId)
+  const previewVideo = media.find((item) => item.type === 'video')?.url
+  const previewImage = media.find((item) => item.type === 'image')?.url
+  const metadataText = firstDefined(ogDescription, twitterDesc, oembed?.title)
+  const fallbackText = extractFallbackTextFromSource(source, postId)
   const extractedText = isGenericThreadsText(metadataText)
     ? fallbackText
     : firstDefined(metadataText, fallbackText)
@@ -902,7 +958,7 @@ export async function extractPostData(rawUrl: string, options?: ExtractOptions):
     }
   }
 
-  const safeSpecificText  = specificPost && !isInvalidExtractedText(specificPost.text)
+  const safeSpecificText = specificPost && !isInvalidExtractedText(specificPost.text)
     ? specificPost.text : undefined
   const safeExtractedText = isInvalidExtractedText(extractedText) ? undefined : extractedText
 
@@ -934,13 +990,13 @@ export async function extractPostData(rawUrl: string, options?: ExtractOptions):
   }
 
   return {
-    canonicalUrl:  normalizedCanonical,
-    author:        resolvedAuthor || '@desconocido',
-    title:         firstDefined(oembed?.title, ogTitle),
-    text:          finalText,
-    previewImage:  finalPreviewImage,
-    previewVideo:  specificPost?.media?.find((m) => m.type === 'video')?.url ?? previewVideo,
-    media:         specificPost?.media?.length ? specificPost.media : media,
+    canonicalUrl: normalizedCanonical,
+    author: resolvedAuthor || '@desconocido',
+    title: firstDefined(oembed?.title, ogTitle),
+    text: finalText,
+    previewImage: finalPreviewImage,
+    previewVideo: specificPost?.media?.find((m) => m.type === 'video')?.url ?? previewVideo,
+    media: specificPost?.media?.length ? specificPost.media : media,
     threadPosts,
   }
 }
