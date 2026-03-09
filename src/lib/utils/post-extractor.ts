@@ -148,15 +148,30 @@ export function extractPostSectionMedia(jinaMarkdown: string, postId: string | n
     : jinaMarkdown
 
   if (postId) {
-    // PBL: Si el postId es el principal (header), tomamos desde el inicio.
-    // Evitamos clipping si el /post/ID aparece tarde (en imágenes).
+    // PBL: Jina suele incluir el URL del post en un enlace de servicio al inicio:
+    // [Thread ------ 1.1K views](https://www.threads.com/@user/post/postId)
+    // Ese enlace falso ancla la extracción al inicio del documento (solapando con el padre).
+    // Omitimos esos enlaces de metadatos al buscar el ancla real.
+    const serviceLinkRe = new RegExp(`^\\[[^\\]]+\\]\\(https?://[^)]+/post/${postId}[^)]*\\)`, 'im')
+
+    // Si el postId es el principal (header), tomamos desde el inicio (para posts sueltos).
     const urlSourceMatch = /^URL Source:\s*(.+)$/im.exec(jinaMarkdown)
     const urlSource = urlSourceMatch?.[1]?.trim() ?? ''
     const isMainPost = urlSource.includes(`/post/${postId}`) || urlSource.includes(`/t/${postId}`)
 
     const postMatch = new RegExp(`/post/${postId}\\b`, 'i').exec(searchArea)
+    const firstPostIdMatch = /\/post\/([A-Za-z0-9_-]+)\b/i.exec(searchArea)
+    const firstIdInContent = firstPostIdMatch?.[1]
 
-    if (isMainPost || !postMatch) {
+    // PBL: Solo empezamos desde el inicio si somos el post principal Y además
+    // no hay otro ID de post visible en los primeros 600 chars que no sea un breadcrumb.
+    const isTargetAtTop = !firstIdInContent || firstIdInContent.toLowerCase() === postId.toLowerCase()
+
+    // Comprobar si el primer match es un link de servicio (breadcrumb)
+    const firstMatchIsService = serviceLinkRe.test(searchArea.slice(0, 1000))
+    const shouldStartFromTop = isMainPost && isTargetAtTop && !firstMatchIsService
+
+    if (shouldStartFromTop || !postMatch) {
       const postSection = searchArea.slice(0, 4000)
       return [
         ...extractMediaFromText(postSection),
@@ -165,7 +180,17 @@ export function extractPostSectionMedia(jinaMarkdown: string, postId: string | n
     }
 
     if (postMatch) {
-      const postSection = searchArea.slice(postMatch.index, postMatch.index + 4000)
+      // Si el match es un link de servicio, buscamos el SIGUIENTE match
+      let actualIndex = postMatch.index
+      if (firstMatchIsService) {
+        const remaining = searchArea.slice(postMatch.index + postMatch[0].length)
+        const nextMatch = new RegExp(`/post/${postId}\\b`, 'i').exec(remaining)
+        if (nextMatch) {
+          actualIndex = postMatch.index + postMatch[0].length + nextMatch.index
+        }
+      }
+
+      const postSection = searchArea.slice(actualIndex, actualIndex + 4000)
       return [
         ...extractMediaFromText(postSection),
         ...extractEscapedMediaFromText(postSection),
@@ -214,6 +239,9 @@ export function extractPostSectionFromJina(jinaMarkdown: string, postId: string)
     : jinaMarkdown
 
   // 2. Encontrar la línea ancla del sub-post en el área de contenido
+  const serviceLinkRe = new RegExp(`^\\[[^\\]]+\\]\\(https?://[^)]+/post/${postId}[^)]*\\)`, 'im')
+  const firstMatchIsService = serviceLinkRe.test(contentArea.slice(0, 1000))
+
   const anchorRe = new RegExp(`/post/${postId}\\b`, 'i')
   const anchorMatch = anchorRe.exec(contentArea)
 
@@ -225,11 +253,24 @@ export function extractPostSectionFromJina(jinaMarkdown: string, postId: string)
   const isMainPost = urlSource.includes(`/post/${postId}`) || urlSource.includes(`/t/${postId}`)
 
   let bodyFull: string
-  if (isMainPost) {
+  const firstPostIdMatch = /\/post\/([A-Za-z0-9_-]+)\b/i.exec(contentArea)
+  const firstIdInContent = firstPostIdMatch?.[1]
+  const isTargetAtTop = !firstIdInContent || firstIdInContent.toLowerCase() === postId.toLowerCase()
+
+  if (isMainPost && isTargetAtTop && !firstMatchIsService) {
     bodyFull = contentArea
   } else if (anchorMatch) {
-    const anchorLineEnd = contentArea.indexOf('\n', anchorMatch.index)
-    const bodyStart = anchorLineEnd >= 0 ? anchorLineEnd + 1 : anchorMatch.index + anchorMatch[0].length
+    let actualIndex = anchorMatch.index
+    // Si el primer match de ID es un enlace de servicio (breadcrumb), buscamos el siguiente
+    if (firstMatchIsService) {
+      const remaining = contentArea.slice(anchorMatch.index + anchorMatch[0].length)
+      const nextMatch = anchorRe.exec(remaining)
+      if (nextMatch) {
+        actualIndex = anchorMatch.index + anchorMatch[0].length + nextMatch.index
+      }
+    }
+    const anchorLineEnd = contentArea.indexOf('\n', actualIndex)
+    const bodyStart = anchorLineEnd >= 0 ? anchorLineEnd + 1 : actualIndex + anchorMatch[0].length
     bodyFull = contentArea.slice(bodyStart)
   } else {
     // Si no hay anchor y no es el principal, bajamos al modo resiliente (toda el área)
@@ -274,8 +315,10 @@ export function extractPostSectionFromJina(jinaMarkdown: string, postId: string)
         break
       }
       if (displayText && displayText.length >= 6 && !/^@/.test(displayText) && !/^\d+[kKmMbB]?$/.test(displayText)) {
-        text = displayText
-        break
+        if (!isThreadPositionNoise(displayText)) {
+          text = displayText
+          break
+        }
       }
       continue
     }
@@ -488,6 +531,7 @@ function normalizeCandidateLine(line: string): string {
 function isThreadPositionNoise(line: string): boolean {
   return /^post\s+\d+\s+de\s+\d+$/i.test(line)
     || /^\d+\s+de\s+\d+$/i.test(line)
+    || /^Thread\s*[-—]+\s*[\d.kmb\s]+\s*views$/i.test(line)
 }
 
 /*
