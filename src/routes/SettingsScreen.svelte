@@ -280,7 +280,7 @@
         <p class="font-bold text-sm" style="font-family: var(--font-brand); color: var(--vault-on-bg)">
           ThreadsVault
         </p>
-        <p class="text-xs" style="color: var(--vault-on-bg-muted)">Desktop v1.0.0 · Privacy-first</p>
+        <p class="text-xs" style="color: var(--vault-on-bg-muted)">Desktop v2.0.0 · Privacy-first</p>
       </div>
       <span class="text-xs px-2 py-1 rounded-full" style="
         background: rgba(124,77,255,0.12);
@@ -290,7 +290,7 @@
         font-size: 10px;
         font-weight: 700;
         letter-spacing: 0.05em;
-      ">v1.0</span>
+      ">v2.0</span>
     </div>
 
     <!-- Separador -->

@@ -134,7 +134,8 @@ function extractPostSectionMedia(jinaMarkdown: string, postId: string | null): s
   if (postId) {
     const postMatch = new RegExp(`/post/${postId}\\b`, 'i').exec(jinaMarkdown)
     if (postMatch) {
-      const postSection = jinaMarkdown.slice(postMatch.index, postMatch.index + 2000)
+      // 4000 chars cubre posts con 2-4 imágenes (cada URL CDN ~300-500 chars)
+      const postSection = jinaMarkdown.slice(postMatch.index, postMatch.index + 4000)
       return [
         ...extractMediaFromText(postSection),
         ...extractEscapedMediaFromText(postSection),
@@ -246,6 +247,10 @@ async function tryFetchText(url: string): Promise<string | null> {
       headers: {
         Accept: 'text/html,application/xhtml+xml,*/*',
         'Accept-Language': 'es,en;q=0.9',
+        // PBL: sin User-Agent Threads detecta el request como bot y devuelve
+        // HTML vacío o 403. Con UA de browser real supera el bot-detection
+        // y devuelve el HTML completo con los og: meta tags.
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
       },
     })
     if (!res.ok) return null
@@ -389,6 +394,9 @@ function extractFallbackTextFromSource(source: string, postId: string | null): s
     */
     if (/^\[/.test(candidate)) {
       const linkText = /^\[([^\]]+)\]/.exec(candidate)?.[1]
+      // Imagen enlazada: [![alt](img_url)](link_url) → linkText empieza con "!"
+      // Sin este check, devolvemos "![image 0: diagrama" como texto extraído.
+      if (linkText?.startsWith('!')) continue
       if (linkText && linkText.length >= 6 && !/^@/.test(linkText) && !/^\d+[kKmMbB]?$/.test(linkText)) {
         return linkText
       }

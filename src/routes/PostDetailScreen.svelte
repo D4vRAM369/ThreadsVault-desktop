@@ -44,6 +44,21 @@
   let resolvedVideoSrcs = $state<Record<string, string>>({})
   let showFailedMedia = $state(false)
   let refreshedMediaOnce = $state(false)
+  let carouselImageIndex = $state(0)
+  let lightboxSrc = $state<string | null>(null)
+  let copiedUrlId = $state<string | null>(null)
+
+  // Resetear carrusel al navegar entre posts del hilo
+  $effect(() => {
+    const _ = currentThreadIndex
+    carouselImageIndex = 0
+  })
+
+  function copyMediaUrl(id: string, url: string) {
+    void navigator.clipboard.writeText(url)
+    copiedUrlId = id
+    setTimeout(() => { copiedUrlId = null }, 1800)
+  }
   let category           = $derived($categories.find(c => c.id === post?.categoryId))
   let currentThreadIndex = $state(0)
   let threadTotal        = $derived(1 + (post?.threadPosts?.length ?? 0))
@@ -581,6 +596,18 @@
     return candidates[Math.min(index, Math.max(candidates.length - 1, 0))] ?? media.url
   }
 
+  // Carrusel: solo imágenes visibles, sin vídeos
+  function imageOnlyMedia(): PostMedia[] {
+    return visibleMedia().filter(m => m.type === 'image')
+  }
+
+  // Muestra carrusel cuando hay 2+ imágenes y ningún vídeo
+  function shouldShowCarousel(): boolean {
+    const vm = visibleMedia()
+    return vm.filter(m => m.type === 'image').length >= 2 &&
+      !vm.some(m => m.type === 'video' || m.type === 'video-link')
+  }
+
   function areAllMediaFailed(): boolean {
     if (!currentSubMedia.length) return false
     return currentSubMedia.every((m) => failedMediaIds.has(m.id))
@@ -611,17 +638,64 @@
     mediaRefreshError = ''
 
     try {
-      const extracted = await extractPostData(post.canonicalUrl ?? post.url)
-      const merged: Post = {
-        ...post,
-        url: extracted.canonicalUrl || post.url,
-        canonicalUrl: extracted.canonicalUrl || post.canonicalUrl || post.url,
-        author: post.author || extracted.author || '@desconocido',
-        previewTitle: post.previewTitle ?? extracted.title,
-        previewImage: extracted.previewImage ?? post.previewImage,
-        previewVideo: extracted.previewVideo ?? post.previewVideo,
-        extractedText: post.extractedText ?? extracted.text,
-        media: extracted.media?.length ? extracted.media : (post.media ?? []),
+      // Contexto-aware: si estamos en un sub-post (2/5, 3/5…) extraemos
+      // de la URL del sub-post, no de la URL raíz del hilo.
+      const targetUrl = currentThreadIndex > 0
+        ? currentThreadUrl
+        : (post.canonicalUrl ?? post.url)
+
+      const extracted = await extractPostData(targetUrl)
+
+      // PBL: detección de extracción hueca — si los 4 fetches fallaron (Jina caído,
+      // CDN bloqueada, timeout) extractPostData devuelve un objeto vacío.
+      // Sin este check, se guardaría un post sin media sobreescribiendo datos existentes.
+      const extractionIsEmpty = !extracted.media?.length && !extracted.previewImage && !extracted.text
+      if (extractionIsEmpty) {
+        if (mode === 'manual') {
+          mediaRefreshError = 'No se encontró contenido nuevo. Abre el post en Threads e intenta de nuevo.'
+        }
+        return
+      }
+
+      let merged: Post
+
+      if (currentThreadIndex > 0) {
+        // Sub-post: actualizar media + texto del sub-post específico
+        merged = {
+          ...post,
+          threadPosts: (post.threadPosts ?? []).map((threadPost, index) => {
+            if (index !== currentThreadIndex - 1) return threadPost
+            const bestSubText =
+              extracted.text && extracted.text.length > (threadPost.text?.length ?? 0)
+                ? extracted.text
+                : (threadPost.text ?? extracted.text)
+            return {
+              ...threadPost,
+              url: cleanThreadsUrl(extracted.canonicalUrl || threadPost.url),
+              text: bestSubText,
+              media: extracted.media?.length ? extracted.media : threadPost.media,
+            }
+          }),
+        }
+      } else {
+        // Post raíz: actualizar texto y media del post principal
+        // PBL: extractedText comparativo — usa el texto más completo entre el existente
+        // y el recién extraído, en lugar de siempre preservar el antiguo con ??.
+        const bestText = extracted.text && extracted.text.length > (post.extractedText?.length ?? 0)
+          ? extracted.text
+          : (post.extractedText ?? extracted.text)
+
+        merged = {
+          ...post,
+          url: extracted.canonicalUrl || post.url,
+          canonicalUrl: extracted.canonicalUrl || post.canonicalUrl || post.url,
+          author: post.author || extracted.author || '@desconocido',
+          previewTitle: post.previewTitle ?? extracted.title,
+          previewImage: extracted.previewImage ?? post.previewImage,
+          previewVideo: extracted.previewVideo ?? post.previewVideo,
+          extractedText: bestText,
+          media: extracted.media?.length ? extracted.media : (post.media ?? []),
+        }
       }
 
       const withCachedMedia = await cachePostMediaLocally(merged, { maxItems: 12 })
@@ -1016,6 +1090,100 @@
           {/if}
 
           <div class="flex flex-col gap-3">
+            {#if shouldShowCarousel()}
+              <!-- Carrusel para 2+ imágenes sin vídeo -->
+              {@const imgs = imageOnlyMedia()}
+              <div class="relative rounded-xl overflow-hidden" style="background: rgba(0,0,0,0.4)">
+                <div
+                  class="flex"
+                  style="transform: translateX(-{carouselImageIndex * 100}%); transition: transform 0.3s ease;"
+                >
+                  {#each imgs as media, i (media.id)}
+                    <img
+                      src={getMediaSource(media)}
+                      alt="Imagen {i + 1} de {imgs.length}"
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                      crossorigin="anonymous"
+                      class="w-full flex-shrink-0"
+                      style="max-height: 380px; object-fit: contain; display: block; cursor: zoom-in;"
+                      onclick={() => lightboxSrc = getMediaSource(media)}
+                      onerror={() => handleMediaError(media)}
+                    />
+                  {/each}
+                </div>
+
+                <!-- Contador -->
+                <div class="absolute top-2 right-2 px-2 py-0.5 rounded-full text-xs font-semibold"
+                     style="background: rgba(0,0,0,0.65); color: #fff; font-family: var(--font-display); letter-spacing: 0.04em">
+                  {carouselImageIndex + 1}/{imgs.length}
+                </div>
+
+                <!-- Flecha izquierda -->
+                {#if carouselImageIndex > 0}
+                  <button
+                    onclick={() => carouselImageIndex--}
+                    class="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center"
+                    style="background: rgba(0,0,0,0.65); border: 1px solid rgba(255,255,255,0.18); color: #fff; font-size: 22px; line-height: 1;"
+                    aria-label="Imagen anterior"
+                  >‹</button>
+                {/if}
+
+                <!-- Flecha derecha -->
+                {#if carouselImageIndex < imgs.length - 1}
+                  <button
+                    onclick={() => carouselImageIndex++}
+                    class="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center"
+                    style="background: rgba(0,0,0,0.65); border: 1px solid rgba(255,255,255,0.18); color: #fff; font-size: 22px; line-height: 1;"
+                    aria-label="Imagen siguiente"
+                  >›</button>
+                {/if}
+              </div>
+
+              <!-- Dots + acciones para imagen actual -->
+              <div class="flex items-center justify-between px-1">
+                <div class="flex gap-1.5 items-center">
+                  {#each imgs as _, i}
+                    <button
+                      onclick={() => carouselImageIndex = i}
+                      class="rounded-full transition-all duration-200"
+                      style="
+                        width: {i === carouselImageIndex ? '18px' : '6px'};
+                        height: 6px;
+                        background: {i === carouselImageIndex ? 'var(--vault-primary)' : 'rgba(255,255,255,0.28)'};
+                      "
+                      aria-label="Ir a imagen {i + 1}"
+                    ></button>
+                  {/each}
+                </div>
+                {#if imgs[carouselImageIndex]}
+                  <div class="flex items-center gap-2">
+                    <button
+                      onclick={() => downloadMedia(imgs[carouselImageIndex])}
+                      class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200"
+                      style="background: rgba(124,77,255,0.16); border: 1px solid rgba(124,77,255,0.35); color: #e4d6ff; font-family: var(--font-display);"
+                      onmouseenter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(124,77,255,0.30)'; (e.currentTarget as HTMLElement).style.transform = 'scale(1.04)' }}
+                      onmouseleave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(124,77,255,0.16)'; (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}
+                    >Descargar</button>
+                    <button
+                      onclick={() => copyMediaUrl(imgs[carouselImageIndex].id, imgs[carouselImageIndex].url)}
+                      class="flex items-center gap-1 text-xs transition-all duration-150"
+                      style="color: var(--vault-on-bg-muted)"
+                      title="Copiar URL"
+                    >
+                      <span class="truncate" style="max-width: 140px">{imgs[carouselImageIndex].url}</span>
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" class="flex-shrink-0" style="opacity: 0.6">
+                        {#if copiedUrlId === imgs[carouselImageIndex].id}
+                          <polyline points="20 6 9 17 4 12"/>
+                        {:else}
+                          <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                        {/if}
+                      </svg>
+                    </button>
+                  </div>
+                {/if}
+              </div>
+            {:else}
             {#each visibleMedia() as media (media.id)}
               <div class="rounded-xl p-2.5" style="
                 background: rgba(255,255,255,0.04);
@@ -1195,7 +1363,8 @@
                     referrerPolicy="no-referrer"
                     crossorigin="anonymous"
                     class="w-full rounded-lg mb-2"
-                    style="max-height: 360px; object-fit: cover;"
+                    style="max-height: 360px; object-fit: cover; cursor: zoom-in;"
+                    onclick={() => lightboxSrc = getMediaSource(media)}
                     onerror={() => handleMediaError(media)}
                   />
                 {/if}
@@ -1211,16 +1380,29 @@
                         color: #e4d6ff;
                         font-family: var(--font-display);
                       "
+                      onmouseenter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(124,77,255,0.30)'; (e.currentTarget as HTMLElement).style.transform = 'scale(1.04)' }}
+                      onmouseleave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(124,77,255,0.16)'; (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}
                     >Descargar</button>
                     <button
-                      onclick={() => openInBrowser(media.url)}
-                      class="text-xs truncate text-left"
-                      style="color: var(--vault-on-bg-muted)"
-                    >{media.url}</button>
+                      onclick={() => copyMediaUrl(media.id, media.url)}
+                      class="flex items-center gap-1 text-xs truncate text-left transition-all duration-150"
+                      style="color: var(--vault-on-bg-muted); max-width: 180px;"
+                      title="Copiar URL"
+                    >
+                      <span class="truncate">{media.url}</span>
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" class="flex-shrink-0" style="opacity: 0.6">
+                        {#if copiedUrlId === media.id}
+                          <polyline points="20 6 9 17 4 12"/>
+                        {:else}
+                          <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+                        {/if}
+                      </svg>
+                    </button>
                   </div>
                 {/if}
               </div>
             {/each}
+            {/if}
           </div>
 
           {#if areAllMediaFailed()}
@@ -1283,3 +1465,41 @@
     </button>
   {/if}
 </div>
+
+<!-- Lightbox — imagen a pantalla completa dentro de la app -->
+{#if lightboxSrc}
+  <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+  <div
+    onclick={() => lightboxSrc = null}
+    class="fixed inset-0 flex items-center justify-center"
+    style="
+      z-index: 9999;
+      background: rgba(0,0,0,0.88);
+      backdrop-filter: blur(6px);
+      cursor: zoom-out;
+      animation: fade-up 0.15s ease;
+    "
+  >
+    <img
+      src={lightboxSrc}
+      alt="Vista ampliada"
+      referrerPolicy="no-referrer"
+      crossorigin="anonymous"
+      style="
+        max-width: 92vw;
+        max-height: 92vh;
+        object-fit: contain;
+        border-radius: 12px;
+        box-shadow: 0 24px 80px rgba(0,0,0,0.7);
+        cursor: default;
+      "
+      onclick={(e) => e.stopPropagation()}
+    />
+    <button
+      onclick={() => lightboxSrc = null}
+      class="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center"
+      style="background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); color: #fff;"
+      aria-label="Cerrar"
+    >✕</button>
+  </div>
+{/if}

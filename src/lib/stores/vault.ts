@@ -185,6 +185,17 @@ export async function refreshStalePostMedia(limit: number = 6) {
     for (const post of stalePosts) {
       try {
         const extracted = await extractPostData(post.canonicalUrl ?? post.url)
+
+        // PBL: extracción hueca en refresh automático — si todos los fetches fallaron,
+        // skip este post silenciosamente (no contar como fallido, lo reintentará
+        // en el próximo ciclo de refresh). Solo fallamos si hay un error real (catch).
+        const extractionIsEmpty = !extracted.media?.length && !extracted.previewImage && !extracted.text
+        if (extractionIsEmpty) continue
+
+        const bestText = extracted.text && extracted.text.length > (post.extractedText?.length ?? 0)
+          ? extracted.text
+          : (post.extractedText ?? extracted.text)
+
         const merged: Post = {
           ...post,
           url: extracted.canonicalUrl || post.url,
@@ -193,7 +204,7 @@ export async function refreshStalePostMedia(limit: number = 6) {
           previewTitle: post.previewTitle ?? extracted.title,
           previewImage: extracted.previewImage ?? post.previewImage,
           previewVideo: extracted.previewVideo ?? post.previewVideo,
-          extractedText: post.extractedText ?? extracted.text,
+          extractedText: bestText,
           media: extracted.media?.length ? extracted.media : (post.media ?? []),
         }
 
