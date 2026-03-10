@@ -512,7 +512,7 @@ function isGenericThreadsText(value?: string): boolean {
   if (!value) return false
   const v = value.trim()
   // Etiquetas de metadatos de perfil/post que Jina renderiza
-  if (/^(?:author|follow|followers?|following|published|likes?|reposts?|replies|related\s+threads|related\s+posts|destacadas|ver\s+actividad)$/i.test(v)) return true
+  if (/^(?:author|follow|followers?|following|published|likes?|reposts?|replies|related\s+threads|related\s+posts|destacadas|ver\s+actividad|translate|see\s+translation|see\s+original|traducir|ver\s+(?:original|traducci[oó]n))$/i.test(v)) return true
   // Strings de login/auth o navegación de hilos
   return /log in to see more replies|sign in (?:with|to) (?:instagram|facebook|threads)|join threads to share ideas|threads\s*•\s*log in|log in or sign up|log in with (?:your\s+)?(?:instagram|facebook|username)|sign up for threads|continue with (?:instagram|facebook)|create (?:a )?new account|forgot (?:your )?password|don'?t have an account|join the conversation|see what people are talking about|what'?s on your mind/i.test(v)
 }
