@@ -102,16 +102,7 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Build Tauri (Windows)
-        uses: tauri-apps/tauri-action@v0.5.25
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: ${{ github.ref_name }}
-          projectPath: .
-          tauriScript: npm run tauri
-          releaseName: 'ThreadsVault Desktop v${{ github.ref_name }}'
-          releaseDraft: true
-          prerelease: false
+        run: npm run tauri -- build
 
       - name: Subir artifacts (Windows)
         uses: actions/upload-artifact@v4
@@ -184,16 +175,7 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Build Tauri (Linux)
-        uses: tauri-apps/tauri-action@v0.5.25
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tagName: ${{ github.ref_name }}
-          projectPath: .
-          tauriScript: npm run tauri
-          releaseName: 'ThreadsVault Desktop v${{ github.ref_name }}'
-          releaseDraft: true
-          prerelease: false
+        run: npm run tauri -- build
 
       - name: Subir artifacts (Linux)
         uses: actions/upload-artifact@v4
