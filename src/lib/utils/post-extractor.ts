@@ -52,6 +52,15 @@ function extractCanonical(html: string): string | undefined {
   return match?.[1] ? decodeHtml(match[1]) : undefined
 }
 
+function isTrustedHtmlForPost(html: string | null | undefined, expectedPostId?: string | null): boolean {
+  if (!html) return false
+  if (!expectedPostId) return true
+
+  const canonical = extractCanonical(html)
+  const canonicalPostId = canonical ? extractPostId(canonical) : null
+  return canonicalPostId === expectedPostId
+}
+
 function normalizeExtractedUrl(value: string): string {
   return decodeHtml(
     value
@@ -798,7 +807,8 @@ async function extractSubPost(
     tryFetchText(`https://r.jina.ai/${url}`),
   ])
   if (!html && !jinaMarkdown && !rootThreadJina) return null
-  const source = html ?? jinaMarkdown ?? ''
+  const trustedHtml = isTrustedHtmlForPost(html, subPostId) ? html : null
+  const source = trustedHtml ?? jinaMarkdown ?? ''
 
   // Extraer sección acotada desde el Jina propio del sub-post
   const ownSection = jinaMarkdown
@@ -814,10 +824,10 @@ async function extractSubPost(
   // Threads genera OG tags específicos por sub-post para SEO → este valor es
   // el texto real del sub-post, no el del post raíz.
   const jinaText = ownSection?.text ?? rootSection?.text
-  const metaText = !jinaText
+  const metaText = !jinaText && trustedHtml
     ? firstDefined(
-        extractMetaTag(source, 'og:description'),
-        extractMetaTag(source, 'twitter:description'),
+        extractMetaTag(trustedHtml, 'og:description'),
+        extractMetaTag(trustedHtml, 'twitter:description'),
       )
     : undefined
   const text = jinaText ?? (metaText && !isGenericThreadsText(metaText) ? metaText : undefined)
@@ -906,8 +916,8 @@ export async function extractPostData(rawUrl: string, options?: ExtractOptions):
   // Si Jina devolvió la login page de Threads, la descartamos (tratamos como null).
   // Así la extracción falla limpiamente en vez de guardar texto del UI de login.
   const jinaHtml = rawJinaHtml && !isJinaLoginPage(rawJinaHtml) ? rawJinaHtml : null
-
-  const source = jinaHtml ?? directHtml ?? ''
+  const trustedDirectHtml = isTrustedHtmlForPost(directHtml, postId) ? directHtml : null
+  const source = jinaHtml ?? trustedDirectHtml ?? ''
 
   const ogTitle = extractMetaTag(source, 'og:title')
   const ogDescription = extractMetaTag(source, 'og:description')
@@ -1073,10 +1083,10 @@ export async function extractPostData(rawUrl: string, options?: ExtractOptions):
   // Necesario cuando Jina redirige a la URL raíz del hilo y source = jinaHtml (sin meta tags).
   // directHtml sí tiene <meta og:description> con el texto específico del post.
   const jinaFinalText = cleanMarkdownLinks(firstDefined(safeSpecificText, safeExtractedText))
-  const directHtmlDesc = !jinaFinalText && directHtml
+  const directHtmlDesc = !jinaFinalText && trustedDirectHtml
     ? firstDefined(
-        extractMetaTag(directHtml, 'og:description'),
-        extractMetaTag(directHtml, 'twitter:description'),
+        extractMetaTag(trustedDirectHtml, 'og:description'),
+        extractMetaTag(trustedDirectHtml, 'twitter:description'),
       )
     : undefined
   const finalText = jinaFinalText
