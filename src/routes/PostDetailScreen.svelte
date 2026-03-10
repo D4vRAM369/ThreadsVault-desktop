@@ -22,6 +22,7 @@
   let refreshingMedia = $state(false)
   let mediaRefreshError = $state('')
   let refreshingContent = $state(false)
+  let refreshContentError = $state('')
   let failedMediaIds = $state<Set<string>>(new Set())
   let mediaSourceIndex = $state<Record<string, number>>({})
   let inlineVideoState = $state<Record<string, {
@@ -298,6 +299,7 @@
   async function refreshContent() {
     if (!post || refreshingContent) return
     refreshingContent = true
+    refreshContentError = ''
     try {
       const targetUrl = currentThreadUrl || post.canonicalUrl || post.url
       const extracted = await extractPostData(targetUrl)
@@ -315,16 +317,13 @@
               ...post,
               threadPosts: (post.threadPosts ?? []).map((threadPost, index) => {
                 if (index !== currentThreadIndex - 1) return threadPost
-                // Solo actualizar si el nuevo texto es más completo que el existente.
-                // Previene sobrescribir texto correcto del sub-post con el del raíz (1/4).
-                const newText = extracted.text
-                const bestText = newText && newText.length > (threadPost.text?.length ?? 0)
-                  ? newText
-                  : threadPost.text
+                // Usamos el texto nuevo siempre que no sea undefined.
+                // La heurística "más largo = mejor" era contraproducente cuando el texto
+                // existente era incorrecto (hilo completo concatenado → muy largo).
                 return {
                   ...threadPost,
                   url: cleanThreadsUrl(extracted.canonicalUrl || threadPost.url),
-                  text: bestText,
+                  text: extracted.text !== undefined ? extracted.text : threadPost.text,
                   media: extracted.media?.length ? extracted.media : threadPost.media,
                 }
               }),
@@ -335,6 +334,7 @@
         const current = post.threadPosts?.[currentThreadIndex - 1]
         const next = (updated as Post).threadPosts?.[currentThreadIndex - 1]
         if (current?.text === next?.text && current?.media?.length === next?.media?.length) {
+          refreshContentError = 'No se encontró texto nuevo. Abre el post en Threads e intenta de nuevo.'
           return
         }
       }
@@ -344,7 +344,7 @@
       post = updated
       await loadVault()
     } catch {
-      // silencioso — el usuario puede reintentar
+      refreshContentError = 'Error al extraer. Comprueba la conexión e inténtalo de nuevo.'
     } finally {
       refreshingContent = false
     }
@@ -1049,6 +1049,9 @@
             "
           >{refreshingContent ? 'Extrayendo...' : 'Refrescar'}</button>
         </div>
+        {#if refreshContentError}
+          <p class="text-xs mb-2" style="color: #fbbf24">{refreshContentError}</p>
+        {/if}
         {#if currentSubText}
           <p class="text-sm leading-relaxed" style="color: var(--vault-on-bg); opacity: 0.9">
             {currentSubText}

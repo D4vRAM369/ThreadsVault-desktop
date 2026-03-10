@@ -308,8 +308,14 @@ export function extractPostSectionFromJina(jinaMarkdown: string, postId: string)
       const lineEnd = contentArea.indexOf('\n', lastIndex)
       const bodyStart = lineEnd >= 0 ? lineEnd + 1 : lastIndex + lastMatch[0].length
       bodyFull = contentArea.slice(bodyStart)
+    } else if (!isMainPost) {
+      // Caso D: Sub-post cuyo ID no aparece en el área de contenido.
+      // Jina sirvió una página diferente (normalmente el post raíz del hilo).
+      // Devolvemos null para que extractSubPost use rootThreadJina como fallback,
+      // que sí contiene el hilo completo con el ancla correcta del sub-post.
+      return null
     } else {
-      // Caso D: Resiliencia (tomamos todo el área)
+      // Caso E: Post principal sin otros IDs de post → post suelto. Tomamos todo el área.
       bodyFull = contentArea
     }
   }
@@ -804,7 +810,17 @@ async function extractSubPost(
     ? extractPostSectionFromJina(rootThreadJina, subPostId)
     : null
 
-  const text = ownSection?.text ?? rootSection?.text
+  // Fallback final: og:description del HTML directo (Tauri lo obtiene sin CORS).
+  // Threads genera OG tags específicos por sub-post para SEO → este valor es
+  // el texto real del sub-post, no el del post raíz.
+  const jinaText = ownSection?.text ?? rootSection?.text
+  const metaText = !jinaText
+    ? firstDefined(
+        extractMetaTag(source, 'og:description'),
+        extractMetaTag(source, 'twitter:description'),
+      )
+    : undefined
+  const text = jinaText ?? (metaText && !isGenericThreadsText(metaText) ? metaText : undefined)
 
   // Construir media
   const seenUrls = new Set<string>()
@@ -1053,7 +1069,21 @@ export async function extractPostData(rawUrl: string, options?: ExtractOptions):
     ? specificPost.text : undefined
   const safeExtractedText = isInvalidExtractedText(extractedText) ? undefined : extractedText
 
-  const finalText = cleanMarkdownLinks(firstDefined(safeSpecificText, safeExtractedText))
+  // Fallback: og:description del HTML directo cuando Jina no extrajo texto.
+  // Necesario cuando Jina redirige a la URL raíz del hilo y source = jinaHtml (sin meta tags).
+  // directHtml sí tiene <meta og:description> con el texto específico del post.
+  const jinaFinalText = cleanMarkdownLinks(firstDefined(safeSpecificText, safeExtractedText))
+  const directHtmlDesc = !jinaFinalText && directHtml
+    ? firstDefined(
+        extractMetaTag(directHtml, 'og:description'),
+        extractMetaTag(directHtml, 'twitter:description'),
+      )
+    : undefined
+  const finalText = jinaFinalText
+    ?? (directHtmlDesc && !isGenericThreadsText(directHtmlDesc)
+      ? cleanMarkdownLinks(directHtmlDesc)
+      : undefined)
+
   let finalPreviewImage = specificPost?.media?.find((m) => m.type === 'image')?.url ?? previewImage
 
   /*
