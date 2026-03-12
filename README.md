@@ -107,8 +107,6 @@ Flatpak planificado para futuras versiones.
 
 - **Solo Threads** — diseñado específicamente para posts de Threads; otras URLs pueden no extraerse correctamente
 - **La extracción depende de Jina** — si `r.jina.ai` está caído o aplica rate-limit, la extracción falla de forma controlada
-- **Vídeos de Threads** — los vídeos no se reproducen inline ni se almacenan localmente. Threads protege sus vídeos mediante URLs CDN firmadas y temporales. Si un post contiene vídeo, se guarda el texto, las imágenes y un botón «Ver en Threads» que lo abre directamente en el navegador del sistema.
-- **Sin operaciones en bulk** — borrar o recategorizar múltiples posts a la vez: v1.1+
 - **macOS no soportado** — requiere cuenta Apple Developer ($99/año) para notarización; no planificado para v1.x (probablemente tampoco para una 2.x).
 
 ---
