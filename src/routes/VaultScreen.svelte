@@ -354,10 +354,10 @@
     Ver onScroll() para el fix del bounce (suppressScroll + overflow-anchor).
   -->
   <header class="sticky top-0 z-20 -mx-5 sm:-mx-6 lg:-mx-10 px-5 sm:px-6 lg:px-10 pt-5 sm:pt-6 pb-4" style="
-    background: rgba(8, 8, 16, 0.82);
+    background: var(--vault-header-bg);
     backdrop-filter: blur(28px);
     -webkit-backdrop-filter: blur(28px);
-    border-bottom: 1px solid rgba(255,255,255,0.08);
+    border-bottom: 1px solid var(--vault-header-border);
     will-change: transform;
     transform: translateZ(0);
   ">
@@ -380,7 +380,7 @@
           font-family: var(--font-brand);
           font-size: 1.15rem;
           font-weight: 900;
-          color: #ffffff;
+          color: var(--vault-on-bg);
           letter-spacing: -0.01em;
           line-height: 1;
         ">ThreadsVault</h1>
@@ -482,20 +482,20 @@
     ">
       <div style="overflow: hidden;">
       <div class="rounded-2xl sm:rounded-3xl p-3.5 sm:p-4 mb-3" style="
-        background: rgba(255,255,255,0.04);
-        border: 1px solid rgba(255,255,255,0.10);
-        box-shadow: 0 4px 16px rgba(0,0,0,0.22);
+        background: var(--vault-hashtag-panel-bg);
+        border: 1px solid var(--vault-hashtag-panel-border);
+        box-shadow: var(--vault-hashtag-panel-shadow);
       ">
         <div class="flex items-center justify-between mb-2">
           <p class="text-xs font-semibold" style="
-            color: #7ae9ff;
+            color: var(--vault-hashtag-label);
             font-family: var(--font-display);
             letter-spacing: 0.03em;
           "># Hashtags guardados</p>
           <span class="text-xs px-2 py-0.5 rounded-full" style="
-            background: rgba(124,77,255,0.2);
-            border: 1px solid rgba(124,77,255,0.35);
-            color: #d8c8ff;
+            background: var(--vault-hashtag-count-bg);
+            border: 1px solid var(--vault-hashtag-count-border);
+            color: var(--vault-hashtag-count-color);
             font-family: var(--font-display);
           ">{$hashtagStats.length}</span>
         </div>
@@ -517,11 +517,11 @@
                 style="
                   width: 164px;
                   border: 1px solid {$activeHashtag === item.tag
-                    ? 'rgba(0,188,212,0.50)'
-                    : 'rgba(0,188,212,0.22)'};
+                    ? 'var(--vault-hashtag-chip-border-active)'
+                    : 'var(--vault-hashtag-chip-border)'};
                   background: {$activeHashtag === item.tag
-                    ? 'linear-gradient(135deg, rgba(0,188,212,0.22), rgba(124,77,255,0.16))'
-                    : 'linear-gradient(135deg, rgba(0,188,212,0.10), rgba(124,77,255,0.06))'};
+                    ? 'linear-gradient(135deg, var(--vault-hashtag-chip-bg-from-active), var(--vault-hashtag-chip-bg-to-active))'
+                    : 'linear-gradient(135deg, var(--vault-hashtag-chip-bg-from), var(--vault-hashtag-chip-bg-to))'};
                   box-shadow: {$activeHashtag === item.tag
                     ? '0 0 16px rgba(0,188,212,0.18)'
                     : 'none'};
@@ -531,21 +531,21 @@
               >
                 <div class="flex items-center justify-between gap-2 mb-1.5">
                   <span class="text-[11px] font-semibold truncate" style="
-                    color: #8befff;
+                    color: var(--vault-hashtag-text);
                     font-family: var(--font-display);
                   ">{item.tag}</span>
                   <span class="text-[11px] px-1.5 py-0.5 rounded-full" style="
-                    background: rgba(124,77,255,0.24);
-                    border: 1px solid rgba(124,77,255,0.35);
-                    color: #ded2ff;
+                    background: var(--vault-hashtag-count-bg);
+                    border: 1px solid var(--vault-hashtag-count-border);
+                    color: var(--vault-hashtag-count-color);
                     font-family: var(--font-display);
                     line-height: 1;
                   ">{item.count}</span>
                 </div>
 
                 <div class="h-1.5 rounded-full overflow-hidden" style="
-                  background: rgba(255,255,255,0.08);
-                  border: 1px solid rgba(255,255,255,0.08);
+                  background: var(--vault-progress-track);
+                  border: 1px solid var(--vault-progress-track);
                 ">
                   <div style="
                     width: {Math.round(ratio * 100)}%;
@@ -569,7 +569,7 @@
     <div class="relative mb-3">
       <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
            width="14" height="14" viewBox="0 0 24 24" fill="none"
-           stroke="rgba(232,232,240,0.3)" stroke-width="2">
+           stroke="var(--vault-search-icon)" stroke-width="2">
         <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
       </svg>
       <input
@@ -592,14 +592,14 @@
 
     <div class="flex items-center justify-between mb-1.5">
       <p class="text-xs font-semibold" style="
-        color: #64deff;
+        color: var(--vault-filter-label);
         font-family: var(--font-display);
         letter-spacing: 0.04em;
       ">Filtros rápidos</p>
       <span class="text-xs px-2 py-0.5 rounded-full" style="
-        background: rgba(124,77,255,0.25);
-        border: 1px solid rgba(124,77,255,0.4);
-        color: #dfd3ff;
+        background: var(--vault-filter-count-bg);
+        border: 1px solid var(--vault-filter-count-border);
+        color: var(--vault-filter-count-color);
         font-family: var(--font-display);
       ">{$filteredPosts.length}</span>
     </div>
@@ -723,7 +723,7 @@
       <div
         class="px-4 py-2.5 rounded-xl text-sm font-semibold"
         style="
-          background: rgba(8,8,16,0.88);
+          background: var(--vault-toast-bg);
           backdrop-filter: blur(16px);
           -webkit-backdrop-filter: blur(16px);
           border: 1px solid {$mediaRefreshState === 'error' ? 'rgba(239,68,68,0.4)' : 'rgba(124,77,255,0.35)'};
@@ -740,7 +740,7 @@
   <!-- Barra bulk fija en la parte inferior cuando hay selección activa -->
   {#if selectionMode}
     <div class="fixed bottom-0 left-0 right-0 z-50 flex flex-col" style="
-      background: rgba(8,8,16,0.94);
+      background: var(--vault-bulk-bar-bg);
       backdrop-filter: blur(24px);
       -webkit-backdrop-filter: blur(24px);
       border-top: 1px solid rgba(124,77,255,0.28);
@@ -758,7 +758,7 @@
             >{cat.emoji ?? '📌'} {cat.name}</button>
           {/each}
         </div>
-        <div class="h-px mx-4" style="background: rgba(255,255,255,0.07)"></div>
+        <div class="h-px mx-4" style="background: var(--vault-divider)"></div>
       {/if}
 
       <div class="flex items-center gap-2 px-4 py-3">

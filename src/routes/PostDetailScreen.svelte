@@ -810,8 +810,8 @@
   {:else}
     <!-- Card principal del post -->
     <article class="rounded-2xl p-5 mb-4 relative overflow-hidden" style="
-      background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.11);
+      background: var(--vault-card-bg);
+      border: 1px solid var(--vault-card-border);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
       box-shadow: 0 4px 28px rgba(0,0,0,0.3);
@@ -847,8 +847,8 @@
         rel="noopener noreferrer"
         class="inline-flex items-center gap-1.5 mb-4 transition-all duration-200"
         style="
-          background: rgba(255,255,255,0.05);
-          border: 1px solid rgba(255,255,255,0.10);
+          background: var(--vault-section-bg);
+          border: 1px solid var(--vault-divider);
           border-radius: 8px;
           padding: 4px 10px;
           font-family: var(--font-mono);
@@ -879,18 +879,18 @@
 
       {#if hasThreadNavigation}
         <div class="flex items-center justify-between mb-4 rounded-xl px-3.5 py-2" style="
-          background: rgba(0,188,212,0.07);
-          border: 1px solid rgba(0,188,212,0.22);
+          background: var(--vault-secondary-nav-bg);
+          border: 1px solid var(--vault-secondary-nav-border);
         ">
           <button
             onclick={() => navigateThread(currentThreadIndex - 1)}
             disabled={currentThreadIndex === 0}
             class="w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-150 disabled:opacity-30"
-            style="background: rgba(0,188,212,0.12); border: 1px solid rgba(0,188,212,0.25); color: #baf5ff"
+            style="background: var(--vault-secondary-nav-btn-bg); border: 1px solid var(--vault-secondary-nav-btn-border); color: var(--vault-secondary-btn-text)"
             aria-label="Sub-post anterior"
           >←</button>
           <span class="text-xs font-semibold" style="
-            color: #baf5ff;
+            color: var(--vault-secondary-label);
             font-family: var(--font-display);
             letter-spacing: 0.06em;
           ">🧵 HILO · {currentThreadIndex + 1} / {threadTotal} · {currentThreadShortId}</span>
@@ -898,7 +898,7 @@
             onclick={() => navigateThread(currentThreadIndex + 1)}
             disabled={currentThreadIndex >= threadTotal - 1}
             class="w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-150 disabled:opacity-30"
-            style="background: rgba(0,188,212,0.12); border: 1px solid rgba(0,188,212,0.25); color: #baf5ff"
+            style="background: var(--vault-secondary-nav-btn-bg); border: 1px solid var(--vault-secondary-nav-btn-border); color: var(--vault-secondary-btn-text)"
             aria-label="Sub-post siguiente"
           >→</button>
         </div>
@@ -934,7 +934,7 @@
                 style="
                   background: rgba(124,77,255,0.25);
                   border: 1px solid rgba(124,77,255,0.45);
-                  color: #e4d6ff;
+                  color: var(--vault-primary-btn-text);
                   font-family: var(--font-display);
                 "
               >{savingNote ? 'Guardando…' : 'Guardar'}</button>
@@ -942,8 +942,8 @@
                 onclick={() => { editingNote = false; noteValue = post?.note ?? '' }}
                 class="px-3 py-1 rounded-lg text-xs font-semibold transition-all duration-200"
                 style="
-                  background: rgba(255,255,255,0.06);
-                  border: 1px solid rgba(255,255,255,0.12);
+                  background: var(--vault-section-bg-alt);
+                  border: 1px solid var(--vault-section-border);
                   color: var(--vault-on-bg-muted);
                   font-family: var(--font-display);
                 "
@@ -1007,7 +1007,7 @@
             style="
               background: rgba(124,77,255,0.03);
               border: 1px dashed rgba(124,77,255,0.20);
-              color: rgba(200,180,255,0.40);
+              color: var(--vault-note-placeholder);
               font-family: var(--font-display);
               font-size: 0.8rem;
             "
@@ -1015,25 +1015,25 @@
               const el = e.currentTarget as HTMLElement
               el.style.background = 'rgba(124,77,255,0.07)'
               el.style.borderColor = 'rgba(124,77,255,0.35)'
-              el.style.color = 'rgba(200,180,255,0.65)'
+              el.style.color = 'var(--vault-note-placeholder-hover)'
             }}
             onmouseleave={(e) => {
               const el = e.currentTarget as HTMLElement
               el.style.background = 'rgba(124,77,255,0.03)'
               el.style.borderColor = 'rgba(124,77,255,0.20)'
-              el.style.color = 'rgba(200,180,255,0.40)'
+              el.style.color = 'var(--vault-note-placeholder)'
             }}
           >+ Añadir nota personal…</button>
         {/if}
       </div>
 
       <div class="rounded-xl p-4 mb-4" style="
-        background: rgba(0,188,212,0.08);
-        border: 1px solid rgba(0,188,212,0.24);
+        background: var(--vault-secondary-section-bg);
+        border: 1px solid var(--vault-secondary-section-border);
       ">
         <div class="flex items-center justify-between gap-2 mb-2">
           <p class="text-xs font-semibold uppercase" style="
-            color: rgba(188,248,255,0.85);
+            color: var(--vault-secondary-label);
             font-family: var(--font-display);
             letter-spacing: 0.08em;
           ">Texto extraído</p>
@@ -1042,9 +1042,9 @@
             disabled={refreshingContent}
             class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all duration-200 disabled:opacity-50"
             style="
-              background: rgba(0,188,212,0.14);
-              border: 1px solid rgba(0,188,212,0.32);
-              color: #baf5ff;
+              background: var(--vault-secondary-btn-bg);
+              border: 1px solid var(--vault-secondary-btn-border);
+              color: var(--vault-secondary-btn-text);
               font-family: var(--font-display);
             "
           >{refreshingContent ? 'Extrayendo...' : 'Refrescar'}</button>
@@ -1053,7 +1053,7 @@
           <p class="text-xs mb-2" style="color: #fbbf24">{refreshContentError}</p>
         {/if}
         {#if currentSubText}
-          <p class="text-sm leading-relaxed" style="color: var(--vault-on-bg); opacity: 0.9">
+          <p class="text-sm leading-relaxed" style="color: var(--vault-on-bg); opacity: 0.9; white-space: pre-wrap;">
             {currentSubText}
           </p>
         {:else}
@@ -1075,9 +1075,9 @@
               onclick={() => refreshMedia('manual')}
               class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all duration-200"
               style="
-                background: rgba(0,188,212,0.14);
-                border: 1px solid rgba(0,188,212,0.32);
-                color: #baf5ff;
+                background: var(--vault-secondary-btn-bg);
+                border: 1px solid var(--vault-secondary-btn-border);
+                color: var(--vault-secondary-btn-text);
                 font-family: var(--font-display);
               "
             >{refreshingMedia ? 'Actualizando...' : 'Actualizar media'}</button>
@@ -1180,7 +1180,7 @@
                     <button
                       onclick={() => downloadMedia(imgs[carouselImageIndex])}
                       class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200"
-                      style="background: rgba(124,77,255,0.16); border: 1px solid rgba(124,77,255,0.35); color: #e4d6ff; font-family: var(--font-display);"
+                      style="background: rgba(124,77,255,0.16); border: 1px solid rgba(124,77,255,0.35); color: var(--vault-primary-btn-text); font-family: var(--font-display);"
                       onmouseenter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(124,77,255,0.30)'; (e.currentTarget as HTMLElement).style.transform = 'scale(1.04)' }}
                       onmouseleave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(124,77,255,0.16)'; (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}
                     >Descargar</button>
@@ -1205,8 +1205,8 @@
             {:else}
             {#each visibleMedia() as media (media.id)}
               <div class="rounded-xl p-2.5" style="
-                background: rgba(255,255,255,0.04);
-                border: 1px solid rgba(255,255,255,0.1);
+                background: var(--vault-section-bg);
+                border: 1px solid var(--vault-section-border);
               ">
                 {#if failedMediaIds.has(media.id)}
                   <div class="rounded-lg px-2.5 py-2 mb-2 text-xs" style="
@@ -1279,7 +1279,7 @@
                         </div>
                         <div class="flex-1 min-w-0">
                           <p class="text-sm font-semibold"
-                             style="color: #e4d6ff; font-family: var(--font-display)">
+                             style="color: var(--vault-primary-btn-text); font-family: var(--font-display)">
                             {state.status === 'loading' ? 'Cargando vídeo…' : 'Vídeo en Threads'}
                           </p>
                           <p class="text-xs" style="color: var(--vault-on-bg-muted)">
@@ -1320,7 +1320,7 @@
                           style="
                             background: rgba(124,77,255,0.16);
                             border: 1px solid rgba(124,77,255,0.35);
-                            color: #e4d6ff;
+                            color: var(--vault-primary-btn-text);
                             font-family: var(--font-display);
                           "
                         >
@@ -1334,7 +1334,7 @@
                         style="
                           background: rgba(124,77,255,0.22);
                           border: 1px solid rgba(124,77,255,0.4);
-                          color: #e4d6ff;
+                          color: var(--vault-primary-btn-text);
                           font-family: var(--font-display);
                         "
                       >Ver en Threads ↗</button>
@@ -1343,7 +1343,7 @@
                     {#if getInlineVideoDownloadState(media).status === 'downloading'}
                       <div class="mt-2 w-full">
                         <div class="h-2 rounded-full overflow-hidden"
-                             style="background: rgba(255,255,255,0.08); border: 1px solid rgba(124,77,255,0.25)">
+                             style="background: var(--vault-progress-track); border: 1px solid rgba(124,77,255,0.25)">
                           <div
                             class="h-full transition-all duration-500"
                             style="
@@ -1360,7 +1360,7 @@
                       <div class="mt-2 rounded-lg px-2.5 py-2 text-xs" style="
                         background: rgba(0,188,212,0.10);
                         border: 1px solid rgba(0,188,212,0.26);
-                        color: #baf5ff;
+                        color: var(--vault-secondary-btn-text);
                       ">
                         Descargado: {getInlineVideoDownloadState(media).filePath}
                       </div>
@@ -1396,7 +1396,7 @@
                       style="
                         background: rgba(124,77,255,0.16);
                         border: 1px solid rgba(124,77,255,0.35);
-                        color: #e4d6ff;
+                        color: var(--vault-primary-btn-text);
                         font-family: var(--font-display);
                       "
                       onmouseenter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(124,77,255,0.30)'; (e.currentTarget as HTMLElement).style.transform = 'scale(1.04)' }}
@@ -1433,7 +1433,7 @@
       {/if}
 
       <!-- Footer: categoría + fecha -->
-      <div class="flex items-center justify-between pt-3" style="border-top: 1px solid rgba(255,255,255,0.07)">
+      <div class="flex items-center justify-between pt-3" style="border-top: 1px solid var(--vault-divider)">
         {#if category}
           <CategoryBadge {category} />
         {:else}
@@ -1455,8 +1455,8 @@
       onclick={() => currentThreadUrl && openInBrowser(currentThreadUrl)}
       class="flex items-center justify-center gap-2.5 w-full py-3.5 rounded-2xl font-semibold transition-all duration-200"
       style="
-        background: rgba(255,255,255,0.05);
-        border: 1px solid rgba(255,255,255,0.11);
+        background: var(--vault-section-bg);
+        border: 1px solid var(--vault-section-border);
         color: var(--vault-on-bg);
         font-family: var(--font-display);
         font-size: 0.9rem;
@@ -1470,8 +1470,8 @@
       }}
       onmouseleave={(e) => {
         const el = e.currentTarget as HTMLElement
-        el.style.background  = 'rgba(255,255,255,0.05)'
-        el.style.borderColor = 'rgba(255,255,255,0.11)'
+        el.style.background  = 'var(--vault-section-bg)'
+        el.style.borderColor = 'var(--vault-section-border)'
         el.style.boxShadow   = 'none'
       }}
     >

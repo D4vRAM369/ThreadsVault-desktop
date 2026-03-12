@@ -19,7 +19,220 @@
   --font-body:            'DM Sans', sans-serif;
   --font-brand:           'Raleway', sans-serif;
   --font-mono:            'DM Mono', 'Fira Code', monospace;
+
+  /* ── Variables semánticas de UI (tema-aware) ──────────
+     PBL: Separamos "colores de marca" (arriba, invariables) de
+     "colores de superficie" (aquí, dependientes del tema).
+     Cada variable describe el ROL ("¿qué es?"), no el valor
+     ("¿qué color exacto?") → el tema lo decide. */
+
+  /* Header sticky */
+  --vault-header-bg:            rgba(8, 8, 16, 0.82);
+  --vault-header-border:        rgba(255, 255, 255, 0.08);
+
+  /* Secciones / cards con fondo diferenciado */
+  --vault-section-bg:           rgba(255, 255, 255, 0.04);
+  --vault-section-bg-alt:       rgba(255, 255, 255, 0.06);
+  --vault-section-border:       rgba(255, 255, 255, 0.11);
+  --vault-divider:              rgba(255, 255, 255, 0.07);
+
+  /* Teclado / kbd chips */
+  --vault-kbd-bg:               rgba(255, 255, 255, 0.05);
+  --vault-kbd-border:           rgba(255, 255, 255, 0.13);
+
+  /* Hashtags panel */
+  --vault-hashtag-label:        #7ae9ff;
+  --vault-hashtag-text:         #8befff;
+  --vault-hashtag-count-bg:     rgba(124, 77, 255, 0.24);
+  --vault-hashtag-count-border: rgba(124, 77, 255, 0.35);
+  --vault-hashtag-count-color:  #ded2ff;
+  --vault-progress-track:       rgba(255, 255, 255, 0.08);
+
+  /* Filtros rápidos */
+  --vault-filter-label:         #64deff;
+  --vault-filter-count-bg:      rgba(124, 77, 255, 0.25);
+  --vault-filter-count-border:  rgba(124, 77, 255, 0.40);
+  --vault-filter-count-color:   #dfd3ff;
+
+  /* Buscador */
+  --vault-search-icon:          rgba(232, 232, 240, 0.30);
+
+  /* PostCard */
+  --vault-card-bg:              rgba(255, 255, 255, 0.06);
+  --vault-card-border:          rgba(255, 255, 255, 0.11);
+  --vault-card-shine:           rgba(255, 255, 255, 0.18);
+  --vault-card-hover-bg:        rgba(255, 255, 255, 0.08);
+  --vault-card-bottom:          rgba(255, 255, 255, 0.07);
+  --vault-thumb-border:         rgba(255, 255, 255, 0.10);
+
+  /* Chips de contenido (media, hilo, nota) */
+  --vault-media-chip-color:     #b8f5ff;
+  --vault-thread-chip-color:    #c8b4ff;
+  --vault-note-text-color:      rgba(178, 235, 242, 0.65);
+  --vault-url-chip-text:        rgba(200, 180, 255, 0.80);
+
+  /* Barras flotantes (toast, bulk) */
+  --vault-toast-bg:             rgba(8, 8, 16, 0.88);
+  --vault-bulk-bar-bg:          rgba(8, 8, 16, 0.94);
+
+  /* Secciones y botones con acento secondary (cyan/teal) */
+  --vault-secondary-label:      rgba(188, 248, 255, 0.85);
+  --vault-secondary-btn-text:   #baf5ff;
+  --vault-secondary-btn-bg:     rgba(0, 188, 212, 0.14);
+  --vault-secondary-btn-border: rgba(0, 188, 212, 0.32);
+  --vault-secondary-section-bg:     rgba(0, 188, 212, 0.08);
+  --vault-secondary-section-border: rgba(0, 188, 212, 0.24);
+  --vault-secondary-nav-bg:     rgba(0, 188, 212, 0.07);
+  --vault-secondary-nav-border: rgba(0, 188, 212, 0.22);
+  --vault-secondary-nav-btn-bg: rgba(0, 188, 212, 0.12);
+  --vault-secondary-nav-btn-border: rgba(0, 188, 212, 0.25);
+
+  /* Nota placeholder */
+  --vault-note-placeholder:       rgba(200, 180, 255, 0.40);
+  --vault-note-placeholder-hover: rgba(200, 180, 255, 0.65);
+
+  /* Botones con acento primary (lavanda) */
+  --vault-primary-btn-text:       #e4d6ff;
+
+  /* Panel de hashtags — fondo y sombra del contenedor */
+  --vault-hashtag-panel-bg:     rgba(255, 255, 255, 0.04);
+  --vault-hashtag-panel-border: rgba(255, 255, 255, 0.10);
+  --vault-hashtag-panel-shadow: 0 4px 16px rgba(0, 0, 0, 0.22);
+
+  /* Chip individual de hashtag */
+  --vault-hashtag-chip-bg-from:        rgba(0, 188, 212, 0.10);
+  --vault-hashtag-chip-bg-to:          rgba(124, 77, 255, 0.06);
+  --vault-hashtag-chip-bg-from-active: rgba(0, 188, 212, 0.22);
+  --vault-hashtag-chip-bg-to-active:   rgba(124, 77, 255, 0.16);
+  --vault-hashtag-chip-border:         rgba(0, 188, 212, 0.22);
+  --vault-hashtag-chip-border-active:  rgba(0, 188, 212, 0.50);
 }
+
+/* ─── Tema claro ───────────────────────────────────────── */
+/*
+  PBL: La forma canónica de temas en CSS moderno es sobreescribir
+  custom properties (variables CSS) en un selector de mayor especificidad.
+  html[data-theme="light"] > :root no funciona (html ES :root), así que
+  ponemos las overrides directamente en html[data-theme="light"].
+  App.svelte aplica el atributo y lo persiste en localStorage.
+*/
+html[data-theme="light"] {
+  /* ── Base ── */
+  --vault-bg:             #EEEEF6;
+  --vault-surface:        rgba(255, 255, 255, 0.55);
+  --vault-surface-hover:  rgba(255, 255, 255, 0.75);
+  --vault-on-bg:          #1A1A2E;
+  --vault-on-bg-muted:    rgba(26, 26, 46, 0.50);
+  --vault-border:         rgba(0, 0, 0, 0.09);
+  --vault-border-accent:  rgba(124, 77, 255, 0.25);
+  --vault-primary-glow:   rgba(124, 77, 255, 0.15);
+  --vault-secondary-glow: rgba(0, 188, 212, 0.12);
+
+  /* ── Header ── */
+  --vault-header-bg:            rgba(238, 238, 246, 0.92);
+  --vault-header-border:        rgba(0, 0, 0, 0.07);
+
+  /* ── Secciones ── */
+  --vault-section-bg:           rgba(255, 255, 255, 0.55);
+  --vault-section-bg-alt:       rgba(255, 255, 255, 0.65);
+  --vault-section-border:       rgba(0, 0, 0, 0.08);
+  --vault-divider:              rgba(0, 0, 0, 0.07);
+
+  /* ── Kbd ── */
+  --vault-kbd-bg:               rgba(0, 0, 0, 0.06);
+  --vault-kbd-border:           rgba(0, 0, 0, 0.11);
+
+  /* ── Hashtags ── */
+  --vault-hashtag-label:        rgba(0, 130, 155, 0.90);
+  --vault-hashtag-text:         rgba(0, 125, 150, 0.90);
+  --vault-hashtag-count-bg:     rgba(124, 77, 255, 0.12);
+  --vault-hashtag-count-border: rgba(124, 77, 255, 0.25);
+  --vault-hashtag-count-color:  rgba(80, 30, 200, 0.85);
+  --vault-progress-track:       rgba(0, 0, 0, 0.07);
+
+  /* ── Filtros rápidos ── */
+  --vault-filter-label:         rgba(0, 120, 145, 0.85);
+  --vault-filter-count-bg:      rgba(124, 77, 255, 0.14);
+  --vault-filter-count-border:  rgba(124, 77, 255, 0.28);
+  --vault-filter-count-color:   rgba(80, 30, 200, 0.85);
+
+  /* ── Buscador ── */
+  --vault-search-icon:          rgba(26, 26, 46, 0.30);
+
+  /* ── PostCard ── */
+  --vault-card-bg:              rgba(255, 255, 255, 0.65);
+  --vault-card-border:          rgba(0, 0, 0, 0.08);
+  --vault-card-shine:           rgba(255, 255, 255, 0.70);
+  --vault-card-hover-bg:        rgba(255, 255, 255, 0.88);
+  --vault-card-bottom:          rgba(0, 0, 0, 0.07);
+  --vault-thumb-border:         rgba(0, 0, 0, 0.09);
+
+  /* ── Chips de contenido ── */
+  --vault-media-chip-color:     rgba(0, 110, 130, 0.90);
+  --vault-thread-chip-color:    rgba(80, 30, 200, 0.80);
+  --vault-note-text-color:      rgba(0, 115, 135, 0.85);
+  --vault-url-chip-text:        rgba(80, 35, 195, 0.85);
+
+  /* ── Barras flotantes ── */
+  --vault-toast-bg:             rgba(230, 230, 242, 0.96);
+  --vault-bulk-bar-bg:          rgba(228, 228, 240, 0.97);
+
+  /* ── Secondary (cyan/teal) ── */
+  --vault-secondary-label:          rgba(0, 110, 130, 0.88);
+  --vault-secondary-btn-text:       rgba(0, 100, 120, 0.90);
+  --vault-secondary-btn-bg:         rgba(0, 140, 165, 0.10);
+  --vault-secondary-btn-border:     rgba(0, 140, 165, 0.28);
+  --vault-secondary-section-bg:     rgba(0, 188, 212, 0.05);
+  --vault-secondary-section-border: rgba(0, 150, 175, 0.20);
+  --vault-secondary-nav-bg:         rgba(0, 188, 212, 0.06);
+  --vault-secondary-nav-border:     rgba(0, 150, 175, 0.22);
+  --vault-secondary-nav-btn-bg:     rgba(0, 150, 175, 0.10);
+  --vault-secondary-nav-btn-border: rgba(0, 150, 175, 0.28);
+
+  /* ── Nota placeholder ── */
+  --vault-note-placeholder:       rgba(90, 40, 200, 0.45);
+  --vault-note-placeholder-hover: rgba(90, 40, 200, 0.70);
+
+  /* ── Botones primary (lavanda) ── */
+  --vault-primary-btn-text:       rgba(80, 30, 200, 0.90);
+
+  /* ── Hashtag panel ── */
+  --vault-hashtag-panel-bg:     rgba(124, 77, 255, 0.04);
+  --vault-hashtag-panel-border: rgba(124, 77, 255, 0.12);
+  --vault-hashtag-panel-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+
+  /* ── Hashtag chip individual ── */
+  --vault-hashtag-chip-bg-from:        rgba(0, 160, 185, 0.08);
+  --vault-hashtag-chip-bg-to:          rgba(124, 77, 255, 0.05);
+  --vault-hashtag-chip-bg-from-active: rgba(0, 160, 185, 0.15);
+  --vault-hashtag-chip-bg-to-active:   rgba(124, 77, 255, 0.12);
+  --vault-hashtag-chip-border:         rgba(0, 150, 175, 0.30);
+  --vault-hashtag-chip-border-active:  rgba(0, 150, 175, 0.58);
+}
+
+html[data-theme="light"] body {
+  background-color: var(--vault-bg);
+  color: var(--vault-on-bg);
+}
+
+/* Las clases .glass y .glass-accent usan colores hardcoded → hay que
+   sobreescribir también esos valores específicos para el tema claro. */
+html[data-theme="light"] .glass {
+  background:   rgba(255, 255, 255, 0.55);
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow:   0 4px 24px rgba(0, 0, 0, 0.08);
+}
+
+html[data-theme="light"] .glass-accent {
+  background:  rgba(124, 77, 255, 0.06);
+  box-shadow:  0 4px 24px rgba(0, 0, 0, 0.06);
+}
+
+/* Los blobs en tema oscuro son muy sutiles (opacidad baja sobre fondo negro).
+   En tema claro necesitan más opacidad para que se vean sobre el fondo claro. */
+html[data-theme="light"] .blob-purple { opacity: 0.20; }
+html[data-theme="light"] .blob-cyan   { opacity: 0.16; }
+html[data-theme="light"] .blob-teal   { opacity: 0.12; }
 
 html {
   width: 100%;

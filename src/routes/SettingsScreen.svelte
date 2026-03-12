@@ -145,8 +145,8 @@
   ">Datos</p>
 
   <div class="rounded-2xl sm:rounded-3xl overflow-hidden mb-6 sm:mb-7" style="
-    border: 1px solid rgba(255,255,255,0.11);
-    box-shadow: 0 4px 24px rgba(0,0,0,0.28);
+    border: 1px solid var(--vault-section-border);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.18);
   ">
     <!-- Fila: Exportar -->
     <button
@@ -240,8 +240,8 @@
   ">Privacidad</p>
 
   <div class="rounded-2xl sm:rounded-3xl overflow-hidden mb-6 sm:mb-7" style="
-    border: 1px solid rgba(255,255,255,0.11);
-    box-shadow: 0 4px 24px rgba(0,0,0,0.28);
+    border: 1px solid var(--vault-section-border);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.18);
   ">
     {#each [
       { icon: '🔒', label: 'Todo local', desc: 'Los datos nunca salen de tu dispositivo' },

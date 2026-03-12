@@ -335,56 +335,72 @@ export function extractPostSectionFromJina(jinaMarkdown: string, postId: string)
   // si aparece más adelante (ej. en enlaces de imágenes).
   const nextPostRe = new RegExp(`\\/post\\/(?!${postId}\\b)[A-Za-z0-9_-]+\\b`, 'i')
   const sectionEndRe = new RegExp(
-    `${nextPostRe.source}|\\n(?:###\\s+)?(?:Destacadas|Ver actividad|Replies|More replies|Activity|Respuesta de|Replies from|Replying to)\\b|\\nRelated threads\\b|\\nRelated posts\\b|\\nLog in or sign up\\b|\\nContinue with Instagram\\b|\\nLog in to see more replies\\b`,
+    `${nextPostRe.source}|\\n·\\s*(?:Author|Autor)\\b|\\n(?:###\\s+)?(?:Destacadas|Ver actividad|Replies|More replies|Activity|Respuesta de|Replies from|Replying to)\\b|\\nRelated threads\\b|\\nRelated posts\\b|\\nLog in or sign up\\b|\\nContinue with Instagram\\b|\\nLog in to see more replies\\b`,
     'i'
   )
   const sectionEndMatch = sectionEndRe.exec(bodyFull)
   const body = sectionEndMatch ? bodyFull.slice(0, sectionEndMatch.index) : bodyFull.slice(0, 2500)
 
-  // 5. Extraer texto acumulando todas las líneas útiles del bloque acotado
-  const lines = body.replace(/\r/g, '').split('\n').map((lineText: string) => lineText.trim())
-  const validLines: string[] = []
+  // Restaurar saltos de línea que Jina colapsa (bullets en una sola línea)
+  // Cubre los marcadores más comunes en posts de Threads: → • ·
+  const BULLET = '[→•·]'
+  const bodyRestored = body
+    .replace(new RegExp(`([.!?])\\s*(${BULLET}\\s)`, 'g'), '$1\n\n$2')
+    .replace(new RegExp(`(${BULLET}[^\\n]+?[.!?])\\s*(${BULLET}\\s)`, 'g'), '$1\n$2')
+    .replace(new RegExp(`(${BULLET}[^\\n]+?[.!?])\\s*(\\d)`, 'g'), '$1\n\n$2')
 
-  for (const line of lines) {
-    if (!line) continue
-    const candidate = normalizeCandidateLine(line)
+  // 5. Extraer texto preservando estructura de párrafos
+  const paragraphBlocks = bodyRestored.replace(/\r/g, '').split(/\n{2,}/)
+  const validParagraphs: string[] = []
 
-    if (candidate.length < 3) continue // Bajamos el umbral para capturar texto corto/handles
-    if (/^!\[/.test(candidate)) continue
-    if (isImageAltNoise(candidate)) continue
-    if (isGenericThreadsText(candidate)) continue
-    if (isThreadPositionNoise(candidate)) continue
-    if (/^\d+$/.test(candidate)) continue
-    if (/^https?:\/\//i.test(candidate)) continue
-    if (/^title:|^url source:|^markdown content:/i.test(candidate)) continue
+  for (const block of paragraphBlocks) {
+    const blockLines = block.split('\n').map((lineText: string) => lineText.trim())
+    const validLines: string[] = []
 
-    if (/^\[/.test(candidate)) {
-      const fullMatch = /^\[([^\]]+)\]\((https?:\/\/[^)]+)\)/.exec(candidate)
-      if (!fullMatch) continue
-      const [, displayText, rawUrl] = fullMatch
-      if (displayText?.startsWith('!')) continue
+    for (const line of blockLines) {
+      if (!line) continue
+      const candidate = normalizeCandidateLine(line)
 
-      const resolved = resolveThreadsTrackingUrl(rawUrl)
-      const urlText = resolved ?? rawUrl.replace(/^https?:\/\//i, '')
+      if (candidate.length < 3) continue // Bajamos el umbral para capturar texto corto/handles
+      if (/^!\[/.test(candidate)) continue
+      if (isImageAltNoise(candidate)) continue
+      if (isGenericThreadsText(candidate)) continue
+      if (isThreadPositionNoise(candidate)) continue
+      if (/^\d+$/.test(candidate)) continue
+      if (/^https?:\/\//i.test(candidate)) continue
+      if (/^title:|^url source:|^markdown content:/i.test(candidate)) continue
 
-      // Permitimos handles (@) si están en el cuerpo del mensaje
-      if (urlText.length >= 2 && !/threads\.(?:net|com)/i.test(urlText)) {
-        validLines.push(urlText)
-        continue
-      }
-      if (displayText && displayText.length >= 2 && !/^\d+[kKmMbB]?$/.test(displayText)) {
-        if (!isThreadPositionNoise(displayText)) {
-          validLines.push(displayText)
+      if (/^\[/.test(candidate)) {
+        const fullMatch = /^\[([^\]]+)\]\((https?:\/\/[^)]+)\)/.exec(candidate)
+        if (!fullMatch) continue
+        const [, displayText, rawUrl] = fullMatch
+        if (displayText?.startsWith('!')) continue
+
+        const resolved = resolveThreadsTrackingUrl(rawUrl)
+        const urlText = resolved ?? rawUrl.replace(/^https?:\/\//i, '')
+
+        // Permitimos handles (@) si están en el cuerpo del mensaje
+        if (urlText.length >= 2 && !/threads\.(?:net|com)/i.test(urlText)) {
+          validLines.push(urlText)
           continue
         }
+        if (displayText && displayText.length >= 2 && !/^\d+[kKmMbB]?$/.test(displayText)) {
+          if (!isThreadPositionNoise(displayText)) {
+            validLines.push(displayText)
+            continue
+          }
+        }
+        continue
       }
-      continue
+
+      validLines.push(candidate)
     }
 
-    validLines.push(candidate)
+    const para = validLines.join('\n').trim()
+    if (para) validParagraphs.push(para)
   }
 
-  const text = validLines.join(' ').trim() || undefined
+  const text = validParagraphs.join('\n\n').trim() || undefined
 
   // 6. Extraer media del cuerpo acotado deduplicando URLs
   const rawMediaUrls = [
@@ -528,6 +544,12 @@ function isGenericThreadsText(value?: string): boolean {
   const v = value.trim()
   // Etiquetas de metadatos de perfil/post que Jina renderiza
   if (/^(?:author|follow|followers?|following|published|likes?|reposts?|replies|related\s+threads|related\s+posts|destacadas|ver\s+actividad|translate|see\s+translation|see\s+original|traducir|ver\s+(?:original|traducci[oó]n))$/i.test(v)) return true
+  // PBL: Jina renderiza bullets de navegación del tipo "·Author", "·Follow", etc.
+  // El punto medio (·) indica que es un elemento de la UI de Threads, no texto del post.
+  if (/^·\s*(?:author|autor|follow|like|reply|repost|share|views?|translate|traducir)/i.test(v)) return true
+  // PBL: Error de reproductor de vídeo de Threads — aparece cuando Jina renderiza
+  // una tarjeta con vídeo y el player falla al cargar. No es parte del texto del post.
+  if (/^sorry,\s+we'?re having trouble/i.test(v)) return true
   // Strings de login/auth o navegación de hilos
   return /log in to see more replies|sign in (?:with|to) (?:instagram|facebook|threads)|join threads to share ideas|threads\s*•\s*log in|log in or sign up|log in with (?:your\s+)?(?:instagram|facebook|username)|sign up for threads|continue with (?:instagram|facebook)|create (?:a )?new account|forgot (?:your )?password|don'?t have an account|join the conversation|see what people are talking about|what'?s on your mind/i.test(v)
 }
@@ -583,9 +605,6 @@ function extractPostId(url: string): string | null {
 
 function normalizeCandidateLine(line: string): string {
   return line
-    .replace(/^\s*(?:\d+\.)\s*/, '')    // "1. texto"
-    .replace(/^\s*[-*•·]\s*/, '')       // "- texto" / "* texto"
-    .replace(/^\s*\.\s*/, '')           // ".texto"
     .trim()
 }
 
@@ -632,8 +651,8 @@ function cleanMarkdownLinks(text: string | undefined): string | undefined {
     .replace(/https?:\/\/l\.(?:threads|instagram)\.com\/\S*/gi, '')
     // og:description concatena párrafos: "frase.OtraPalabra" → "frase. OtraPalabra"
     .replace(/([.!?])([A-Z])/g, '$1 $2')
-    // Colapsar espacios extra y limpiar
-    .replace(/\s{2,}/g, ' ')
+    // Colapsar espacios extra (preservando saltos de línea)
+    .replace(/[ \t]{2,}/g, ' ')
     .trim()
   return cleaned.length >= 6 ? cleaned : undefined
 }
@@ -641,6 +660,148 @@ function cleanMarkdownLinks(text: string | undefined): string | undefined {
 function isImageAltNoise(line: string): boolean {
   return /^!?\[image\s*\d*:/i.test(line)
     || /profile picture/i.test(line)
+}
+
+/*
+  PBL: Extrae texto con estructura de párrafos del HTML embed de oEmbed.
+
+  Cuando Jina falla (login page, timeout, rate-limit), la única fuente
+  disponible es og:description — que colapsa todos los párrafos en una
+  sola línea. El API oEmbed de Threads devuelve un campo `html` con el
+  blockquote del embed que SÍ preserva la estructura del post:
+
+    <p dir="ltr">
+      Primera línea del post.<br>Segunda línea.<br><br>Nuevo párrafo.
+      <a href="l.threads.com/?u=...">enlace externo</a>
+    </p>
+
+  Convertimos:
+    <br><br> → \n\n  (separación de párrafo)
+    <br>     → \n    (salto de línea dentro del párrafo)
+    <a href="tracking">texto</a> → URL real decodificada (o texto del enlace)
+
+  El resultado se renderiza correctamente con white-space: pre-wrap en la UI.
+*/
+function processOembedParagraphHtml(raw: string): string | undefined {
+  const text = raw
+    .replace(/(<br\s*\/?>\s*){2,}/gi, '\n\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<a[^>]*href=["']([^"']*)["'][^>]*>([^<]*)<\/a>/gi, (_, href, linkText) => {
+      return resolveThreadsTrackingUrl(href) ?? linkText
+    })
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/[ \t]{2,}/g, ' ')
+    .trim()
+  return text.length >= 3 ? text : undefined
+}
+
+function extractTextFromOembedHtml(html: string): string | undefined {
+  if (!html?.trim()) return undefined
+
+  // Threads oEmbed: el texto está dentro de <blockquote> → buscar ahí primero
+  // PBL: blockquote puede ser GREEDY aquí — el HTML del oEmbed solo tiene UN blockquote
+  const blockquoteMatch = /<blockquote[^>]*>([\s\S]*?)<\/blockquote>/i.exec(html)
+  const searchArea = blockquoteMatch?.[1] ?? html
+
+  /*
+    PBL: un post puede tener múltiples párrafos, cada uno en su propio <p dir="ltr">.
+    El .exec() anterior solo cogía el primer match. Ahora recogemos TODOS con matchAll
+    y los reunimos con \n\n para preservar la separación entre párrafos.
+    Fallback a <p> genérico si no hay dir="ltr".
+  */
+  const collectParagraphs = (re: RegExp): string[] => {
+    const result: string[] = []
+    for (const m of searchArea.matchAll(re)) {
+      const processed = processOembedParagraphHtml(m[1])
+      if (processed) result.push(processed)
+    }
+    return result
+  }
+
+  const ltrParagraphs = collectParagraphs(/<p[^>]*dir=["']ltr["'][^>]*>([\s\S]*?)<\/p>/gi)
+  let paragraphs = ltrParagraphs.length > 0
+    ? ltrParagraphs
+    : collectParagraphs(/<p[^>]*>([\s\S]*?)<\/p>/gi)
+
+  /*
+    PBL: Fallback cuando el oEmbed no usa <p> en absoluto.
+    Algunos embeds de Threads ponen el texto directamente en <a> o <div>, sin <p>.
+    Estrategia: tomar el contenido del blockquote completo, quitar <script> y elementos
+    de UI (avatars, timestamps), y procesar el texto restante como si fuera HTML plano.
+    Solo se usa cuando no encontramos ningún <p>.
+  */
+  if (paragraphs.length === 0 && searchArea.length > 10) {
+    const stripped = searchArea
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<time[^>]*>[^<]*<\/time>/gi, '')
+      .replace(/<svg[\s\S]*?<\/svg>/gi, '')
+      .replace(/<img[^>]*>/gi, '')
+    const processed = processOembedParagraphHtml(stripped)
+    if (processed && processed.length >= 10) {
+      // Solo aceptar si no es solo metadata (autor, fecha, etc.) — debe tener algún texto real
+      if (!isGenericThreadsText(processed)) {
+        paragraphs = [processed]
+      }
+    }
+  }
+
+  // DEBUG: ayuda a diagnosticar si oEmbed no devuelve html estructurado
+  console.warn('[TV:oEmbed]', {
+    htmlLen: html.length,
+    rawSample: html.substring(0, 300),
+    blockquoteFound: !!blockquoteMatch,
+    ltrP: ltrParagraphs.length,
+    genericP: paragraphs.length,
+    sample: paragraphs[0]?.substring(0, 120),
+  })
+
+  if (paragraphs.length === 0) return undefined
+  const text = paragraphs.join('\n\n').trim()
+  return text.length >= 6 ? text : undefined
+}
+
+/*
+  PBL: Extrae texto estructurado (con \n) del HTML de la página de Threads.
+  Estrategia: cuando Jina falla y oEmbed no tiene <br>, el HTML bruto de la
+  página de Threads (que Tauri obtiene sin CORS) contiene el JSON de estado
+  inicial de React. Ese JSON usa \\n para los saltos de línea reales del post.
+
+  El campo relevante varía según el tipo de post, pero la clave "text" en los
+  JSON embebidos (script type="application/json" o window.__data__) contiene
+  el texto con \\n → decodificamos → \n preservando la estructura original.
+
+  Precaución: hay muchos campos "text" en el JSON — solo aceptamos los que:
+  1. Tengan al menos 20 chars (evita UI strings cortos)
+  2. Contengan saltos de línea reales (el diferenciador clave)
+  3. No sean texto genérico de UI de Threads
+*/
+function extractTextFromThreadsJson(html: string): string | undefined {
+  if (!html) return undefined
+  // Regex para capturar valores de "text":"..." en JSON embebido en el HTML
+  // (?:[^"\\]|\\.)* = cualquier char excepto " y \ sin escapar, o secuencias escapadas
+  const re = /"text"\s*:\s*"((?:[^"\\]|\\.)*)"/g
+  let m: RegExpExecArray | null
+  while ((m = re.exec(html)) !== null) {
+    const decoded = m[1]
+      .replace(/\\n/g, '\n')    // \\n en JSON → \n real
+      .replace(/\\r/g, '')      // quitar \r
+      .replace(/\\\\/g, '\\')  // \\\\ en JSON → \ real
+      .replace(/\\"/g, '"')     // \\\" en JSON → " real
+      .replace(/\\u([0-9a-fA-F]{4})/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+      .trim()
+    // Solo aceptar si tiene saltos de línea REALES y longitud suficiente
+    if (decoded.length >= 20 && decoded.includes('\n') && !isGenericThreadsText(decoded)) {
+      return decoded
+    }
+  }
+  return undefined
 }
 
 /*
@@ -700,58 +861,61 @@ function extractFallbackTextFromSource(source: string, postId: string | null): s
   if (postId && postLineIndex === -1) return undefined
 
   const start = postLineIndex >= 0 ? postLineIndex + 1 : 0
-  for (let index = start; index < Math.min(lines.length, start + 28); index += 1) {
-    const line = lines[index]
-    if (!line) continue
-    const candidate = normalizeCandidateLine(line)
-    if (candidate.length < 6) continue
-    if (/^!\[/.test(candidate)) continue
-    if (isImageAltNoise(candidate)) continue
-    /*
-      PBL: Bug fix — Jina convierte los enlaces embebidos en posts a markdown:
-        [github.com/ripienaar/free-for-dev](https://github.com/...)
-      Sin este fix, saltábamos TODAS las líneas que empiezan con "[", dejando
-      sin texto los posts cuyo único contenido es un enlace.
+  /*
+    PBL: Igual que extractPostSectionFromJina, preservamos párrafos tomando
+    el fragmento de líneas y dividiéndolo por bloques de párrafo (\n\n).
+    El fallback opera sobre `lines` (array), así que primero reconstruimos
+    el fragmento y luego lo dividimos por párrafos.
+  */
+  const fragmentLines = lines.slice(start, Math.min(lines.length, start + 60))
+  const fragmentText = fragmentLines.join('\n')
+  const paragraphBlocks = fragmentText.split(/\n{2,}/)
+  const validParagraphs: string[] = []
 
-      BUG CORREGIDO 2: Threads trunca el texto visible del enlace en Jina:
-        [github.com/user/re...](https://l.threads.com/?u=https%3A%2F%2Fgithub.com%2Fuser%2Frepo)
-      Si devolvíamos el linkText visible, guardábamos "github.com/user/re..."
-      con puntos suspensivos literales en vez de la URL completa.
+  for (const block of paragraphBlocks) {
+    const blockLines = block.split('\n')
+    const validLines: string[] = []
 
-      Fix: extraemos la URL completa del parámetro ?u= del tracking URL y la
-      devolvemos sin el prefijo https:// (consistente con cleanMarkdownLinks).
-      Si no es un tracking URL, usamos la URL destino directamente.
-    */
-    if (/^\[/.test(candidate)) {
-      const fullMatch = /^\[([^\]]+)\]\((https?:\/\/[^)]+)\)/.exec(candidate)
-      if (!fullMatch) continue
-      const [, displayText, rawUrl] = fullMatch
-      // Imagen enlazada: [![alt](img_url)](link_url) → displayText empieza con "!"
-      if (displayText?.startsWith('!')) continue
-      // Resolver el tracking URL para obtener la URL real completa
-      const resolved = resolveThreadsTrackingUrl(rawUrl)
-      const urlText = resolved ?? rawUrl.replace(/^https?:\/\//i, '')
-      // PBL: misma regla que extractPostSectionFromJina — no devolver URLs de threads.net/instagram.com
-      if (urlText.length >= 6 && !/^@/.test(urlText) && !/(?:threads\.(?:net|com)|instagram\.com)/i.test(urlText)) {
-        return urlText
+    for (const line of blockLines) {
+      if (!line) continue
+      const candidate = normalizeCandidateLine(line)
+      if (candidate.length < 6) continue
+      if (/^!\[/.test(candidate)) continue
+      if (isImageAltNoise(candidate)) continue
+
+      if (/^\[/.test(candidate)) {
+        const fullMatch = /^\[([^\]]+)\]\((https?:\/\/[^)]+)\)/.exec(candidate)
+        if (!fullMatch) continue
+        const [, displayText, rawUrl] = fullMatch
+        if (displayText?.startsWith('!')) continue
+        const resolved = resolveThreadsTrackingUrl(rawUrl)
+        const urlText = resolved ?? rawUrl.replace(/^https?:\/\//i, '')
+        if (urlText.length >= 6 && !/^@/.test(urlText) && !/(?:threads\.(?:net|com)|instagram\.com)/i.test(urlText)) {
+          validLines.push(urlText)
+          continue
+        }
+        if (displayText && displayText.length >= 6 && !/^@/.test(displayText) && !/^\d+[kKmMbB]?$/.test(displayText)) {
+          if (!isGenericThreadsText(displayText)) {
+            validLines.push(displayText)
+            continue
+          }
+        }
+        continue
       }
-      // Fallback: texto visible si no hay URL resoluble
-      if (displayText && displayText.length >= 6 && !/^@/.test(displayText) && !/^\d+[kKmMbB]?$/.test(displayText)) {
-        // Ignorar si es login literal o relacionados
-        if (!isGenericThreadsText(displayText)) return displayText
-      }
-      continue
+      if (/^\d+$/.test(candidate)) continue
+      if (/^https?:\/\//i.test(candidate)) continue
+      if (/^title:|^url source:|^markdown content:/i.test(candidate)) continue
+      if (isThreadPositionNoise(candidate)) continue
+      if (isGenericThreadsText(candidate)) continue
+
+      validLines.push(candidate)
     }
-    if (/^\d+$/.test(candidate)) continue
-    if (/^https?:\/\//i.test(candidate)) continue
-    if (/^title:|^url source:|^markdown content:/i.test(candidate)) continue
-    if (/^sorry,\s*we'?re having trouble/i.test(candidate)) continue
-    if (isThreadPositionNoise(candidate)) continue
-    if (isGenericThreadsText(candidate)) continue
-    return candidate
+
+    const para = validLines.join('\n').trim()
+    if (para) validParagraphs.push(para)
   }
 
-  return undefined
+  return validParagraphs.join('\n\n').trim() || undefined
 }
 
 /*
@@ -826,9 +990,9 @@ async function extractSubPost(
   const jinaText = ownSection?.text ?? rootSection?.text
   const metaText = !jinaText && trustedHtml
     ? firstDefined(
-        extractMetaTag(trustedHtml, 'og:description'),
-        extractMetaTag(trustedHtml, 'twitter:description'),
-      )
+      extractMetaTag(trustedHtml, 'og:description'),
+      extractMetaTag(trustedHtml, 'twitter:description'),
+    )
     : undefined
   const text = jinaText ?? (metaText && !isGenericThreadsText(metaText) ? metaText : undefined)
 
@@ -982,11 +1146,64 @@ export async function extractPostData(rawUrl: string, options?: ExtractOptions):
 
   const previewVideo = media.find((item) => item.type === 'video')?.url
   const previewImage = media.find((item) => item.type === 'image')?.url
+  // PBL: Preferir extracción multi-línea acotada de Jina si está disponible.
+  //   Esto es mucho más preciso que og:description (que colapsa espacios)
+  //   y que el fallback genérico (que recogía menos contexto).
+  const jinaSection = jinaHtml && postId ? extractPostSectionFromJina(jinaHtml, postId) : null
+  const jinaText = jinaSection?.text
+
+  /*
+    PBL: oEmbed HTML como fuente de texto estructurado cuando Jina falla.
+    Cuando Jina devuelve login page o tiene timeout, jinaText = undefined y
+    caemos en og:description — que colapsa todos los párrafos en una línea.
+    El campo oembed.html contiene un <blockquote> con <br> preservando la
+    estructura original del post. extractTextFromOembedHtml lo convierte a
+    texto con \n y \n\n listos para white-space: pre-wrap.
+    Prioridad: jinaText → oembedText → og:description → fallback
+  */
+  const oembedStructuredText = oembed?.html ? extractTextFromOembedHtml(oembed.html) : undefined
+
+  /*
+    PBL: Extracción de texto estructurado desde el JSON embebido en el HTML directo.
+    Cuando Jina falla Y el HTML del oEmbed no tiene <br> (texto plano en el embed),
+    la última esperanza de conservar los saltos de línea es el JSON de estado React
+    que Threads incluye en la página HTML. El campo "text" en esos JSON usa \\n
+    para los saltos originales del post (escritos por el usuario con Enter).
+    Solo usable en Tauri (fetch directo sin CORS) — en browser devuelve null.
+    Prioridad: jinaText → oembedStructuredText → directJsonText → og:description
+  */
+  const directJsonText = trustedDirectHtml
+    ? extractTextFromThreadsJson(trustedDirectHtml)
+    : undefined
+
   const metadataText = firstDefined(ogDescription, twitterDesc, oembed?.title)
   const fallbackText = extractFallbackTextFromSource(source, postId)
-  const extractedText = isGenericThreadsText(metadataText)
-    ? fallbackText
-    : firstDefined(metadataText, fallbackText)
+
+  const extractedText = jinaText
+    ?? oembedStructuredText
+    ?? directJsonText
+    ?? (isGenericThreadsText(metadataText)
+      ? fallbackText
+      : firstDefined(metadataText, fallbackText))
+
+  // DEBUG temporal: muestra qué fuente ganó para la extracción de texto
+  const directHtmlCanonical = directHtml ? extractCanonical(directHtml) : null
+  console.warn('[TV:extract]', {
+    jinaOk: !!jinaText,
+    oembedOk: !!oembedStructuredText,
+    directJsonOk: !!directJsonText,
+    metaOk: !!metadataText,
+    source: jinaText ? 'jina' : oembedStructuredText ? 'oembed' : directJsonText ? 'json' : metadataText ? 'meta' : 'none',
+    // ── diagnóstico de confianza del HTML directo ──
+    directHtmlOk: !!directHtml,
+    trustedHtmlOk: !!trustedDirectHtml,
+    expectedPostId: postId,
+    directHtmlCanonical,
+    directHtmlLen: directHtml?.length ?? 0,
+    jinaIsLogin: rawJinaHtml ? isJinaLoginPage(rawJinaHtml) : 'null',
+    extractedTextSample: extractedText?.substring(0, 100),
+    hasNewlines: extractedText?.includes('\n') ?? false,
+  })
   /*
     PBL: Bug fix — Threads pone <link rel="canonical"> al POST RAÍZ del hilo
     para todos los sub-posts (estrategia SEO). Sin este check, guardábamos la URL
@@ -1041,10 +1258,14 @@ export async function extractPostData(rawUrl: string, options?: ExtractOptions):
       items.push({ id: crypto.randomUUID(), type: 'video-link', url: canonicalUrl })
     }
 
+    // PBL: si Jina extrajo sección pero sin texto (post con solo media),
+    // usamos oembedStructuredText como fallback antes de quedar en undefined.
+    const sectionText = section.text ?? oembedStructuredText
+
     return {
       id: postId,
       url: canonicalUrl,
-      text: cleanMarkdownLinks(section.text),
+      text: cleanMarkdownLinks(sectionText),
       media: items.length ? items : undefined,
     }
   })()
@@ -1083,11 +1304,22 @@ export async function extractPostData(rawUrl: string, options?: ExtractOptions):
   // Necesario cuando Jina redirige a la URL raíz del hilo y source = jinaHtml (sin meta tags).
   // directHtml sí tiene <meta og:description> con el texto específico del post.
   const jinaFinalText = cleanMarkdownLinks(firstDefined(safeSpecificText, safeExtractedText))
+
+  console.warn('[TV:final]', {
+    safeSpecificOk: !!safeSpecificText,
+    safeExtractedOk: !!safeExtractedText,
+    specificHasNL: safeSpecificText?.includes('\n') ?? false,
+    extractedHasNL: safeExtractedText?.includes('\n') ?? false,
+    jinaFinalHasNL: jinaFinalText?.includes('\n') ?? false,
+    specificSample: safeSpecificText?.substring(0, 80),
+    extractedSample: safeExtractedText?.substring(0, 80),
+    jinaFinalSample: jinaFinalText?.substring(0, 80),
+  })
   const directHtmlDesc = !jinaFinalText && trustedDirectHtml
     ? firstDefined(
-        extractMetaTag(trustedDirectHtml, 'og:description'),
-        extractMetaTag(trustedDirectHtml, 'twitter:description'),
-      )
+      extractMetaTag(trustedDirectHtml, 'og:description'),
+      extractMetaTag(trustedDirectHtml, 'twitter:description'),
+    )
     : undefined
   const finalText = jinaFinalText
     ?? (directHtmlDesc && !isGenericThreadsText(directHtmlDesc)

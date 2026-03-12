@@ -11,6 +11,22 @@
 
   let zoomLevel = parseFloat(localStorage.getItem(ZOOM_KEY) ?? '1')
 
+  // ── Tema ─────────────────────────────────────────────────
+  /*
+    PBL: Svelte 5 rune $state + $effect para persistir el tema.
+    $state reactivo → cualquier cambio re-ejecuta $effect.
+    $effect escribe data-theme en <html> y guarda en localStorage.
+    Al cargar, leemos localStorage para restaurar la preferencia del usuario.
+  */
+  const THEME_KEY = 'tv_theme'
+  type Theme = 'dark' | 'light'
+  let theme = $state<Theme>((localStorage.getItem(THEME_KEY) ?? 'dark') as Theme)
+
+  $effect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem(THEME_KEY, theme)
+  })
+
   let currentRoute = $state(window.location.hash || '#/')
 
   function computeTitle(route: string, allPosts: Post[]): string {
@@ -114,6 +130,38 @@
   }
 </script>
 
+<!--
+  PBL: Botón de tema fijo en la esquina superior derecha.
+  position:fixed → se mantiene visible en TODAS las pantallas (no está
+  dentro de ningún screen, sino en el root de la app).
+  z-index:200 → por encima de todos los elementos de las pantallas.
+  Los SVGs de sol/luna son iconos inline (sin dependencias externas).
+-->
+<button
+  class="theme-toggle"
+  onclick={() => { theme = theme === 'dark' ? 'light' : 'dark' }}
+  title={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
+  aria-label="Alternar tema"
+>
+  {#if theme === 'dark'}
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="5"/>
+      <line x1="12" y1="1" x2="12" y2="3"/>
+      <line x1="12" y1="21" x2="12" y2="23"/>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+      <line x1="1" y1="12" x2="3" y2="12"/>
+      <line x1="21" y1="12" x2="23" y2="12"/>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+    </svg>
+  {:else}
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+    </svg>
+  {/if}
+</button>
+
 <!-- Blobs de fondo: position:fixed, z-index:0, pointer-events:none -->
 <!-- PBL: Viven fuera del flujo del DOM para no afectar el layout   -->
 <div class="blob-scene" aria-hidden="true">
@@ -157,3 +205,28 @@
   {/if}
 </main>
 
+<style>
+  .theme-toggle {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    z-index: 200;
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    background: var(--vault-surface);
+    border: 1px solid var(--vault-border);
+    color: var(--vault-on-bg-muted);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    transition: color 0.2s, background 0.2s, border-color 0.2s;
+  }
+  .theme-toggle:hover {
+    background: var(--vault-surface-hover);
+    color: var(--vault-on-bg);
+  }
+</style>
