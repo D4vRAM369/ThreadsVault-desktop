@@ -32,6 +32,10 @@ docs/
 .claude/
 SKILLS.md
 
+# Avatar del dev (imagen personal, no va al repo)
+public/dev-avatar.jpg
+src/lib/devAvatar.ts
+
 # Temporales y binarios locales
 .tmp/
 .tmp-sealplus/

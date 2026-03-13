@@ -5,6 +5,7 @@
   import type { ImportResult } from '../lib/storage/adapter'
 
   import { invoke } from '@tauri-apps/api/core'
+  import { DEV_AVATAR } from '../lib/devAvatar'
 
   let exportStatus = $state<'idle' | 'success' | 'error'>('idle')
   let exportSavedPath = $state('')
@@ -152,9 +153,9 @@
     <button
       onclick={handleExport}
       class="w-full flex items-center gap-3.5 px-4 sm:px-5 py-3.5 sm:py-4 transition-all duration-200 text-left"
-      style="background: rgba(255,255,255,0.06)"
-      onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.09)'}
-      onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)'}
+      style="background: var(--vault-section-bg-alt)"
+      onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--vault-card-hover-bg)'}
+      onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--vault-section-bg-alt)'}
     >
       <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style="
         background: rgba(124,77,255,0.18);
@@ -175,7 +176,7 @@
         </p>
       </div>
       {#if exportStatus === 'success'}
-        <span class="text-xs font-semibold" style="color: #4ade80; font-family: var(--font-display)">✓ Guardado</span>
+        <span class="text-xs font-semibold" style="color: var(--vault-success); font-family: var(--font-display)">✓ Guardado</span>
       {:else if exportStatus === 'error'}
         <span class="text-xs font-semibold" style="color: #f87171; font-family: var(--font-display)">✗ Error</span>
       {:else}
@@ -189,8 +190,7 @@
     {#if exportStatus === 'success' && exportSavedPath}
       <div class="px-4 sm:px-5 pb-2" style="animation: fadeIn 0.2s ease">
         <p class="text-xs font-mono" style="
-          color: #4ade80;
-          opacity: 0.85;
+          color: var(--vault-success);
           word-break: break-all;
           line-height: 1.5;
         ">📁 {exportSavedPath}</p>
@@ -198,14 +198,14 @@
     {/if}
 
     <!-- Separador -->
-    <div style="height: 1px; background: rgba(255,255,255,0.07); margin: 0 16px"></div>
+    <div style="height: 1px; background: var(--vault-divider); margin: 0 16px"></div>
 
     <!-- Fila: Importar -->
     <label
       class="w-full flex items-center gap-3.5 px-4 sm:px-5 py-3.5 sm:py-4 transition-all duration-200 cursor-pointer"
-      style="background: rgba(255,255,255,0.06); display:flex"
-      onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.09)'}
-      onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)'}
+      style="background: var(--vault-section-bg-alt); display:flex"
+      onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--vault-card-hover-bg)'}
+      onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--vault-section-bg-alt)'}
     >
       <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style="
         background: rgba(0,188,212,0.15);
@@ -249,9 +249,9 @@
       { icon: '🚫', label: 'Sin tracking', desc: 'Cero analíticas, cero publicidad' },
     ] as item, i}
       {#if i > 0}
-        <div style="height: 1px; background: rgba(255,255,255,0.07); margin: 0 16px"></div>
+        <div style="height: 1px; background: var(--vault-divider); margin: 0 16px"></div>
       {/if}
-      <div class="flex items-center gap-3.5 px-4 sm:px-5 py-3.5" style="background: rgba(255,255,255,0.04)">
+      <div class="flex items-center gap-3.5 px-4 sm:px-5 py-3.5" style="background: var(--vault-section-bg)">
         <span style="font-size: 1.1rem; line-height: 1">{item.icon}</span>
         <div class="flex-1 min-w-0">
           <p class="text-sm font-semibold" style="font-family: var(--font-display); color: var(--vault-on-bg)">{item.label}</p>
@@ -269,10 +269,10 @@
   ">Acerca de</p>
 
   <div class="rounded-2xl sm:rounded-3xl overflow-hidden" style="
-    border: 1px solid rgba(255,255,255,0.09);
+    border: 1px solid var(--vault-section-border);
   ">
     <!-- Fila: info de la app -->
-    <div class="flex items-center gap-3.5 p-4 sm:p-5" style="background: rgba(255,255,255,0.04)">
+    <div class="flex items-center gap-3.5 p-4 sm:p-5" style="background: var(--vault-section-bg)">
       <div class="w-10 h-10 rounded-full overflow-hidden shrink-0" style="box-shadow: 0 3px 12px rgba(0,0,0,0.5)">
         <img src="/icon-app.png" alt="ThreadsVault" style="width:100%; height:100%; object-fit:cover; display:block;" />
       </div>
@@ -300,9 +300,9 @@
     <button
       onclick={() => showAboutDev = true}
       class="w-full flex items-center gap-3.5 px-4 sm:px-5 py-3.5 sm:py-4 transition-all duration-200 text-left"
-      style="background: rgba(255,255,255,0.04)"
-      onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.08)'}
-      onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)'}
+      style="background: var(--vault-section-bg)"
+      onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--vault-card-hover-bg)'}
+      onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--vault-section-bg)'}
     >
       <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style="
         background: rgba(124,77,255,0.14);
@@ -375,8 +375,8 @@
                   font-size: 10px;
                   padding: 1px 6px;
                   border-radius: 4px;
-                  border: 1px solid rgba(255,255,255,0.13);
-                  background: rgba(255,255,255,0.05);
+                  border: 1px solid var(--vault-kbd-border);
+                  background: var(--vault-kbd-bg);
                   color: var(--vault-on-bg);
                   line-height: 1.6;
                 ">{key}</span>
@@ -408,56 +408,135 @@
     aria-label="About Dev"
   >
     <div
-      class="glass rounded-2xl p-6 max-w-sm w-full flex flex-col gap-5 animate-fade-up"
+      class="rounded-2xl max-w-sm w-full flex flex-col animate-fade-up overflow-hidden"
+      style="
+        background: linear-gradient(160deg, #0e0e22 0%, #0a0a1a 60%, #0c0e20 100%);
+        border: 1px solid rgba(100,120,255,0.22);
+        box-shadow: 0 24px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04) inset, 0 8px 32px rgba(80,100,255,0.12);
+      "
       onclick={(e) => e.stopPropagation()}
     >
-      <div class="flex items-center gap-3">
-        <div class="w-11 h-11 rounded-xl flex items-center justify-center shrink-0" style="
-          background: linear-gradient(135deg, rgba(124,77,255,0.25), rgba(0,188,212,0.15));
-          border: 1px solid rgba(124,77,255,0.35);
-          font-size: 1.4rem; line-height: 1;
-        ">👨‍💻</div>
+      <!-- Accent top bar -->
+      <div style="height: 2px; background: linear-gradient(90deg, #7C4DFF, #00BCD4, #7C4DFF); opacity: 0.8"></div>
+
+      <!-- Header -->
+      <div class="flex items-center gap-4 px-6 pt-6 pb-5" style="border-bottom: 1px solid rgba(100,120,255,0.10)">
+        <div class="w-14 h-14 rounded-2xl shrink-0 relative overflow-hidden" style="
+          border: 1px solid rgba(124,77,255,0.40);
+          box-shadow: 0 4px 16px rgba(80,60,200,0.25);
+        ">
+          <img src={DEV_AVATAR} alt="D4vRAM369" style="width:100%; height:100%; object-fit:cover; object-position: center 20%; display:block;" />
+          <div style="position:absolute;inset:0;background:linear-gradient(135deg,rgba(124,77,255,0.15),transparent);pointer-events:none"></div>
+        </div>
         <div>
-          <p class="font-bold text-sm" style="font-family: var(--font-display); color: var(--vault-on-bg)">
+          <p class="font-bold" style="font-family: var(--font-display); color: #e8e8ff; font-size: 1rem; letter-spacing: -0.01em">
             D4vRAM369
           </p>
-          <p class="text-xs" style="color: var(--vault-on-bg-muted)">Desarrollador de ThreadsVault</p>
+          <p class="text-xs mt-0.5" style="color: rgba(160,175,255,0.65); font-family: var(--font-body)">
+            Desarrollador de ThreadsVault
+          </p>
         </div>
       </div>
 
-      <div class="flex flex-col gap-2.5">
+      <!-- Buttons -->
+      <div class="flex flex-col gap-2 px-5 py-4">
+        <!-- GitHub -->
         <button
           onclick={() => openExternal('https://github.com/D4vRAM369/ThreadsVault-desktop')}
-          class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 text-left"
-          style="background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12); color: var(--vault-on-bg)"
-          onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.11)'}
-          onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.07)'}
+          class="flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-semibold transition-all duration-200 text-left"
+          style="
+            background: rgba(30,38,100,0.55);
+            border: 1px solid rgba(80,110,255,0.28);
+            color: #c5d0ff;
+            backdrop-filter: blur(4px);
+          "
+          onmouseenter={(e) => {
+            const el = e.currentTarget as HTMLElement
+            el.style.background = 'rgba(40,55,140,0.65)'
+            el.style.borderColor = 'rgba(100,140,255,0.45)'
+            el.style.color = '#dde5ff'
+          }}
+          onmouseleave={(e) => {
+            const el = e.currentTarget as HTMLElement
+            el.style.background = 'rgba(30,38,100,0.55)'
+            el.style.borderColor = 'rgba(80,110,255,0.28)'
+            el.style.color = '#c5d0ff'
+          }}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="color: var(--vault-on-bg); shrink-0: 0">
-            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
+          <div class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style="
+            background: rgba(20,30,80,0.8);
+            border: 1px solid rgba(80,110,255,0.30);
+          ">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="color:#c5d0ff">
+              <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
+            </svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <span style="font-family: var(--font-display)">GitHub — ThreadsVault</span>
+          </div>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="opacity:0.4; shrink-0:0">
+            <polyline points="9 18 15 12 9 6"/>
           </svg>
-          <span>GitHub — ThreadsVault</span>
         </button>
 
+        <!-- BuyMeACoffee -->
         <button
           onclick={() => openExternal('https://buymeacoffee.com/d4vram369')}
-          class="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 text-left"
-          style="background: rgba(255,212,0,0.08); border: 1px solid rgba(255,212,0,0.2); color: #ffd700"
-          onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(255,212,0,0.14)'}
-          onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(255,212,0,0.08)'}
+          class="flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-semibold transition-all duration-200 text-left"
+          style="
+            background: rgba(60,44,8,0.50);
+            border: 1px solid rgba(200,155,20,0.28);
+            color: #f0c44a;
+          "
+          onmouseenter={(e) => {
+            const el = e.currentTarget as HTMLElement
+            el.style.background = 'rgba(80,60,10,0.65)'
+            el.style.borderColor = 'rgba(220,175,40,0.45)'
+          }}
+          onmouseleave={(e) => {
+            const el = e.currentTarget as HTMLElement
+            el.style.background = 'rgba(60,44,8,0.50)'
+            el.style.borderColor = 'rgba(200,155,20,0.28)'
+          }}
         >
-          <span style="font-size: 1.1rem; line-height: 1">☕</span>
-          <span>BuyMeACoffee</span>
+          <div class="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style="
+            background: rgba(40,28,4,0.8);
+            border: 1px solid rgba(200,155,20,0.30);
+            font-size: 0.95rem; line-height: 1;
+          ">☕</div>
+          <div class="flex-1 min-w-0">
+            <span style="font-family: var(--font-display)">BuyMeACoffee</span>
+          </div>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="opacity:0.4; shrink-0:0">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
         </button>
       </div>
 
-      <button
-        onclick={() => showAboutDev = false}
-        class="w-full py-2.5 rounded-xl text-sm font-semibold transition-all duration-200"
-        style="background: var(--vault-surface); color: var(--vault-on-bg-muted); border: 1px solid var(--vault-border)"
-        onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--vault-surface-hover)'}
-        onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--vault-surface)'}
-      >Cerrar</button>
+      <!-- Close -->
+      <div class="px-5 pb-5">
+        <button
+          onclick={() => showAboutDev = false}
+          class="w-full py-2.5 rounded-xl text-xs font-semibold transition-all duration-200"
+          style="
+            background: rgba(255,255,255,0.04);
+            color: rgba(160,175,220,0.55);
+            border: 1px solid rgba(100,120,255,0.12);
+            font-family: var(--font-display);
+            letter-spacing: 0.04em;
+          "
+          onmouseenter={(e) => {
+            const el = e.currentTarget as HTMLElement
+            el.style.background = 'rgba(255,255,255,0.07)'
+            el.style.color = 'rgba(180,195,240,0.80)'
+          }}
+          onmouseleave={(e) => {
+            const el = e.currentTarget as HTMLElement
+            el.style.background = 'rgba(255,255,255,0.04)'
+            el.style.color = 'rgba(160,175,220,0.55)'
+          }}
+        >CERRAR</button>
+      </div>
     </div>
   </div>
 {/if}

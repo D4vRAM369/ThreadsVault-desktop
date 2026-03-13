@@ -358,6 +358,7 @@
     backdrop-filter: blur(28px);
     -webkit-backdrop-filter: blur(28px);
     border-bottom: 1px solid var(--vault-header-border);
+    border-radius: 0 0 1.25rem 1.25rem;
     will-change: transform;
     transform: translateZ(0);
   ">
@@ -480,7 +481,7 @@
       pointer-events: {scrolledDown ? 'none' : 'auto'};
       overflow-anchor: none;
     ">
-      <div style="overflow: hidden;">
+      <div style="overflow: hidden; border-radius: 1rem;">
       <div class="rounded-2xl sm:rounded-3xl p-3.5 sm:p-4 mb-3" style="
         background: var(--vault-hashtag-panel-bg);
         border: 1px solid var(--vault-hashtag-panel-border);

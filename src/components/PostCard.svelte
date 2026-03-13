@@ -172,7 +172,7 @@
     -webkit-backdrop-filter: blur(20px);
     box-shadow: {selected
     ? '0 4px 24px rgba(124,77,255,0.18)'
-    : '0 4px 24px rgba(0,0,0,0.28)'};
+    : 'var(--vault-card-shadow)'};
     transition: transform 0.22s cubic-bezier(0.16,1,0.3,1),
                 box-shadow 0.22s ease,
                 border-color 0.22s ease,

@@ -148,12 +148,12 @@
 ">Categorías</p>
 
 <div class="rounded-2xl sm:rounded-3xl p-4 sm:p-5 pt-5 sm:pt-6 mb-4 sm:mb-5 relative overflow-hidden" style="
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.11);
-  box-shadow: 0 4px 24px rgba(0,0,0,0.28);
+  background: var(--vault-section-bg-alt);
+  border: 1px solid var(--vault-section-border);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.18);
 ">
   <div class="absolute top-0 left-4 right-4 h-px" style="
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+    background: linear-gradient(90deg, transparent, var(--vault-card-shine), transparent);
   "></div>
 
   <div class="grid grid-cols-[44px_1fr_40px] sm:grid-cols-[46px_1fr_42px] gap-2 mb-4">
@@ -187,7 +187,7 @@
     />
 
     <label class="relative w-10 sm:w-[42px] h-10 sm:h-11 rounded-xl overflow-hidden cursor-pointer shrink-0" style="
-      border: 2px solid rgba(255,255,255,0.15);
+      border: 2px solid var(--vault-thumb-border);
       background: {newColor};
     " title="Elegir color">
       <input
@@ -198,7 +198,7 @@
     </label>
   </div>
 
-  <div class="rounded-xl px-2 py-3 mb-4.5" style="background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.06)">
+  <div class="rounded-xl px-2 py-3 mb-4.5" style="background: var(--vault-section-bg); border: 1px solid var(--vault-divider)">
     <div class="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-1.5 min-h-[44px]">
       {#each PRESET_COLORS as color}
         <button
@@ -221,8 +221,8 @@
       <button
         class="w-8 h-8 rounded-lg text-base flex items-center justify-center transition-all duration-150 shrink-0"
         style="
-          background: {newEmoji === emoji ? 'rgba(124,77,255,0.2)' : 'rgba(255,255,255,0.04)'};
-          border: 1px solid {newEmoji === emoji ? 'rgba(124,77,255,0.4)' : 'rgba(255,255,255,0.08)'};
+          background: {newEmoji === emoji ? 'rgba(124,77,255,0.2)' : 'var(--vault-section-bg)'};
+          border: 1px solid {newEmoji === emoji ? 'rgba(124,77,255,0.4)' : 'var(--vault-section-border)'};
         "
         onclick={() => newEmoji = emoji}
       >{emoji}</button>
@@ -247,7 +247,7 @@
       background-position: 0% 0%;
       box-shadow: 0 5px 18px rgba(124,77,255,0.34);
       font-family: var(--font-display);
-      border: 1px solid rgba(255,255,255,0.12);
+      border: 1px solid var(--vault-section-border);
     "
     onmouseenter={(e) => {
       const el = e.currentTarget as HTMLElement
@@ -280,8 +280,8 @@
 
 {#if $categories.length > 0}
   <div class="rounded-2xl sm:rounded-3xl overflow-hidden" style="
-    border: 1px solid rgba(255,255,255,0.11);
-    box-shadow: 0 4px 24px rgba(0,0,0,0.28);
+    border: 1px solid var(--vault-section-border);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.18);
   ">
     {#each localOrder as cat, i (cat.id)}
       <div
@@ -290,13 +290,13 @@
         style="
           background: {draggingId === cat.id
             ? 'rgba(124,77,255,0.12)'
-            : 'rgba(255,255,255,0.05)'};
+            : 'var(--vault-section-bg)'};
           opacity: {draggingId === cat.id ? '0.5' : '1'};
           transition: background 0.15s, opacity 0.15s;
         "
       >
         {#if i > 0}
-          <div style="height:1px; background: rgba(255,255,255,0.07); margin: 0 16px"></div>
+          <div style="height:1px; background: var(--vault-divider); margin: 0 16px"></div>
         {/if}
 
         {#if editingCat?.id === cat.id}
@@ -306,21 +306,21 @@
               bind:value={editingCat.emoji}
               maxlength="2"
               class="w-10 h-8 rounded-lg text-center text-base outline-none"
-              style="background: rgba(255,255,255,0.08); border: 1px solid var(--vault-border)"
+              style="background: var(--vault-card-hover-bg); border: 1px solid var(--vault-border)"
             />
             <input
               type="text"
               bind:value={editingCat.name}
               class="flex-1 h-8 px-2 rounded-lg text-sm outline-none"
               style="
-                background: rgba(255,255,255,0.08);
+                background: var(--vault-card-hover-bg);
                 border: 1px solid rgba(124,77,255,0.4);
                 color: var(--vault-on-bg);
                 font-family: var(--font-body);
               "
               onkeydown={(e) => e.key === 'Enter' && handleSaveEdit()}
             />
-            <label class="w-8 h-8 rounded-lg cursor-pointer relative overflow-hidden shrink-0" style="background: {editingCat.color}; border: 2px solid rgba(255,255,255,0.2)">
+            <label class="w-8 h-8 rounded-lg cursor-pointer relative overflow-hidden shrink-0" style="background: {editingCat.color}; border: 2px solid var(--vault-thumb-border)">
               <input type="color" bind:value={editingCat.color} class="absolute inset-0 opacity-0 cursor-pointer w-full h-full" />
             </label>
             <button
@@ -331,14 +331,14 @@
             <button
               onclick={() => editingCat = null}
               class="px-2 py-1 rounded-lg text-xs"
-              style="background: rgba(255,255,255,0.08); color: var(--vault-on-bg-muted)"
+              style="background: var(--vault-card-hover-bg); color: var(--vault-on-bg-muted)"
             >✕</button>
           </div>
         {:else}
           <div class="flex items-center gap-3 px-4 sm:px-5 py-3 sm:py-3.5">
             <div
               class="cursor-grab active:cursor-grabbing shrink-0"
-              style="color: rgba(255,255,255,0.2); touch-action: none"
+              style="color: var(--vault-on-bg); opacity: 0.25; touch-action: none"
               onpointerdown={(e) => handlePointerDragStart(e, cat.id)}
               onpointermove={handlePointerDragMove}
               onpointerup={handlePointerDragEnd}
@@ -374,7 +374,7 @@
                 <button
                   onclick={() => confirmDeleteId = null}
                   class="px-2 py-0.5 rounded-lg text-xs"
-                  style="background: rgba(255,255,255,0.08); color: var(--vault-on-bg-muted)"
+                  style="background: var(--vault-card-hover-bg); color: var(--vault-on-bg-muted)"
                 >No</button>
               </div>
             {:else}
@@ -383,7 +383,7 @@
                   onclick={() => editingCat = { ...cat }}
                   class="w-7 h-7 rounded-lg flex items-center justify-center transition-all"
                   style="color: var(--vault-on-bg-muted)"
-                  onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.08)'}
+                  onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--vault-card-hover-bg)'}
                   onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'transparent'}
                   aria-label="Editar"
                 >

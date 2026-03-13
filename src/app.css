@@ -35,6 +35,7 @@
   --vault-section-bg-alt:       rgba(255, 255, 255, 0.06);
   --vault-section-border:       rgba(255, 255, 255, 0.11);
   --vault-divider:              rgba(255, 255, 255, 0.07);
+  --vault-success:              #4ade80;
 
   /* Teclado / kbd chips */
   --vault-kbd-bg:               rgba(255, 255, 255, 0.05);
@@ -58,6 +59,7 @@
   --vault-search-icon:          rgba(232, 232, 240, 0.30);
 
   /* PostCard */
+  --vault-card-shadow:          0 4px 24px rgba(0, 0, 0, 0.28);
   --vault-card-bg:              rgba(255, 255, 255, 0.06);
   --vault-card-border:          rgba(255, 255, 255, 0.11);
   --vault-card-shine:           rgba(255, 255, 255, 0.18);
@@ -137,6 +139,7 @@ html[data-theme="light"] {
   --vault-section-bg-alt:       rgba(255, 255, 255, 0.65);
   --vault-section-border:       rgba(0, 0, 0, 0.08);
   --vault-divider:              rgba(0, 0, 0, 0.07);
+  --vault-success:              #1a7a3a;
 
   /* ── Kbd ── */
   --vault-kbd-bg:               rgba(0, 0, 0, 0.06);
@@ -160,10 +163,11 @@ html[data-theme="light"] {
   --vault-search-icon:          rgba(26, 26, 46, 0.30);
 
   /* ── PostCard ── */
-  --vault-card-bg:              rgba(255, 255, 255, 0.65);
-  --vault-card-border:          rgba(0, 0, 0, 0.08);
-  --vault-card-shine:           rgba(255, 255, 255, 0.70);
-  --vault-card-hover-bg:        rgba(255, 255, 255, 0.88);
+  --vault-card-shadow:          0 2px 12px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.05);
+  --vault-card-bg:              rgba(255, 255, 255, 0.88);
+  --vault-card-border:          rgba(0, 0, 0, 0.07);
+  --vault-card-shine:           rgba(255, 255, 255, 0.90);
+  --vault-card-hover-bg:        rgba(255, 255, 255, 0.98);
   --vault-card-bottom:          rgba(0, 0, 0, 0.07);
   --vault-thumb-border:         rgba(0, 0, 0, 0.09);
 
@@ -197,17 +201,17 @@ html[data-theme="light"] {
   --vault-primary-btn-text:       rgba(80, 30, 200, 0.90);
 
   /* ── Hashtag panel ── */
-  --vault-hashtag-panel-bg:     rgba(124, 77, 255, 0.04);
-  --vault-hashtag-panel-border: rgba(124, 77, 255, 0.12);
-  --vault-hashtag-panel-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  --vault-hashtag-panel-bg:     rgba(255, 255, 255, 0.82);
+  --vault-hashtag-panel-border: rgba(124, 77, 255, 0.16);
+  --vault-hashtag-panel-shadow: 0 2px 16px rgba(0, 0, 0, 0.09), 0 1px 4px rgba(0, 0, 0, 0.05);
 
   /* ── Hashtag chip individual ── */
-  --vault-hashtag-chip-bg-from:        rgba(0, 160, 185, 0.08);
-  --vault-hashtag-chip-bg-to:          rgba(124, 77, 255, 0.05);
-  --vault-hashtag-chip-bg-from-active: rgba(0, 160, 185, 0.15);
-  --vault-hashtag-chip-bg-to-active:   rgba(124, 77, 255, 0.12);
-  --vault-hashtag-chip-border:         rgba(0, 150, 175, 0.30);
-  --vault-hashtag-chip-border-active:  rgba(0, 150, 175, 0.58);
+  --vault-hashtag-chip-bg-from:        rgba(0, 155, 180, 0.10);
+  --vault-hashtag-chip-bg-to:          rgba(124, 77, 255, 0.07);
+  --vault-hashtag-chip-bg-from-active: rgba(0, 155, 180, 0.20);
+  --vault-hashtag-chip-bg-to-active:   rgba(124, 77, 255, 0.15);
+  --vault-hashtag-chip-border:         rgba(0, 140, 165, 0.38);
+  --vault-hashtag-chip-border-active:  rgba(0, 140, 165, 0.65);
 }
 
 html[data-theme="light"] body {
