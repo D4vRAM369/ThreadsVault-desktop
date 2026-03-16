@@ -17,6 +17,11 @@
 [![Codex](https://img.shields.io/badge/Assistant-Codex-111827)](https://openai.com/)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/D4vRAM369/ThreadsVault-desktop)
 
+<p align="left">
+  <a href="./README_english-version.md">Read in english</a>
+</p>
+
+
 > Una bóveda local para tus posts de Threads. Sin nube. Sin rastreo. Sin cuenta necesaria.
 
 ThreadsVault Desktop es la versión de escritorio de [ThreadsVault para Android](https://github.com/D4vRAM369/ThreadsVault). Su funcionamiento es sencillo: pega la URL de un post de Threads, ésta se extrae, se guarda localmente, y es tuyo. Cierra la app y ábrela en el tiempo que quiera: el texto y las imágenes de tus posts guardados van a seguir ahí (el programa los guarda localmente en segundo plano tras cada guardado).
