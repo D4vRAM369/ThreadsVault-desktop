@@ -15,6 +15,7 @@
 ![PBL](https://img.shields.io/badge/método-PBL-blueviolet)
 [![Claude Code](https://img.shields.io/badge/Assistant-Claude%20Code-D97706)](https://www.anthropic.com/claude-code)
 [![Codex](https://img.shields.io/badge/Assistant-Codex-111827)](https://openai.com/)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/D4vRAM369/ThreadsVault-desktop)
 
 > Una bóveda local para tus posts de Threads. Sin nube. Sin rastreo. Sin cuenta necesaria.
 
