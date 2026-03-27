@@ -363,7 +363,20 @@ export function extractPostSectionFromJina(jinaMarkdown: string, postId: string)
   // Restaurar saltos de línea que Jina colapsa (bullets en una sola línea)
   // Cubre los marcadores más comunes en posts de Threads: → • ·
   const BULLET = '[→•·]'
-  const bodyRestored = body
+  /*
+    PBL: Jina colapsa ítems con guión doble (--) en una sola línea.
+    En Threads, "-- item" es un estilo de lista muy habitual. El editor guarda
+    cada ítem en una línea separada, pero Jina los une con espacios:
+      "-- Claude Mythos is a step change -- New Capybara tier sits..."
+    Fix: si una línea EMPIEZA con "-- " y contiene más " -- " internos,
+    son ítems colapsados → restaurarlos como líneas separadas.
+    Solo afecta líneas que ya empiezan con "-- " para evitar falsos
+    positivos con em-dashes en texto narrativo normal.
+  */
+  const bodyWithRestoredDashes = body.replace(/^-- .+$/gm, (line) =>
+    line.includes(' -- ') ? line.replace(/ -- /g, '\n-- ') : line
+  )
+  const bodyRestored = bodyWithRestoredDashes
     .replace(new RegExp(`([.!?])\\s*(${BULLET}\\s)`, 'g'), '$1\n\n$2')
     .replace(new RegExp(`(${BULLET}[^\\n]+?[.!?])\\s*(${BULLET}\\s)`, 'g'), '$1\n$2')
     .replace(new RegExp(`(${BULLET}[^\\n]+?[.!?])\\s*(\\d)`, 'g'), '$1\n\n$2')
