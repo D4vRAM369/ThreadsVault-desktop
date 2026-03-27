@@ -93,6 +93,14 @@
   --vault-note-placeholder:       rgba(200, 180, 255, 0.40);
   --vault-note-placeholder-hover: rgba(200, 180, 255, 0.65);
 
+  /* Nota — overlay de edición inline */
+  --vault-note-overlay-bg:        rgba(8, 8, 16, 0.88);
+  --vault-ghost-btn-bg:           rgba(255, 255, 255, 0.06);
+  --vault-ghost-btn-border:       rgba(255, 255, 255, 0.12);
+  --vault-danger-color:           #fca5a5;
+  --vault-danger-bg:              rgba(239, 68, 68, 0.10);
+  --vault-danger-border:          rgba(239, 68, 68, 0.25);
+
   /* Botones con acento primary (lavanda) */
   --vault-primary-btn-text:       #e4d6ff;
 
@@ -196,6 +204,14 @@ html[data-theme="light"] {
   /* ── Nota placeholder ── */
   --vault-note-placeholder:       rgba(90, 40, 200, 0.45);
   --vault-note-placeholder-hover: rgba(90, 40, 200, 0.70);
+
+  /* ── Nota — overlay de edición inline ── */
+  --vault-note-overlay-bg:        rgba(238, 238, 246, 0.94);
+  --vault-ghost-btn-bg:           rgba(0, 0, 0, 0.06);
+  --vault-ghost-btn-border:       rgba(0, 0, 0, 0.10);
+  --vault-danger-color:           #c0392b;
+  --vault-danger-bg:              rgba(192, 57, 43, 0.08);
+  --vault-danger-border:          rgba(192, 57, 43, 0.30);
 
   /* ── Botones primary (lavanda) ── */
   --vault-primary-btn-text:       rgba(80, 30, 200, 0.90);

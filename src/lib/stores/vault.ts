@@ -295,12 +295,19 @@ export async function mergePostsIntoThread(postIds: string[]): Promise<void> {
   if (targets.length < 2) return
 
   const [principal, ...rest] = targets
-  const newThreadPosts = rest.map((p) => ({
-    id: p.id,
-    url: p.canonicalUrl ?? p.url,
-    text: p.extractedText,
-    media: p.media,
-  }))
+  // PBL: usar flatMap para preservar los threadPosts propios de cada post a fusionar.
+  // Si un rest post tenía 3-4 sub-posts, map() solo cogía el post principal ignorando
+  // sus sub-posts. flatMap() incluye primero el post como ThreadPost y luego
+  // todos sus threadPosts ya existentes.
+  const newThreadPosts = rest.flatMap((p) => [
+    {
+      id: p.id,
+      url: p.canonicalUrl ?? p.url,
+      text: p.extractedText,
+      media: p.media,
+    },
+    ...(p.threadPosts ?? []),
+  ])
 
   const merged: Post = {
     ...principal,

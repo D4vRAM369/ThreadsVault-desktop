@@ -302,7 +302,14 @@
     refreshContentError = ''
     try {
       const targetUrl = currentThreadUrl || post.canonicalUrl || post.url
-      const extracted = await extractPostData(targetUrl)
+      const extracted = await extractPostData(targetUrl, {
+        // Al refrescar no hace falta re-detectar sub-posts: la estructura del hilo
+        // ya está guardada. skipThreadDetection ahorra ~8s de fetches innecesarios.
+        skipThreadDetection: true,
+        // Para sub-posts, oEmbed/React state es más preciso que la sección de Jina
+        // (que puede incluir texto del post raíz si el anchor detection falla).
+        preferCleanText: currentThreadIndex > 0,
+      })
       const updated: Post =
         currentThreadIndex === 0
           ? {
@@ -660,7 +667,10 @@
         ? currentThreadUrl
         : (post.canonicalUrl ?? post.url)
 
-      const extracted = await extractPostData(targetUrl)
+      const extracted = await extractPostData(targetUrl, {
+        skipThreadDetection: true,
+        preferCleanText: currentThreadIndex > 0,
+      })
 
       // PBL: detección de extracción hueca — si los 4 fetches fallaron (Jina caído,
       // CDN bloqueada, timeout) extractPostData devuelve un objeto vacío.
@@ -676,19 +686,18 @@
       let merged: Post
 
       if (currentThreadIndex > 0) {
-        // Sub-post: actualizar media + texto del sub-post específico
+        // Sub-post: actualizar media + texto del sub-post específico.
+        // PBL: no usar heurística "texto más largo = mejor" — el texto existente puede
+        // estar contaminado con texto del post raíz (1/2 + 2/2 concatenados → largo),
+        // y el nuevo texto (oEmbed limpio del sub-post) sería más corto pero correcto.
         merged = {
           ...post,
           threadPosts: (post.threadPosts ?? []).map((threadPost, index) => {
             if (index !== currentThreadIndex - 1) return threadPost
-            const bestSubText =
-              extracted.text && extracted.text.length > (threadPost.text?.length ?? 0)
-                ? extracted.text
-                : (threadPost.text ?? extracted.text)
             return {
               ...threadPost,
               url: cleanThreadsUrl(extracted.canonicalUrl || threadPost.url),
-              text: bestSubText,
+              text: extracted.text !== undefined ? extracted.text : threadPost.text,
               media: extracted.media?.length ? extracted.media : threadPost.media,
             }
           }),

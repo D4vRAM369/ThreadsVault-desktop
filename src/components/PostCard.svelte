@@ -666,7 +666,7 @@
     <div
       class="absolute inset-0 rounded-2xl flex flex-col justify-end"
       style="
-        background: rgba(8,8,16,0.88);
+        background: var(--vault-note-overlay-bg);
         backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
         z-index: 10;
@@ -762,8 +762,8 @@
           }}
           class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150"
           style="
-            background: rgba(255,255,255,0.06);
-            border: 1px solid rgba(255,255,255,0.12);
+            background: var(--vault-ghost-btn-bg);
+            border: 1px solid var(--vault-ghost-btn-border);
             color: var(--vault-on-bg-muted);
             font-family: var(--font-display);
           ">Cancelar</button
@@ -777,9 +777,9 @@
             }}
             class="px-3 py-1.5 rounded-lg text-xs font-semibold ml-auto transition-all duration-150"
             style="
-              background: rgba(239,68,68,0.10);
-              border: 1px solid rgba(239,68,68,0.25);
-              color: #fca5a5;
+              background: var(--vault-danger-bg);
+              border: 1px solid var(--vault-danger-border);
+              color: var(--vault-danger-color);
               font-family: var(--font-display);
             ">Eliminar nota</button
           >

@@ -335,7 +335,26 @@ export function extractPostSectionFromJina(jinaMarkdown: string, postId: string)
   // si aparece más adelante (ej. en enlaces de imágenes).
   const nextPostRe = new RegExp(`\\/post\\/(?!${postId}\\b)[A-Za-z0-9_-]+\\b`, 'i')
   const sectionEndRe = new RegExp(
-    `${nextPostRe.source}|\\n·\\s*(?:Author|Autor)\\b|\\n(?:###\\s+)?(?:Destacadas|Ver actividad|Replies|More replies|Activity|Respuesta de|Replies from|Replying to)\\b|\\nRelated threads\\b|\\nRelated posts\\b|\\nLog in or sign up\\b|\\nContinue with Instagram\\b|\\nLog in to see more replies\\b`,
+    // Siguiente post del hilo (ancla de fin más fiable)
+    `${nextPostRe.source}` +
+    // Bullets de UI: ·Author, ·Follow, etc.
+    `|\\n·\\s*(?:Author|Autor)\\b` +
+    // Encabezados de sección de replies/actividad
+    `|\\n(?:#{1,3}\\s+)?(?:Destacadas|Ver actividad|Replies|More replies|Activity|Respuesta de|Replies from|Replying to|Ver respuestas|Show replies|See replies|All replies|Todas las respuestas)\\b` +
+    // Sección "Related"
+    `|\\nRelated threads\\b|\\nRelated posts\\b` +
+    // Prompts de login
+    `|\\nLog in or sign up\\b|\\nContinue with Instagram\\b|\\nLog in to see more replies\\b` +
+    // Línea de métricas de engagement antes de la sección de replies:
+    // Ej: "1.2K likes · 45 replies" o "1,234 likes · 45 respuestas"
+    `|\\n[\\d.,]+ ?[KkMm]? (?:likes?|me gusta|reacciones)[\\s·•,]+[\\d.,]+ ?[KkMm]? (?:repl|respuesta)` +
+    // Ver más respuestas / Show more replies (botones de UI)
+    `|\\nVer (?:más |todas las )?respuestas\\b|\\nShow (?:all |more )?replies\\b|\\nSee (?:all |more )?replies\\b|\\nView (?:all |more )?replies\\b` +
+    // "N replies" como línea sola (métricas antes de la sección)
+    `|\\n[\\d.,]+[KkMm]?\\s+(?:repl(?:y|ies)|respuestas?)\\s*(?:\\n|$)` +
+    // Contador de likes solitario: "4.5K" o "1.2M" solos en su línea.
+    // Jina renderiza el like-count así justo antes de la sección de replies.
+    `|\\n[\\d.,]+[KkMm]\\s*(?:\\n|$)`,
     'i'
   )
   const sectionEndMatch = sectionEndRe.exec(bodyFull)
@@ -367,8 +386,21 @@ export function extractPostSectionFromJina(jinaMarkdown: string, postId: string)
       if (isGenericThreadsText(candidate)) continue
       if (isThreadPositionNoise(candidate)) continue
       if (/^\d+$/.test(candidate)) continue
-      if (/^https?:\/\//i.test(candidate)) continue
+      // Contador de likes/views solitario: "4.5K", "1.2M", "983K" — ruido de engagement
+      if (/^[\d.,]+[KkMm]$/.test(candidate)) continue
       if (/^title:|^url source:|^markdown content:/i.test(candidate)) continue
+
+      // URLs absolutas: en vez de filtrar completamente, intentar limpiar el protocolo.
+      // Si es una URL externa (no threads/instagram/CDN), la incluimos sin el https://.
+      // Ej: "https://awesome-copilot.github.com/" → "awesome-copilot.github.com"
+      if (/^https?:\/\//i.test(candidate)) {
+        const stripped = candidate.replace(/^https?:\/\//i, '').replace(/\/+$/, '').split('?')[0].split('#')[0]
+        const isNoise = /(?:threads\.(?:net|com)|instagram\.com|cdninstagram\.com|l\.threads\.com|l\.instagram\.com|t\.co\/)/i.test(stripped)
+        if (!isNoise && stripped.length >= 5 && stripped.includes('.') && !stripped.includes(' ')) {
+          validLines.push(stripped)
+        }
+        continue
+      }
 
       if (/^\[/.test(candidate)) {
         const fullMatch = /^\[([^\]]+)\]\((https?:\/\/[^)]+)\)/.exec(candidate)
@@ -454,6 +486,29 @@ function extractJsonValue(source: string, key: string): string[] {
   }
 
   return results
+}
+
+/*
+  Extrae URLs de imágenes embebidas en el JSON de React que Threads inyecta en el HTML.
+  Independiente de Jina — útil cuando Jina falla o es rate-limited.
+  Campos buscados: display_url (imagen principal), thumbnail_src (miniatura), og:image fallback.
+*/
+function extractQuotedImageUrls(source: string): string[] {
+  const quoted = [
+    ...extractJsonValue(source, 'display_url'),
+    ...extractJsonValue(source, 'thumbnail_src'),
+    ...extractJsonValue(source, 'image_url'),
+  ]
+
+  const unique = new Set<string>()
+  return quoted.filter((url) => {
+    if (!ABSOLUTE_URL_RE.test(url)) return false
+    if (isLikelyAvatarUrl(url)) return false
+    if (inferMediaType(url) !== 'image') return false
+    if (unique.has(url)) return false
+    unique.add(url)
+    return true
+  })
 }
 
 function extractQuotedPlayableVideoUrls(source: string): string[] {
@@ -551,7 +606,14 @@ function isGenericThreadsText(value?: string): boolean {
   // una tarjeta con vídeo y el player falla al cargar. No es parte del texto del post.
   if (/^sorry,\s+we'?re having trouble/i.test(v)) return true
   // Strings de login/auth o navegación de hilos
-  return /log in to see more replies|sign in (?:with|to) (?:instagram|facebook|threads)|join threads to share ideas|threads\s*•\s*log in|log in or sign up|log in with (?:your\s+)?(?:instagram|facebook|username)|sign up for threads|continue with (?:instagram|facebook)|create (?:a )?new account|forgot (?:your )?password|don'?t have an account|join the conversation|see what people are talking about|what'?s on your mind/i.test(v)
+  if (/log in to see more replies|sign in (?:with|to) (?:instagram|facebook|threads)|join threads to share ideas|threads\s*•\s*log in|log in or sign up|log in with (?:your\s+)?(?:instagram|facebook|username)|sign up for threads|continue with (?:instagram|facebook)|create (?:a )?new account|forgot (?:your )?password|don'?t have an account|join the conversation|see what people are talking about|what'?s on your mind/i.test(v)) return true
+  // Botones / labels de la sección de replies de Threads
+  if (/^(?:ver|show|see|view|load|load more)\s+(?:más\s+)?(?:respuestas?|replies|all replies|more replies)$/i.test(v)) return true
+  // Métricas de engagement que aparecen antes de la sección de replies
+  if (/^[\d.,]+\s*[KkMm]?\s+(?:likes?|me gusta|reacciones)\s*[·•,]\s*[\d.,]+\s*[KkMm]?\s+(?:repl|respuesta)/i.test(v)) return true
+  // Etiquetas de hilo como "Thread 1/4" o "Post 2 de 5"
+  if (/^(?:thread|hilo|post)\s+\d+\s*(?:of|de|\/)\s*\d+$/i.test(v)) return true
+  return false
 }
 
 /*
@@ -752,15 +814,27 @@ function extractTextFromOembedHtml(html: string): string | undefined {
     }
   }
 
-  // DEBUG: ayuda a diagnosticar si oEmbed no devuelve html estructurado
-  console.warn('[TV:oEmbed]', {
-    htmlLen: html.length,
-    rawSample: html.substring(0, 300),
-    blockquoteFound: !!blockquoteMatch,
-    ltrP: ltrParagraphs.length,
-    genericP: paragraphs.length,
-    sample: paragraphs[0]?.substring(0, 120),
-  })
+  /*
+    PBL: Link attachments en oEmbed — cuando el post enlaza a una URL externa
+    (tarjeta de enlace, "link post"), Threads la incluye en el blockquote como
+    un <a href="l.threads.com/?u=URL_REAL"> FUERA de los <p> de texto.
+    La extracción de párrafos la ignora porque solo busca dentro de <p>.
+    Solución: buscar también <a> con tracking URLs en el searchArea completo,
+    decodificarlos y añadirlos como párrafo final si no están ya en el texto.
+  */
+  const extractedParaText = paragraphs.join('\n\n')
+  const linkRe = /<a[^>]+href=["']https?:\/\/l\.(?:threads|instagram)\.com\/[^"']*["'][^>]*>([^<]*)<\/a>/gi
+  for (const m of searchArea.matchAll(linkRe)) {
+    // Extraer la URL real del atributo href
+    const hrefMatch = /href=["'](https?:\/\/l\.(?:threads|instagram)\.com\/[^"']+)["']/i.exec(m[0])
+    if (!hrefMatch) continue
+    const decoded = resolveThreadsTrackingUrl(hrefMatch[1])
+    if (!decoded) continue
+    // Añadir solo si la URL no aparece ya en el texto extraído
+    if (!extractedParaText.includes(decoded)) {
+      paragraphs.push(decoded)
+    }
+  }
 
   if (paragraphs.length === 0) return undefined
   const text = paragraphs.join('\n\n').trim()
@@ -785,23 +859,125 @@ function extractTextFromOembedHtml(html: string): string | undefined {
 function extractTextFromThreadsJson(html: string): string | undefined {
   if (!html) return undefined
   // Regex para capturar valores de "text":"..." en JSON embebido en el HTML
-  // (?:[^"\\]|\\.)* = cualquier char excepto " y \ sin escapar, o secuencias escapadas
   const re = /"text"\s*:\s*"((?:[^"\\]|\\.)*)"/g
   let m: RegExpExecArray | null
+  let bestCandidate: string | undefined
+  let bestCandidateLen = 0
+
   while ((m = re.exec(html)) !== null) {
     const decoded = m[1]
-      .replace(/\\n/g, '\n')    // \\n en JSON → \n real
-      .replace(/\\r/g, '')      // quitar \r
-      .replace(/\\\\/g, '\\')  // \\\\ en JSON → \ real
-      .replace(/\\"/g, '"')     // \\\" en JSON → " real
+      .replace(/\\n/g, '\n')
+      .replace(/\\r/g, '')
+      .replace(/\\\\/g, '\\')
+      .replace(/\\"/g, '"')
       .replace(/\\u([0-9a-fA-F]{4})/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
       .trim()
-    // Solo aceptar si tiene saltos de línea REALES y longitud suficiente
-    if (decoded.length >= 20 && decoded.includes('\n') && !isGenericThreadsText(decoded)) {
-      return decoded
+    if (decoded.length < 20) continue
+    if (isGenericThreadsText(decoded)) continue
+    // Preferir textos con saltos de línea (posts multilinea) o los más largos
+    const hasNewlines = decoded.includes('\n')
+    if (hasNewlines && decoded.length > bestCandidateLen) {
+      bestCandidate = decoded
+      bestCandidateLen = decoded.length
+    } else if (!bestCandidate && decoded.length >= 50) {
+      // Texto largo sin \n como candidato de respaldo (posts de un solo párrafo)
+      bestCandidate = decoded
+      bestCandidateLen = decoded.length
     }
   }
-  return undefined
+  return bestCandidate
+}
+
+/** Decodifica un string escapado de JSON a texto plano con saltos de línea reales. */
+function decodeJsonString(raw: string): string {
+  return raw
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '')
+    .replace(/\\\\/g, '\\')
+    .replace(/\\"/g, '"')
+    .replace(/\\u([0-9a-fA-F]{4})/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+    .trim()
+}
+
+/*
+  PBL: Extrae texto del post desde el estado React que Threads embebe en el HTML.
+  Independiente de Jina — funciona en Tauri (fetch directo sin CORS) con el HTML
+  crudo de la página.
+
+  Threads usa campos específicos en su estado Relay/GraphQL para el texto del post:
+    - "text_post_app_text":{"text":"CONTENT"}   → campo primario de post de texto
+    - "caption":{"text":"CONTENT"}              → posts con media (imagen/vídeo)
+
+  Estos campos son mucho más fiables que buscar cualquier campo "text" (que tiene
+  miles de coincidencias con strings de UI). Recogemos todos los candidatos y
+  devolvemos el más largo que pase los filtros, ya que el texto del post es
+  generalmente el más largo de todos.
+
+  Ventaja vs extractTextFromThreadsJson: no requiere \n — funciona para posts
+  de un párrafo. Devuelve el candidato MÁS LARGO (no el primero), lo que lo hace
+  más robusto para hilos donde el mismo estado contiene varios posts.
+*/
+function extractTextFromThreadsReactState(html: string): string | undefined {
+  if (!html) return undefined
+
+  const candidates: string[] = []
+
+  // Campos específicos de Threads en su estado Relay/GraphQL
+  const threadFields = [
+    // Campo primario de posts de texto puro
+    /"text_post_app_text"\s*:\s*\{\s*"text"\s*:\s*"((?:[^"\\]|\\.)*)"/gi,
+    // Campo de caption para posts con media
+    /"caption"\s*:\s*\{\s*"text"\s*:\s*"((?:[^"\\]|\\.)*)"/gi,
+  ]
+
+  for (const re of threadFields) {
+    let m: RegExpExecArray | null
+    while ((m = re.exec(html)) !== null) {
+      const decoded = decodeJsonString(m[1])
+      if (decoded.length >= 3 && !isGenericThreadsText(decoded)) {
+        candidates.push(decoded)
+      }
+    }
+  }
+
+  if (candidates.length === 0) return undefined
+  // Devolver el más largo: el texto del post principal tiende a ser el más largo
+  return candidates.reduce((a, b) => a.length >= b.length ? a : b)
+}
+
+/*
+  PBL: Construye un Map<postId, text> extrayendo todos los textos del estado React
+  de Threads. Permite resolver el texto de sub-posts sin llamadas extra a Jina.
+
+  Busca la secuencia ID + text_post_app_text dentro del mismo nodo JSON del estado
+  Relay. La ventana de búsqueda es 2000 chars para no solapar con nodos vecinos.
+*/
+function extractPostTextMapFromReactState(html: string): Map<string, string> {
+  const result = new Map<string, string>()
+  if (!html) return result
+
+  // Buscamos pares "pk":"POST_ID" o "id":"POST_ID" cerca de "text_post_app_text"
+  // dentro de la misma sección del JSON (ventana de 2000 chars)
+  const idRe = /"(?:pk|code)"\s*:\s*"([A-Za-z0-9_-]{6,})"/gi
+  let idMatch: RegExpExecArray | null
+
+  while ((idMatch = idRe.exec(html)) !== null) {
+    const postId = idMatch[1]
+    // Buscar text_post_app_text dentro de una ventana adelante y atrás
+    const windowStart = Math.max(0, idMatch.index - 200)
+    const windowEnd = Math.min(html.length, idMatch.index + 2000)
+    const chunk = html.slice(windowStart, windowEnd)
+
+    const textMatch = /"text_post_app_text"\s*:\s*\{\s*"text"\s*:\s*"((?:[^"\\]|\\.)*)"/.exec(chunk)
+    if (textMatch) {
+      const text = decodeJsonString(textMatch[1])
+      if (text.length >= 3 && !isGenericThreadsText(text) && !result.has(postId)) {
+        result.set(postId, text)
+      }
+    }
+  }
+
+  return result
 }
 
 /*
@@ -903,10 +1079,18 @@ function extractFallbackTextFromSource(source: string, postId: string | null): s
         continue
       }
       if (/^\d+$/.test(candidate)) continue
-      if (/^https?:\/\//i.test(candidate)) continue
       if (/^title:|^url source:|^markdown content:/i.test(candidate)) continue
       if (isThreadPositionNoise(candidate)) continue
       if (isGenericThreadsText(candidate)) continue
+
+      if (/^https?:\/\//i.test(candidate)) {
+        const stripped = candidate.replace(/^https?:\/\//i, '').replace(/\/+$/, '').split('?')[0].split('#')[0]
+        const isNoise = /(?:threads\.(?:net|com)|instagram\.com|cdninstagram\.com|l\.threads\.com|l\.instagram\.com|t\.co\/)/i.test(stripped)
+        if (!isNoise && stripped.length >= 5 && stripped.includes('.') && !stripped.includes(' ')) {
+          validLines.push(stripped)
+        }
+        continue
+      }
 
       validLines.push(candidate)
     }
@@ -953,11 +1137,11 @@ function detectThreadPostIds(html: string, author: string, mainPostId: string): 
   sub-post (entre su ancla y el siguiente /post/ID o "Related threads"),
   evitando contaminación de texto/media de otros posts del hilo.
 
-  Pipeline de fallback:
+  Pipeline de fallback para texto:
   1. Jina del sub-post propio  → extractPostSectionFromJina (sección acotada)
   2. Jina del post raíz        → extractPostSectionFromJina (mismo algoritmo)
-  3. og:video explícito        → fiable aunque sea del raíz (para video-link)
-  4. og:image / twitter:image  → solo si Jina no encontró imágenes
+  3. oEmbed HTML del sub-post  → solo el texto de este post, sin contexto de hilo
+  4. og:description del HTML   → ÚLTIMO recurso; puede incluir texto del hilo completo
 */
 async function extractSubPost(
   subPostId: string,
@@ -966,9 +1150,13 @@ async function extractSubPost(
 ): Promise<ThreadPost | null> {
   const handle = authorHandle.replace(/^@/, '')
   const url = `https://www.threads.net/@${handle}/post/${subPostId}`
-  const [html, jinaMarkdown] = await Promise.all([
+  const [html, jinaMarkdown, subOembed] = await Promise.all([
     tryFetchText(url),
     tryFetchText(`https://r.jina.ai/${url}`),
+    // PBL: oEmbed como fallback limpio — solo devuelve el texto de este sub-post,
+    // sin el contexto del hilo. Evita que og:description (que a veces incluye
+    // el texto del post raíz + el del sub-post concatenados) contamine el texto.
+    tryFetchJson(`https://www.threads.net/oembed?url=${encodeURIComponent(url)}`),
   ])
   if (!html && !jinaMarkdown && !rootThreadJina) return null
   const trustedHtml = isTrustedHtmlForPost(html, subPostId) ? html : null
@@ -984,17 +1172,29 @@ async function extractSubPost(
     ? extractPostSectionFromJina(rootThreadJina, subPostId)
     : null
 
-  // Fallback final: og:description del HTML directo (Tauri lo obtiene sin CORS).
-  // Threads genera OG tags específicos por sub-post para SEO → este valor es
-  // el texto real del sub-post, no el del post raíz.
   const jinaText = ownSection?.text ?? rootSection?.text
-  const metaText = !jinaText && trustedHtml
+
+  // Fallback React state: busca el sub-post por ID en el JSON de estado de Threads
+  // embebido en el HTML directo. Completamente independiente de Jina.
+  const reactStateMap = !jinaText && trustedHtml
+    ? extractPostTextMapFromReactState(trustedHtml)
+    : null
+  const reactStateText = reactStateMap?.get(subPostId)
+
+  // Fallback oEmbed: texto estructurado del sub-post específico (sin hilo completo)
+  const oembedText = !jinaText && !reactStateText && subOembed?.html
+    ? extractTextFromOembedHtml(subOembed.html)
+    : undefined
+
+  // Último recurso: og:description — puede contener texto del hilo completo (1/2 + 2/2),
+  // solo se usa si todos los anteriores fallaron.
+  const metaText = !jinaText && !reactStateText && !oembedText && trustedHtml
     ? firstDefined(
       extractMetaTag(trustedHtml, 'og:description'),
       extractMetaTag(trustedHtml, 'twitter:description'),
     )
     : undefined
-  const text = jinaText ?? (metaText && !isGenericThreadsText(metaText) ? metaText : undefined)
+  const text = jinaText ?? reactStateText ?? oembedText ?? (metaText && !isGenericThreadsText(metaText) ? metaText : undefined)
 
   // Construir media
   const seenUrls = new Set<string>()
@@ -1045,6 +1245,13 @@ interface ExtractOptions {
    * así que no hace falta inferir más — y ahorramos ~8s de fetches extra.
    */
   skipThreadDetection?: boolean
+  /**
+   * Prioriza oEmbed/React state sobre la sección acotada de Jina para el texto final.
+   * Útil al refrescar un sub-post específico: oEmbed devuelve solo el texto de ese post,
+   * mientras que la sección de Jina puede incluir texto del hilo completo si el anchor
+   * detection falla. Con esta opción el texto es más limpio y preciso.
+   */
+  preferCleanText?: boolean
 }
 
 export async function extractPostData(rawUrl: string, options?: ExtractOptions): Promise<ExtractedPostData> {
@@ -1130,6 +1337,11 @@ export async function extractPostData(rawUrl: string, options?: ExtractOptions):
   // PBL: jinaHtml (markdown limpio del post) en vez de source (HTML completo con otros posts)
   // postId ancla la extracción al bloque correcto — evita coger media de otros posts del feed
   addMedia(toMediaEntries(extractPostSectionMedia(jinaHtml ?? '', postId)))
+  // Fallback independiente de Jina: imágenes embebidas en el JSON de React del HTML directo.
+  // Activo solo cuando Jina no encontró imágenes (CDN expirado, rate-limit, login page, etc.)
+  if (!media.some((m) => m.type === 'image') && trustedDirectHtml) {
+    addMedia(forceMediaEntries(extractQuotedImageUrls(trustedDirectHtml), 'image'))
+  }
 
   /*
     PBL: Detección de vídeo por thumbnail CDN.
@@ -1164,14 +1376,16 @@ export async function extractPostData(rawUrl: string, options?: ExtractOptions):
   const oembedStructuredText = oembed?.html ? extractTextFromOembedHtml(oembed.html) : undefined
 
   /*
-    PBL: Extracción de texto estructurado desde el JSON embebido en el HTML directo.
-    Cuando Jina falla Y el HTML del oEmbed no tiene <br> (texto plano en el embed),
-    la última esperanza de conservar los saltos de línea es el JSON de estado React
-    que Threads incluye en la página HTML. El campo "text" en esos JSON usa \\n
-    para los saltos originales del post (escritos por el usuario con Enter).
-    Solo usable en Tauri (fetch directo sin CORS) — en browser devuelve null.
-    Prioridad: jinaText → oembedStructuredText → directJsonText → og:description
+    PBL: Extracción desde el estado React que Threads embebe en el HTML directo.
+    Solo usable en Tauri (fetch directo sin CORS). Busca campos específicos de
+    Threads en el estado Relay: "text_post_app_text" y "caption".
+    Completamente independiente de Jina — fuente nativa y sin intermediarios.
+    Prioridad: oEmbed → reactState → jinaText → directJson (genérico) → og:description
   */
+  const reactStateText = trustedDirectHtml
+    ? extractTextFromThreadsReactState(trustedDirectHtml)
+    : undefined
+
   const directJsonText = trustedDirectHtml
     ? extractTextFromThreadsJson(trustedDirectHtml)
     : undefined
@@ -1179,31 +1393,24 @@ export async function extractPostData(rawUrl: string, options?: ExtractOptions):
   const metadataText = firstDefined(ogDescription, twitterDesc, oembed?.title)
   const fallbackText = extractFallbackTextFromSource(source, postId)
 
-  const extractedText = jinaText
-    ?? oembedStructuredText
-    ?? directJsonText
-    ?? (isGenericThreadsText(metadataText)
-      ? fallbackText
-      : firstDefined(metadataText, fallbackText))
+  /*
+    Pipeline de texto (prioridad de más limpio a más ruidoso):
+    1. oEmbed: solo el post, sin replies/comments (fuente oficial)
+    2. React state: campos específicos de Threads en el HTML directo (sin Jina)
+    3. Jina section: markdown acotado al post (puede incluir noise si boundary falla)
+    4. directJson: búsqueda genérica de "text" en JSON (menos preciso)
+    5. og:description: puede concatenar hilo completo (último recurso)
+  */
+  const extractedText = (oembedStructuredText && oembedStructuredText.length >= 20)
+    ? oembedStructuredText
+    : reactStateText
+      ?? jinaText
+      ?? oembedStructuredText
+      ?? directJsonText
+      ?? (isGenericThreadsText(metadataText)
+        ? fallbackText
+        : firstDefined(metadataText, fallbackText))
 
-  // DEBUG temporal: muestra qué fuente ganó para la extracción de texto
-  const directHtmlCanonical = directHtml ? extractCanonical(directHtml) : null
-  console.warn('[TV:extract]', {
-    jinaOk: !!jinaText,
-    oembedOk: !!oembedStructuredText,
-    directJsonOk: !!directJsonText,
-    metaOk: !!metadataText,
-    source: jinaText ? 'jina' : oembedStructuredText ? 'oembed' : directJsonText ? 'json' : metadataText ? 'meta' : 'none',
-    // ── diagnóstico de confianza del HTML directo ──
-    directHtmlOk: !!directHtml,
-    trustedHtmlOk: !!trustedDirectHtml,
-    expectedPostId: postId,
-    directHtmlCanonical,
-    directHtmlLen: directHtml?.length ?? 0,
-    jinaIsLogin: rawJinaHtml ? isJinaLoginPage(rawJinaHtml) : 'null',
-    extractedTextSample: extractedText?.substring(0, 100),
-    hasNewlines: extractedText?.includes('\n') ?? false,
-  })
   /*
     PBL: Bug fix — Threads pone <link rel="canonical"> al POST RAÍZ del hilo
     para todos los sub-posts (estrategia SEO). Sin este check, guardábamos la URL
@@ -1300,21 +1507,19 @@ export async function extractPostData(rawUrl: string, options?: ExtractOptions):
     ? specificPost.text : undefined
   const safeExtractedText = isInvalidExtractedText(extractedText) ? undefined : extractedText
 
-  // Fallback: og:description del HTML directo cuando Jina no extrajo texto.
-  // Necesario cuando Jina redirige a la URL raíz del hilo y source = jinaHtml (sin meta tags).
-  // directHtml sí tiene <meta og:description> con el texto específico del post.
-  const jinaFinalText = cleanMarkdownLinks(firstDefined(safeSpecificText, safeExtractedText))
+  /*
+    PBL: prioridad de texto final.
+    Modo normal: safeSpecificText (sección Jina acotada) → safeExtractedText (oEmbed/React)
+    Modo preferCleanText: safeExtractedText (oEmbed/React) → safeSpecificText (Jina)
 
-  console.warn('[TV:final]', {
-    safeSpecificOk: !!safeSpecificText,
-    safeExtractedOk: !!safeExtractedText,
-    specificHasNL: safeSpecificText?.includes('\n') ?? false,
-    extractedHasNL: safeExtractedText?.includes('\n') ?? false,
-    jinaFinalHasNL: jinaFinalText?.includes('\n') ?? false,
-    specificSample: safeSpecificText?.substring(0, 80),
-    extractedSample: safeExtractedText?.substring(0, 80),
-    jinaFinalSample: jinaFinalText?.substring(0, 80),
-  })
+    preferCleanText se activa al refrescar un sub-post directamente. oEmbed devuelve
+    SOLO el texto de ese post — sin el contexto del hilo completo. La sección Jina puede
+    fallar con el anchor detection y devolver texto del hilo raíz en vez del sub-post.
+  */
+  const jinaFinalText = options?.preferCleanText
+    ? cleanMarkdownLinks(firstDefined(safeExtractedText, safeSpecificText))
+    : cleanMarkdownLinks(firstDefined(safeSpecificText, safeExtractedText))
+
   const directHtmlDesc = !jinaFinalText && trustedDirectHtml
     ? firstDefined(
       extractMetaTag(trustedDirectHtml, 'og:description'),
