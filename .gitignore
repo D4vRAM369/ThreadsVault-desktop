@@ -31,10 +31,14 @@ docs/
 # Claude Code config local
 .claude/
 SKILLS.md
+.omc/
 
-# Avatar del dev (imagen personal, no va al repo)
-public/dev-avatar.jpg
-src/lib/devAvatar.ts
+
+# Avatar del dev — imagen y módulo ahora van al repo (ver public/dev-avatar.jpg)
+
+# Variables de entorno (nunca al repo)
+.env
+.env.*
 
 # Temporales y binarios locales
 .tmp/
