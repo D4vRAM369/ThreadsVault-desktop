@@ -30,22 +30,40 @@ You can classify posts into different categories. The app indexes hashtags from 
 <table align="center">
   <tr>
     <td align="center" width="33%">
-      <img src="assets/screenshots/vault_empty.png" alt="Empty vault" /><br/>
+      <img src="assets/screenshots/vault_empty.png" alt="Bóveda vacía" /><br/>
       <b>Empty vault</b><br/>
       <sub>Main screen on first launch</sub>
     </td>
     <td align="center" width="33%">
-      <img src="assets/screenshots/settings_categories.png" alt="Categories" /><br/>
+      <img src="assets/screenshots/settings_categories.png" alt="Categorías" /><br/>
       <b>Categories</b><br/>
       <sub>Create and organize with color and icon</sub>
     </td>
     <td align="center" width="33%">
-      <img src="assets/screenshots/settings_privacy.png" alt="Settings" /><br/>
+      <img src="assets/screenshots/settings_privacy.png" alt="Ajustes" /><br/>
+      <b>Privacy & Settings</b><br/>
+      <sub>Backup, privacy, keyboard shortcuts</sub>
+    </td>
+  </tr>
+    <tr>
+    <td align="center" width="33%">
+      <img src="https://github.com/user-attachments/assets/c1b6d4e5-96eb-4736-8d11-67a78626a307" alt="Bóveda con posts en modo claro" /><br/>
+      <b>Vault on new light mode (new light mode included in v2.1)</b><br/>
+      <sub>Main screen with new light mode</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="https://github.com/user-attachments/assets/57389305-7c3c-4ad5-b5a5-876a5a8c4c37" alt="Categorías - Modo claro" /><br/>
+      <b>Categories</b><br/>
+      <sub>Category view in light mode</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="https://github.com/user-attachments/assets/8b901aa7-4d31-4687-b3f2-7c525cce76a0" alt="Ajustes" /><br/>
       <b>Privacy & Settings</b><br/>
       <sub>Backup, privacy, keyboard shortcuts</sub>
     </td>
   </tr>
 </table>
+
 
 ---
 
