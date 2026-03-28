@@ -24,7 +24,6 @@ const VIDEO_RE = /\.(mp4|mov|webm|m3u8)(\?.*)?$/i
 const ABSOLUTE_URL_RE = /^https?:\/\//i
 const THREADS_POST_PATH_RE = /\/(?:@[\w.]+\/post\/|post\/|t\/)[A-Za-z0-9_-]+/i
 const AVATAR_CDN_RE = /\/t51\.2885-19\//i
-// PBL: t51.71878 = tipo CDN de Meta para thumbnails de vídeo (preview image del vídeo)
 const VIDEO_THUMB_CDN_RE = /\/t51\.71878[-_]/
 
 function decodeHtml(value: string): string {
@@ -249,13 +248,20 @@ interface PostSectionData {
 export function extractPostSectionFromJina(jinaMarkdown: string, postId: string): PostSectionData | null {
   if (!jinaMarkdown?.trim()) return null
 
-  // 1. Saltar cabecera de Jina (Title / URL Source / Markdown Content)
+  // 1. Saltamos el header de Jina porque contiene la URL del post pedido en "URL Source:".
+  //    Si buscáramos el postId desde el inicio del string, la primera coincidencia sería
+  //    esa línea de header — no el enlace real del sub-post dentro del hilo — y el ancla
+  //    quedaría mal posicionada, extrayendo contenido del post raíz en vez del sub-post.
   const contentMarker = /\nMarkdown Content:\s*\n?/i.exec(jinaMarkdown)
   const contentArea = contentMarker
     ? jinaMarkdown.slice(contentMarker.index + contentMarker[0].length)
     : jinaMarkdown
 
-  // 2. Encontrar la línea ancla del sub-post en el área de contenido
+  // 2. Buscamos el ancla del sub-post en el área de contenido (no en el header).
+  //    El "service link" es un enlace de metadatos de Threads que Jina añade al inicio
+  //    del contenido con el formato "[Thread ---][url]". No es el ancla real del post:
+  //    si lo usáramos como punto de inicio, el bodyFull empezaría en el link de cabecera
+  //    en vez del cuerpo textual, y las primeras líneas útiles se perderían.
   const serviceLinkRe = new RegExp(`^\\[[^\\]]*Thread[^\\]]*\\]\\(https?://[^)]+/post/${postId}[^)]*\\)`, 'im')
 
   const allPostIdMatches = Array.from(contentArea.matchAll(/\/post\/([A-Za-z0-9_-]+)\b/gi))
@@ -283,7 +289,10 @@ export function extractPostSectionFromJina(jinaMarkdown: string, postId: string)
   let bodyFull: string
   const isTargetAtTop = !firstIdInContent || firstIdInContent.toLowerCase() === postId.toLowerCase()
 
-  // 3. Decidir el punto de inicio (bodyFull)
+  // 3. Decidimos dónde empieza el cuerpo a extraer según el tipo de post.
+  //    Para el post principal al inicio del área de contenido tomamos desde el principio;
+  //    para sub-posts necesitamos localizar su ancla real para no incluir texto de posts
+  //    anteriores del hilo que aparecen antes en el markdown de Jina.
   if (isMainPost && isTargetAtTop && !firstIdIsActuallyService) {
     // Caso A: Somos el post principal y estamos al inicio (sin breadcrumbs que nos precedan)
     bodyFull = contentArea
@@ -329,10 +338,12 @@ export function extractPostSectionFromJina(jinaMarkdown: string, postId: string)
     }
   }
 
-  // 4. Acotar el cuerpo hasta el SIGUIENTE /post/ID o sección "Related threads"
-  //    o el login prompt del final.
-  // PBL: Evitamos que el ID del post actual actúe como límite de fin de sección
-  // si aparece más adelante (ej. en enlaces de imágenes).
+  // 4. Acotamos el cuerpo al bloque exacto de este post para evitar contaminación.
+  //    Sin este límite, la ventana fija de 4000 chars se solaparía con la sección
+  //    "Related threads" o con el siguiente post del hilo — incluyendo sus CDN URLs
+  //    de imagen/vídeo y asignándolas erróneamente a este post.
+  //    Excluimos el ID del post actual como patrón de fin porque puede reaparecer
+  //    en enlaces de imágenes dentro de su propio bloque.
   const nextPostRe = new RegExp(`\\/post\\/(?!${postId}\\b)[A-Za-z0-9_-]+\\b`, 'i')
   const sectionEndRe = new RegExp(
     // Siguiente post del hilo (ancla de fin más fiable)
@@ -380,8 +391,14 @@ export function extractPostSectionFromJina(jinaMarkdown: string, postId: string)
     .replace(new RegExp(`([.!?])\\s*(${BULLET}\\s)`, 'g'), '$1\n\n$2')
     .replace(new RegExp(`(${BULLET}[^\\n]+?[.!?])\\s*(${BULLET}\\s)`, 'g'), '$1\n$2')
     .replace(new RegExp(`(${BULLET}[^\\n]+?[.!?])\\s*(\\d)`, 'g'), '$1\n\n$2')
+    // Ítems bullet consecutivos sin puntuación final colapsados en una línea → restaurar como líneas separadas
+    // Lookahead para no consumir el bullet siguiente, permitiendo que el próximo match lo capture
+    .replace(/([→•·][^\n→•·]+?)\s+(?=[→•·])/g, '$1\n')
 
-  // 5. Extraer texto preservando estructura de párrafos
+  // 5. Extraemos el texto preservando la estructura de párrafos del post original.
+  //    Jina convierte el HTML a markdown pero mezcla en el mismo bloque texto real,
+  //    URLs de CDN, alt-text de imágenes y etiquetas de UI de Threads. Filtramos línea
+  //    a línea para dejar solo el contenido textual del autor.
   const paragraphBlocks = bodyRestored.replace(/\r/g, '').split(/\n{2,}/)
   const validParagraphs: string[] = []
 
@@ -447,7 +464,9 @@ export function extractPostSectionFromJina(jinaMarkdown: string, postId: string)
 
   const text = validParagraphs.join('\n\n').trim() || undefined
 
-  // 6. Extraer media del cuerpo acotado deduplicando URLs
+  // 6. Extraemos media del cuerpo YA ACOTADO (no del bodyFull) para garantizar que
+  //    las CDN URLs pertenecen solo a este post. Deduplicamos porque Jina puede repetir
+  //    la misma URL en el markdown (ej. enlace + imagen inline apuntando al mismo CDN).
   const rawMediaUrls = [
     ...extractMediaFromText(body),
     ...extractEscapedMediaFromText(body),
@@ -1175,12 +1194,17 @@ async function extractSubPost(
   const trustedHtml = isTrustedHtmlForPost(html, subPostId) ? html : null
   const source = trustedHtml ?? jinaMarkdown ?? ''
 
-  // Extraer sección acotada desde el Jina propio del sub-post
+  // Intentamos primero el Jina del sub-post propio porque está anclado a su URL específica:
+  // Jina fetcha exactamente esa página y el markdown empieza directamente por ese post.
+  // El Jina del raíz contiene el hilo completo, por lo que el anchor detection puede
+  // fallar si el postId no aparece explícitamente en el área de contenido de esa respuesta.
   const ownSection = jinaMarkdown
     ? extractPostSectionFromJina(jinaMarkdown, subPostId)
     : null
 
-  // Fallback: sección acotada desde el Jina del post raíz
+  // Cuando el Jina propio no encontró el ancla (Jina redirigió al post raíz en vez
+  // del sub-post), el Jina del raíz es el fallback fiable: contiene el hilo completo
+  // y extractPostSectionFromJina puede localizar el sub-post por su ID dentro de él.
   const rootSection = (!ownSection || (!ownSection.text && ownSection.mediaUrls.length === 0)) && rootThreadJina
     ? extractPostSectionFromJina(rootThreadJina, subPostId)
     : null
@@ -1209,7 +1233,6 @@ async function extractSubPost(
     : undefined
   const text = jinaText ?? reactStateText ?? oembedText ?? (metaText && !isGenericThreadsText(metaText) ? metaText : undefined)
 
-  // Construir media
   const seenUrls = new Set<string>()
   const media: PostMedia[] = []
   const addItem = (items: PostMedia[]) => {

@@ -93,8 +93,8 @@
     orderDirty = false
     dragActive = true
     dragPointerId = e.pointerId
-    const handle = e.currentTarget as HTMLElement
-    handle.setPointerCapture(e.pointerId)
+    
+    // Evitar selección de texto nativa mientras se arrastra
     document.body.style.userSelect = 'none'
     e.preventDefault()
   }
@@ -119,19 +119,11 @@
 
   async function handlePointerDragEnd(e: PointerEvent) {
     if (!dragActive || dragPointerId !== e.pointerId) return
-    const handle = e.currentTarget as HTMLElement
-    if (handle.hasPointerCapture(e.pointerId)) {
-      handle.releasePointerCapture(e.pointerId)
-    }
     await finishPointerDrag()
   }
 
   async function handlePointerDragCancel(e: PointerEvent) {
     if (!dragActive || dragPointerId !== e.pointerId) return
-    const handle = e.currentTarget as HTMLElement
-    if (handle.hasPointerCapture(e.pointerId)) {
-      handle.releasePointerCapture(e.pointerId)
-    }
     await finishPointerDrag()
   }
 
@@ -140,6 +132,12 @@
     return label ? label : 'Sin nombre'
   }
 </script>
+
+<svelte:window
+  onpointermove={handlePointerDragMove}
+  onpointerup={handlePointerDragEnd}
+  onpointercancel={handlePointerDragCancel}
+/>
 
 <p class="text-xs font-semibold uppercase mb-2.5 px-1" style="
   color: var(--vault-on-bg-muted);
@@ -336,13 +334,11 @@
           </div>
         {:else}
           <div class="flex items-center gap-3 px-4 sm:px-5 py-3 sm:py-3.5">
+            <!-- svelte-ignore a11y_no_static_element_interactions -->
             <div
               class="cursor-grab active:cursor-grabbing shrink-0"
               style="color: var(--vault-on-bg); opacity: 0.25; touch-action: none"
               onpointerdown={(e) => handlePointerDragStart(e, cat.id)}
-              onpointermove={handlePointerDragMove}
-              onpointerup={handlePointerDragEnd}
-              onpointercancel={handlePointerDragCancel}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                 <circle cx="9" cy="5" r="1.5"/><circle cx="15" cy="5" r="1.5"/>
