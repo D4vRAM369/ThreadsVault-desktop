@@ -125,41 +125,21 @@ function extractEscapedMediaFromText(text: string): string[] {
     .filter((url) => inferMediaType(url) !== null)
 }
 
-/*
-  PBL: Extrae media SOLO de la sección del post en la respuesta markdown de Jina.
-  Jina puede devolver la página completa (post + posts relacionados/perfil del usuario).
-
-  BUG CORREGIDO: cuando Jina sirve el perfil de @usuario en vez del post específico,
-  el primer post visible es el más reciente del usuario (que puede ser otro post distinto).
-  Sin anclaje al postId, cogemos media del post equivocado.
-
-  Fix: si tenemos postId, buscamos su primera aparición en el markdown y extraemos
-  media desde ese punto. Si el postId no aparece → Jina sirvió otra página → retornamos [].
-*/
+// Extrae media SOLO de la sección del post en Jina. Busca postId solo en el área
+// de contenido (tras "Markdown Content:") — el header de Jina incluye la URL del
+// post en "URL Source:", lo que daría un falso ancla sin este recorte.
 export function extractPostSectionMedia(jinaMarkdown: string, postId: string | null): string[] {
   if (!jinaMarkdown) return []
 
-  /*
-    PBL: Bug fix — el header de Jina contiene la URL del post en la línea
-    "URL Source: https://...threads.net/.../post/ID". Si buscamos /post/ID
-    en todo el markdown, la PRIMERA aparición siempre es esa línea de header.
-    El ancla quedaba en el header → los chars siguientes eran el contenido del
-    POST RAÍZ (que aparece primero en el markdown del thread), no del sub-post.
-
-    Fix: buscar /post/ID SOLO dentro del área de contenido, es decir,
-    a partir de "Markdown Content:" (línea separadora que Jina incluye siempre).
-    Así el ancla cae en el enlace real del sub-post dentro del hilo.
-  */
+  // Saltamos el header de Jina (contiene "URL Source: …/post/ID") para que el
+  // primer match de postId sea el enlace real del post, no la línea de metadatos.
   const contentMarker = /\nMarkdown Content:\s*\n?/i.exec(jinaMarkdown)
   const searchArea = contentMarker
     ? jinaMarkdown.slice(contentMarker.index + contentMarker[0].length)
     : jinaMarkdown
 
   if (postId) {
-    // PBL: Jina suele incluir el URL del post en un enlace de servicio al inicio:
-    // [Thread ------ 1.1K views](https://www.threads.com/@user/post/postId)
-    // Ese enlace falso ancla la extracción al inicio del documento (solapando con el padre).
-    // Omitimos esos enlaces de metadatos al buscar el ancla real.
+    // Ignorar service links "[Thread ---](url)" que Jina añade antes del contenido real.
     const serviceLinkRe = new RegExp(`^\\[[^\\]]*Thread[^\\]]*\\]\\(https?://[^)]+/post/${postId}[^)]*\\)`, 'im')
 
     // Si el postId es el principal (header), tomamos desde el inicio (para posts sueltos).
@@ -223,23 +203,9 @@ export function extractPostSectionMedia(jinaMarkdown: string, postId: string | n
   ]
 }
 
-/*
-  PBL: Extrae texto Y media de un sub-post a partir del markdown de Jina,
-  acotando la sección del sub-post entre su ancla y el inicio del siguiente post.
-
-  Problema que resuelve (en cadena):
-  1. El header de Jina contiene la URL del sub-post → falso ancla resuelto buscando
-     solo dentro de "Markdown Content:".
-  2. "Related threads" aparece en la primera línea ÚTIL después del ancla del sub-post
-     (antes del texto real). Resuelto: "Related threads" está en isGenericThreadsText.
-  3. La ventana de 4000 chars se solapaba con la sección "Related threads", que
-     incluye previews con CDN URLs del video del post raíz → video asignado al
-     sub-post erróneamente. Resuelto: la sección se ACOTA entre el ancla del sub-post
-     y la primera aparición de otro /post/ID (o "Related threads"/"Related posts"),
-     lo que garantiza que solo se extrae media perteneciente a este sub-post.
-
-  Retorna null si el postId no aparece en el área de contenido de Jina.
-*/
+// Extrae texto + media de un sub-post del hilo, acotando la sección entre su ancla
+// y el siguiente /post/ID para evitar contaminación de posts adyacentes.
+// Retorna null si el postId no aparece en el área de contenido de Jina.
 interface PostSectionData {
   text: string | undefined
   mediaUrls: string[]
@@ -248,20 +214,13 @@ interface PostSectionData {
 export function extractPostSectionFromJina(jinaMarkdown: string, postId: string): PostSectionData | null {
   if (!jinaMarkdown?.trim()) return null
 
-  // 1. Saltamos el header de Jina porque contiene la URL del post pedido en "URL Source:".
-  //    Si buscáramos el postId desde el inicio del string, la primera coincidencia sería
-  //    esa línea de header — no el enlace real del sub-post dentro del hilo — y el ancla
-  //    quedaría mal posicionada, extrayendo contenido del post raíz en vez del sub-post.
+  // 1. Saltar header de Jina — contiene "URL Source: …/post/ID", falso ancla.
   const contentMarker = /\nMarkdown Content:\s*\n?/i.exec(jinaMarkdown)
   const contentArea = contentMarker
     ? jinaMarkdown.slice(contentMarker.index + contentMarker[0].length)
     : jinaMarkdown
 
-  // 2. Buscamos el ancla del sub-post en el área de contenido (no en el header).
-  //    El "service link" es un enlace de metadatos de Threads que Jina añade al inicio
-  //    del contenido con el formato "[Thread ---][url]". No es el ancla real del post:
-  //    si lo usáramos como punto de inicio, el bodyFull empezaría en el link de cabecera
-  //    en vez del cuerpo textual, y las primeras líneas útiles se perderían.
+  // 2. Ignorar service links "[Thread ---](url)" al buscar el ancla real del sub-post.
   const serviceLinkRe = new RegExp(`^\\[[^\\]]*Thread[^\\]]*\\]\\(https?://[^)]+/post/${postId}[^)]*\\)`, 'im')
 
   const allPostIdMatches = Array.from(contentArea.matchAll(/\/post\/([A-Za-z0-9_-]+)\b/gi))
@@ -279,9 +238,7 @@ export function extractPostSectionFromJina(jinaMarkdown: string, postId: string)
   const anchorRe = new RegExp(`/post/${postId}\\b`, 'i')
   const anchorMatch = anchorRe.exec(contentArea)
 
-  // PBL: Si el postId es el del post principal (el que Jina reporta como URL Source),
-  // tomamos desde el inicio. El ancla suele ser de una imagen o un enlace interno
-  // que aparece DESPUÉS del texto del post principal.
+  // Si es el post principal (el que Jina reporta como URL Source), tomar desde el inicio.
   const urlSourceMatch = /^URL Source:\s*(.+)$/im.exec(jinaMarkdown)
   const urlSource = urlSourceMatch?.[1]?.trim() ?? ''
   const isMainPost = urlSource.includes(`/post/${postId}`) || urlSource.includes(`/t/${postId}`)
@@ -289,10 +246,7 @@ export function extractPostSectionFromJina(jinaMarkdown: string, postId: string)
   let bodyFull: string
   const isTargetAtTop = !firstIdInContent || firstIdInContent.toLowerCase() === postId.toLowerCase()
 
-  // 3. Decidimos dónde empieza el cuerpo a extraer según el tipo de post.
-  //    Para el post principal al inicio del área de contenido tomamos desde el principio;
-  //    para sub-posts necesitamos localizar su ancla real para no incluir texto de posts
-  //    anteriores del hilo que aparecen antes en el markdown de Jina.
+  // 3. Inicio del cuerpo: post principal → desde el principio; sub-post → desde su ancla.
   if (isMainPost && isTargetAtTop && !firstIdIsActuallyService) {
     // Caso A: Somos el post principal y estamos al inicio (sin breadcrumbs que nos precedan)
     bodyFull = contentArea
@@ -408,7 +362,7 @@ export function extractPostSectionFromJina(jinaMarkdown: string, postId: string)
 
     for (const line of blockLines) {
       if (!line) continue
-      const candidate = normalizeCandidateLine(line)
+      const candidate = line.trim()
 
       if (candidate.length < 3) continue // Bajamos el umbral para capturar texto corto/handles
       if (/^!\[/.test(candidate)) continue
@@ -476,10 +430,6 @@ export function extractPostSectionFromJina(jinaMarkdown: string, postId: string)
   return { text, mediaUrls }
 }
 
-/*
-  PBL: Asigna tipo explícito sin inferir por URL.
-  Usado para og:video / og:image — la fuente ya indica el tipo correctamente.
-*/
 function forceMediaEntries(urls: Array<string | undefined>, type: PostMediaType): PostMedia[] {
   const result: PostMedia[] = []
   for (const url of urls) {
@@ -520,11 +470,6 @@ function extractJsonValue(source: string, key: string): string[] {
   return results
 }
 
-/*
-  Extrae URLs de imágenes embebidas en el JSON de React que Threads inyecta en el HTML.
-  Independiente de Jina — útil cuando Jina falla o es rate-limited.
-  Campos buscados: display_url (imagen principal), thumbnail_src (miniatura), og:image fallback.
-*/
 function extractQuotedImageUrls(source: string): string[] {
   const quoted = [
     ...extractJsonValue(source, 'display_url'),
@@ -648,45 +593,29 @@ function isGenericThreadsText(value?: string): boolean {
   return false
 }
 
-/*
-  PBL: Detecta si Jina devolvió la login page de Threads en vez del post real.
-  Cuando Threads rate-limita o bloquea a Jina, redirige al login. Jina renderiza
-  esa página y la devuelve como si fuera el post solicitado.
-
-  Descartamos esa respuesta (tratándola como null) para que la extracción falle
-  limpiamente ("No se extrajo texto. Pulsa Refrescar") en vez de guardar el texto
-  del UI del login como contenido del post.
-
-  Señales:
-  1. Title genérico — la login page tiene título "Threads", los posts tienen el texto real
-  2. Frases del login UI en el área de contenido
-*/
+// Detecta login page de Threads: título genérico ("Threads", "Log in…") + frases de
+// login en el contenido. Si Jina redirigió al login, descartamos para no guardar
+// texto de UI en vez del post.
 function isJinaLoginPage(jinaMarkdown: string): boolean {
   if (!jinaMarkdown) return false
 
-  // Señal 1: Title de login page — "Threads", "Log in to Threads", "Log in • Threads", etc.
+  // Señal 1: título genérico
   const titleMatch = /^Title:\s*(.+)$/im.exec(jinaMarkdown)
   const title = titleMatch?.[1]?.trim() ?? ''
 
-  // Si el título es genérico de Threads/Instagram, es muy probable que sea login page
   const isGenericTitle = /^(?:threads|instagram)$|^(?:log|sign)\s+in\b/i.test(title)
 
-  // Señal 2: frases del login UI en los primeros 1500 chars del contenido
+  // Señal 2: frases de login en el contenido
   const contentMarker = /\nMarkdown Content:\s*\n?/i.exec(jinaMarkdown)
   const contentArea = contentMarker
     ? jinaMarkdown.slice(contentMarker.index + contentMarker[0].length, contentMarker.index + 2500)
     : jinaMarkdown.slice(0, 2500)
 
-  // Buscamos patrones de login explicitos
   const hasLoginPhrases = /log in or sign up|log in with username|continue with (?:instagram|facebook)|see what people are talking about/i.test(contentArea)
 
-  // PBL: Decisión combinada. 
-  // Si el título es genérico y hay frases de login → LOGIN PAGE.
-  // Si el título NO es genérico (ej. tiene el texto del post), aceptamos el post 
-  // incluso si Jina añade ruido de login al final.
+  // Ambas señales requeridas — título solo no es suficiente (post puede tener ruido de login al final)
   if (isGenericTitle && hasLoginPhrases) return true
 
-  // Caso especial: si no hay título pero hay muchas frases de login al principio
   if (!title && hasLoginPhrases && contentArea.length < 1000) return true
 
   return false
@@ -695,11 +624,6 @@ function isJinaLoginPage(jinaMarkdown: string): boolean {
 function extractPostId(url: string): string | null {
   const match = /\/(?:post|t)\/([A-Za-z0-9_-]+)/i.exec(url)
   return match?.[1] ?? null
-}
-
-function normalizeCandidateLine(line: string): string {
-  return line
-    .trim()
 }
 
 function isThreadPositionNoise(line: string): boolean {
@@ -756,26 +680,8 @@ function isImageAltNoise(line: string): boolean {
     || /profile picture/i.test(line)
 }
 
-/*
-  PBL: Extrae texto con estructura de párrafos del HTML embed de oEmbed.
-
-  Cuando Jina falla (login page, timeout, rate-limit), la única fuente
-  disponible es og:description — que colapsa todos los párrafos en una
-  sola línea. El API oEmbed de Threads devuelve un campo `html` con el
-  blockquote del embed que SÍ preserva la estructura del post:
-
-    <p dir="ltr">
-      Primera línea del post.<br>Segunda línea.<br><br>Nuevo párrafo.
-      <a href="l.threads.com/?u=...">enlace externo</a>
-    </p>
-
-  Convertimos:
-    <br><br> → \n\n  (separación de párrafo)
-    <br>     → \n    (salto de línea dentro del párrafo)
-    <a href="tracking">texto</a> → URL real decodificada (o texto del enlace)
-
-  El resultado se renderiza correctamente con white-space: pre-wrap en la UI.
-*/
+// Convierte HTML del blockquote oEmbed a texto con \n preservando párrafos.
+// <br><br>→\n\n, <br>→\n, tracking links→URL real. Fallback cuando Jina falla.
 function processOembedParagraphHtml(raw: string): string | undefined {
   const text = raw
     .replace(/(<br\s*\/?>\s*){2,}/gi, '\n\n')
@@ -798,8 +704,6 @@ function processOembedParagraphHtml(raw: string): string | undefined {
 function extractTextFromOembedHtml(html: string): string | undefined {
   if (!html?.trim()) return undefined
 
-  // Threads oEmbed: el texto está dentro de <blockquote> → buscar ahí primero
-  // PBL: blockquote puede ser GREEDY aquí — el HTML del oEmbed solo tiene UN blockquote
   const blockquoteMatch = /<blockquote[^>]*>([\s\S]*?)<\/blockquote>/i.exec(html)
   const searchArea = blockquoteMatch?.[1] ?? html
 
@@ -873,21 +777,8 @@ function extractTextFromOembedHtml(html: string): string | undefined {
   return text.length >= 6 ? text : undefined
 }
 
-/*
-  PBL: Extrae texto estructurado (con \n) del HTML de la página de Threads.
-  Estrategia: cuando Jina falla y oEmbed no tiene <br>, el HTML bruto de la
-  página de Threads (que Tauri obtiene sin CORS) contiene el JSON de estado
-  inicial de React. Ese JSON usa \\n para los saltos de línea reales del post.
-
-  El campo relevante varía según el tipo de post, pero la clave "text" en los
-  JSON embebidos (script type="application/json" o window.__data__) contiene
-  el texto con \\n → decodificamos → \n preservando la estructura original.
-
-  Precaución: hay muchos campos "text" en el JSON — solo aceptamos los que:
-  1. Tengan al menos 20 chars (evita UI strings cortos)
-  2. Contengan saltos de línea reales (el diferenciador clave)
-  3. No sean texto genérico de UI de Threads
-*/
+// Busca campo "text" en el JSON embebido de React. Solo acepta ≥20 chars con \n
+// (posts multilínea). Fallback cuando Jina falla y oEmbed no tiene <br>.
 function extractTextFromThreadsJson(html: string): string | undefined {
   if (!html) return undefined
   // Regex para capturar valores de "text":"..." en JSON embebido en el HTML
@@ -931,24 +822,8 @@ function decodeJsonString(raw: string): string {
     .trim()
 }
 
-/*
-  PBL: Extrae texto del post desde el estado React que Threads embebe en el HTML.
-  Independiente de Jina — funciona en Tauri (fetch directo sin CORS) con el HTML
-  crudo de la página.
-
-  Threads usa campos específicos en su estado Relay/GraphQL para el texto del post:
-    - "text_post_app_text":{"text":"CONTENT"}   → campo primario de post de texto
-    - "caption":{"text":"CONTENT"}              → posts con media (imagen/vídeo)
-
-  Estos campos son mucho más fiables que buscar cualquier campo "text" (que tiene
-  miles de coincidencias con strings de UI). Recogemos todos los candidatos y
-  devolvemos el más largo que pase los filtros, ya que el texto del post es
-  generalmente el más largo de todos.
-
-  Ventaja vs extractTextFromThreadsJson: no requiere \n — funciona para posts
-  de un párrafo. Devuelve el candidato MÁS LARGO (no el primero), lo que lo hace
-  más robusto para hilos donde el mismo estado contiene varios posts.
-*/
+// Busca "text_post_app_text" y "caption" en el estado Relay de Threads.
+// Más fiable que buscar "text" genérico — devuelve el candidato más largo.
 function extractTextFromThreadsReactState(html: string): string | undefined {
   if (!html) return undefined
 
@@ -977,13 +852,7 @@ function extractTextFromThreadsReactState(html: string): string | undefined {
   return candidates.reduce((a, b) => a.length >= b.length ? a : b)
 }
 
-/*
-  PBL: Construye un Map<postId, text> extrayendo todos los textos del estado React
-  de Threads. Permite resolver el texto de sub-posts sin llamadas extra a Jina.
-
-  Busca la secuencia ID + text_post_app_text dentro del mismo nodo JSON del estado
-  Relay. La ventana de búsqueda es 2000 chars para no solapar con nodos vecinos.
-*/
+// Map<postId, text> del estado Relay. Ventana de 2000 chars por nodo para no solapar.
 function extractPostTextMapFromReactState(html: string): Map<string, string> {
   const result = new Map<string, string>()
   if (!html) return result
@@ -1012,19 +881,13 @@ function extractPostTextMapFromReactState(html: string): Map<string, string> {
   return result
 }
 
-/*
-  PBL: Detecta si un texto es una URL sin esquema (ej: "github.com/user/repo").
-  Usado para identificar "link posts" — posts cuyo contenido ES un enlace externo.
-  Criterios: al menos un punto, sin espacios, empieza por carácter de dominio.
-  No detecta URLs relativas ni paths puros (sin dominio).
-*/
 function looksLikeUrlWithoutScheme(text: string): boolean {
   return /^[\w][\w.-]+\.[a-z]{2,}(\/|$)/i.test(text) && !text.includes(' ')
 }
 
 function isInvalidExtractedText(value?: string): boolean {
   if (!value?.trim()) return true
-  const line = normalizeCandidateLine(value.trim())
+  const line = value.trim()
   if (line.length < 6) return true
   if (isThreadPositionNoise(line)) return true
   if (isImageAltNoise(line)) return true
@@ -1037,20 +900,7 @@ function extractFallbackTextFromSource(source: string, postId: string | null): s
   const lines = source.replace(/\r/g, '').split('\n').map((line) => line.trim())
   if (!lines.length) return undefined
 
-  /*
-    PBL: Bug fix — el header de Jina contiene la URL del post:
-      "URL Source: https://www.threads.net/@autor/post/DVo3xyVDtKL"
-    Si buscamos /post/ID en todas las líneas, la primera coincidencia es
-    SIEMPRE esa línea de header, no el enlace real del sub-post dentro del hilo.
-
-    Resultado del bug: anchoredText = texto del POST RAÍZ (que aparece en las
-    líneas siguientes al header: "Markdown Content:" → contenido del hilo desde
-    el post 1) en vez del texto del sub-post.
-
-    Fix: empezar a buscar el ancla solo DESPUÉS de "Markdown Content:"
-    (el separador que Jina incluye siempre). Así la primera coincidencia de
-    /post/ID en el área de contenido es el enlace real del sub-post.
-  */
+  // Buscar ancla solo tras "Markdown Content:" — el header incluye "URL Source: …/post/ID".
   const markdownContentIdx = lines.findIndex((l) => /^markdown content:/i.test(l))
   const contentSearchFrom = markdownContentIdx >= 0 ? markdownContentIdx + 1 : 0
 
@@ -1069,12 +919,6 @@ function extractFallbackTextFromSource(source: string, postId: string | null): s
   if (postId && postLineIndex === -1) return undefined
 
   const start = postLineIndex >= 0 ? postLineIndex + 1 : 0
-  /*
-    PBL: Igual que extractPostSectionFromJina, preservamos párrafos tomando
-    el fragmento de líneas y dividiéndolo por bloques de párrafo (\n\n).
-    El fallback opera sobre `lines` (array), así que primero reconstruimos
-    el fragmento y luego lo dividimos por párrafos.
-  */
   const fragmentLines = lines.slice(start, Math.min(lines.length, start + 60))
   const fragmentText = fragmentLines.join('\n')
   const paragraphBlocks = fragmentText.split(/\n{2,}/)
@@ -1086,7 +930,7 @@ function extractFallbackTextFromSource(source: string, postId: string | null): s
 
     for (const line of blockLines) {
       if (!line) continue
-      const candidate = normalizeCandidateLine(line)
+      const candidate = line.trim()
       if (candidate.length < 6) continue
       if (/^!\[/.test(candidate)) continue
       if (isImageAltNoise(candidate)) continue
@@ -1297,20 +1141,8 @@ export async function extractPostData(rawUrl: string, options?: ExtractOptions):
   // authorFromInputUrl es síncrono (parse de URL) → disponible antes del primer await
   const authorFromInputUrl = parseThreadsAuthor(canonicalUrl)
 
-  /*
-    PBL: 3 orígenes EN PARALELO con Promise.all.
-    Orden de preferencia para el HTML fuente:
-    1. directHtml  — fetch directo (funciona en Tauri, CORS en browser)
-    2. jinaHtml    — Jina Reader (headless proxy, funciona en browser)
-
-    BUG CORREGIDO: el 4º fetch (extractSubPost del post raíz) era un duplicado
-    exacto del jinaHtml → 2 requests concurrentes a la MISMA URL de Jina →
-    rate-limiting → Jina devolvía login page → extracción fallida en primera llamada.
-    Fix: derivar specificPost de jinaHtml ya fetcheado (sin fetch extra).
-  */
-  // PBL: Añadimos cache-busting (?t=...) a la URL de Threads que le pasamos a Jina.
-  // Esto asegura que si el usuario pulsa "Refrescar" tras un fallo anterior, 
-  // Jina no nos devuelva su versión cacheada (que probablemente sea la login page).
+  // 3 fetches en paralelo. Cache-busting (?t=…) en Jina para evitar versión cacheada
+  // de login page. jinaHtml se reutiliza en specificPost — sin 2º request (→ rate-limit).
   const timestamp = Date.now()
   const sep = canonicalUrl.includes('?') ? '&' : '?'
   const jinaTargetUrl = `${canonicalUrl}${sep}t=${timestamp}`
@@ -1340,19 +1172,8 @@ export async function extractPostData(rawUrl: string, options?: ExtractOptions):
     ...extractQuotedPlayableVideoUrls(directHtml ?? source),
   ]
 
-  /*
-    PBL: Construcción de media con tipos correctos y sin imágenes ajenas.
-
-    Problema anterior: `extractMediaFromText(source)` escaneaba TODA la respuesta
-    de Jina (~25KB) incluyendo posts relacionados/sugeridos → 24 items de otros posts.
-
-    Solución: pipeline ordenado con deduplicación global.
-      1. og:video / twitter:player:stream  → 'video' forzado
-      2. oEmbed thumbnail                  → tipo inferido (casi siempre imagen)
-      3. og:image / twitter:image          → 'image' forzado
-      4. oEmbed HTML                       → tipo inferido
-      5. Jina — solo primeros 3000 chars   → solo el post, no posts relacionados
-  */
+  // Pipeline de media con dedup global. Orden: video explícito → oEmbed → og:image
+  // → oEmbed HTML → Jina acotado por postId (evita media de posts relacionados).
   const seenMediaUrls = new Set<string>()
   const media: PostMedia[] = []
   const addMedia = (items: PostMedia[]) => {
@@ -1379,13 +1200,7 @@ export async function extractPostData(rawUrl: string, options?: ExtractOptions):
     addMedia(forceMediaEntries(extractQuotedImageUrls(trustedDirectHtml), 'image'))
   }
 
-  /*
-    PBL: Detección de vídeo por thumbnail CDN.
-    Threads sirve vídeos via HLS/DASH con tokens de autenticación — no extraíbles.
-    Pero el thumbnail del vídeo (t51.71878 en CDN de Meta) sí aparece en Jina.
-    Si lo detectamos y no tenemos stream real → añadimos 'video-link' con la URL
-    canónica del post para que el usuario pueda abrirlo en Threads desde la app.
-  */
+  // video-link si hay thumbnail CDN (t51.71878) pero sin stream — vídeos HLS no extraíbles.
   const hasRealVideo = media.some((item) => item.type === 'video')
   const hasVideoThumb = media.some((item) => VIDEO_THUMB_CDN_RE.test(item.url))
   if (!hasRealVideo && hasVideoThumb) {
@@ -1394,30 +1209,13 @@ export async function extractPostData(rawUrl: string, options?: ExtractOptions):
 
   const previewVideo = media.find((item) => item.type === 'video')?.url
   const previewImage = media.find((item) => item.type === 'image')?.url
-  // PBL: Preferir extracción multi-línea acotada de Jina si está disponible.
-  //   Esto es mucho más preciso que og:description (que colapsa espacios)
-  //   y que el fallback genérico (que recogía menos contexto).
   const jinaSection = jinaHtml && postId ? extractPostSectionFromJina(jinaHtml, postId) : null
   const jinaText = jinaSection?.text
 
-  /*
-    PBL: oEmbed HTML como fuente de texto estructurado cuando Jina falla.
-    Cuando Jina devuelve login page o tiene timeout, jinaText = undefined y
-    caemos en og:description — que colapsa todos los párrafos en una línea.
-    El campo oembed.html contiene un <blockquote> con <br> preservando la
-    estructura original del post. extractTextFromOembedHtml lo convierte a
-    texto con \n y \n\n listos para white-space: pre-wrap.
-    Prioridad: jinaText → oembedText → og:description → fallback
-  */
+  // oEmbed HTML preserva párrafos (<br>) cuando Jina falla y og:description los colapsa.
   const oembedStructuredText = oembed?.html ? extractTextFromOembedHtml(oembed.html) : undefined
 
-  /*
-    PBL: Extracción desde el estado React que Threads embebe en el HTML directo.
-    Solo usable en Tauri (fetch directo sin CORS). Busca campos específicos de
-    Threads en el estado Relay: "text_post_app_text" y "caption".
-    Completamente independiente de Jina — fuente nativa y sin intermediarios.
-    Prioridad: oEmbed → reactState → jinaText → directJson (genérico) → og:description
-  */
+  // React state: independiente de Jina, solo Tauri (fetch directo sin CORS).
   const reactStateText = trustedDirectHtml
     ? extractTextFromThreadsReactState(trustedDirectHtml)
     : undefined
@@ -1463,15 +1261,7 @@ export async function extractPostData(rawUrl: string, options?: ExtractOptions):
 
   const author = selectAuthor(oembed, normalizedCanonical)
 
-  /*
-    PBL: specificPost derivado de jinaHtml (sin fetch extra).
-    Antes: extractSubPost hacía un 2º request a r.jina.ai/misma-URL → rate-limiting.
-    Ahora: extractPostSectionFromJina(jinaHtml, postId) reutiliza el markdown ya
-    fetcheado → misma calidad de extracción, 0 requests adicionales.
-
-    La sección acotada (hasta el siguiente /post/ID) garantiza que solo se extraen
-    texto y media del post correcto, sin contaminación de posts adyacentes.
-  */
+  // specificPost reutiliza jinaHtml ya fetcheado — sin 2º request a Jina.
   const specificPost: ThreadPost | null = (() => {
     if (!postId || !jinaHtml) return null
     const section = extractPostSectionFromJina(jinaHtml, postId)
@@ -1513,16 +1303,7 @@ export async function extractPostData(rawUrl: string, options?: ExtractOptions):
     }
   })()
 
-  /*
-    PBL: Detección de hilo — si el HTML contiene enlaces a sub-posts del mismo autor,
-    los extraemos en paralelo con Promise.all para no añadir latencia acumulada.
-    Solo intentamos si tenemos postId y autor válidos.
-    resolvedAuthor: consolida oEmbed author y author de la URL pegada por el usuario.
-
-    skipThreadDetection=true se usa en modo multi-post: el usuario ya especificó todas
-    las URLs manualmente, así que inferir sub-posts es redundante y añade ~8s de latencia
-    innecesaria. Con el skip, cada extractPostData extra toma ~8s en vez de ~16s.
-  */
+  // skipThreadDetection=true en modo multi-post — el usuario ya pasó las URLs.
   const resolvedAuthor = author || authorFromInputUrl
   let threadPosts: ThreadPost[] | undefined
   if (!options?.skipThreadDetection && postId && resolvedAuthor) {
@@ -1605,20 +1386,6 @@ export async function extractPostData(rawUrl: string, options?: ExtractOptions):
   }
 }
 
-/*
-  PBL: fetchOEmbedHtml — obtiene el HTML del reproductor oficial de Threads.
-  La API oEmbed de Threads devuelve un JSON con:
-    - author_name: "@usuario"
-    - html: '<blockquote class="text-post-media" ...>...</blockquote>
-             <script src="https://www.threads.net/embed/embed.js"></script>'
-
-  Ese HTML (blockquote + embed.js) es el reproductor oficial de Threads.
-  Podemos inyectarlo en un <iframe srcdoc="..."> para reproducir el vídeo
-  dentro de la app usando el player nativo de Threads.
-
-  El campo OEmbedPayload ya tiene `html?: string`, así que reutilizamos
-  tryFetchJson directamente.
-*/
 export async function fetchOEmbedHtml(postUrl: string): Promise<string | null> {
   const data = await tryFetchJson(
     `https://www.threads.net/oembed?url=${encodeURIComponent(postUrl)}`

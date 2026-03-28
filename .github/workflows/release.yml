@@ -133,7 +133,10 @@ jobs:
             libgtk-3-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev \
-            patchelf
+            patchelf \
+            rpm \
+            flatpak \
+            flatpak-builder
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -177,6 +180,53 @@ jobs:
       - name: Build Tauri (Linux)
         run: npm run tauri -- build
 
+      - name: Construir Flatpak
+        run: |
+          sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+          sudo flatpak install --noninteractive flathub org.gnome.Platform//45 org.gnome.Sdk//45
+
+          cat > threadsvault.desktop << 'EOF'
+          [Desktop Entry]
+          Name=ThreadsVault
+          Exec=threadsvault-desktop
+          Icon=com.threadsvault.desktop
+          Type=Application
+          Categories=Network;
+          EOF
+
+          cat > flatpak-manifest.yml << 'EOF'
+          app-id: com.threadsvault.desktop
+          runtime: org.gnome.Platform
+          runtime-version: '45'
+          sdk: org.gnome.Sdk
+          command: threadsvault-desktop
+          finish-args:
+            - --share=network
+            - --share=ipc
+            - --socket=wayland
+            - --socket=fallback-x11
+            - --filesystem=home
+            - --device=dri
+          modules:
+            - name: threadsvault
+              buildsystem: simple
+              build-commands:
+                - install -Dm755 threadsvault-desktop /app/bin/threadsvault-desktop
+                - install -Dm644 128x128.png /app/share/icons/hicolor/128x128/apps/com.threadsvault.desktop.png
+                - install -Dm644 threadsvault.desktop /app/share/applications/com.threadsvault.desktop.desktop
+              sources:
+                - type: file
+                  path: src-tauri/target/release/threadsvault-desktop
+                - type: file
+                  path: src-tauri/icons/128x128.png
+                  dest-filename: 128x128.png
+                - type: file
+                  path: threadsvault.desktop
+          EOF
+
+          flatpak-builder --force-clean flatpak-build flatpak-manifest.yml --repo=flatpak-repo
+          flatpak build-bundle flatpak-repo ThreadsVault.flatpak com.threadsvault.desktop
+
       - name: Subir artifacts (Linux)
         uses: actions/upload-artifact@v4
         with:
@@ -184,6 +234,8 @@ jobs:
           path: |
             src-tauri/target/release/bundle/appimage/*.AppImage
             src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/rpm/*.rpm
+            ThreadsVault.flatpak
           retention-days: 7
           if-no-files-found: error
 

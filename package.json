@@ -2,6 +2,7 @@
   "name": "threadsvault-desktop",
   "private": true,
   "version": "2.1.0",
+  "description": "Bóveda local para posts de Threads. Guarda contenido offline sin nube ni telemetría.",
   "type": "module",
   "scripts": {
     "dev": "vite",
