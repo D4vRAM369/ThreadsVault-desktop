@@ -50,6 +50,23 @@ Puedes clasificar los posts en distintas categorías, el programa indexa los has
       <sub>Backup, privacidad, atajos de teclado</sub>
     </td>
   </tr>
+    <tr>
+    <td align="center" width="33%">
+      <img src="https://github.com/user-attachments/assets/c1b6d4e5-96eb-4736-8d11-67a78626a307" alt="Bóveda con posts en modo claro" /><br/>
+      <b>Bóveda con posts (nuevo modo claro en v2.1)</b><br/>
+      <sub>Pantalla principal con modo claro y posts guardados</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="https://github.com/user-attachments/assets/57389305-7c3c-4ad5-b5a5-876a5a8c4c37" alt="Categorías - Modo claro" /><br/>
+      <b>Categorías</b><br/>
+      <sub>Vista de categorías en modo claro</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="https://github.com/user-attachments/assets/8b901aa7-4d31-4687-b3f2-7c525cce76a0" alt="Ajustes" /><br/>
+      <b>Privacidad y ajustes</b><br/>
+      <sub>Backup, privacidad, atajos de teclado</sub>
+    </td>
+  </tr>
 </table>
 
 ---
