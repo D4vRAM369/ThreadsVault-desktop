@@ -48,7 +48,7 @@ You can classify posts into different categories. The app indexes hashtags from 
     <tr>
     <td align="center" width="33%">
       <img src="https://github.com/user-attachments/assets/c1b6d4e5-96eb-4736-8d11-67a78626a307" alt="Bóveda con posts en modo claro" /><br/>
-      <b>Vault on new light mode (new light mode included in v2.1)</b><br/>
+      <b>Vault on light mode (included in v2.1)</b><br/>
       <sub>Main screen with new light mode</sub>
     </td>
     <td align="center" width="33%">
@@ -70,6 +70,7 @@ You can classify posts into different categories. The app indexes hashtags from 
 ## Main Features
 
 - **Save posts by URL** — paste a Threads link and click save. Title, author, text, and images are extracted automatically.
+- **Dark / light mode** — toggle between the default dark theme and light mode from any screen. Preference is saved automatically.
 - **Local storage** — SQLite on desktop (via Tauri), IndexedDB in the browser. Nothing leaves your device.
 - **Categories** — organize posts into custom categories. Uncategorized posts go to a default inbox.
 - **Backup & restore** — export your entire vault as JSON and import it whenever you want. When importing, the app shows the progress and confirms how many posts and categories were restored. ThreadsVault backups for Android can be imported here without any problems (Android → Desktop ✅). The reverse direction (Desktop → Android) is not yet supported and will be resolved in a future version.
@@ -107,7 +108,7 @@ Flatpak planned for future versions.
 1. Copy the URL of a Threads post (e.g. `https://www.threads.net/@user/post/abc123`)
 2. Open the app → click the **+Add** button in the top-right corner.
 3. Paste the URL, click **Save**, and optionally add extra notes.
-4. The app uses Jina Reader to extract the content — a service that acts like a real browser to read Threads posts, since direct access returns an empty page.
+4. The app fetches content in parallel: Jina Reader acts as the primary source (a proxy that renders the page like a real browser), while the HTML from Threads itself serves as a fallback for images and text.
 5. The post is stored locally. Done.
 
 ---
@@ -115,17 +116,15 @@ Flatpak planned for future versions.
 ## Privacy
 
 - All data is stored in a local SQLite database (`%AppData%\threadsvault-desktop` on Windows, `~/.local/share/threadsvault-desktop` on Linux)
-- The only external requests go to `r.jina.ai`: when explicitly saving a post, and in the background if the app detects outdated images during loading
-- No usage data, no crash reports, no telemetry of any kind
+- External requests are limited to `r.jina.ai` (primary extraction) and `threads.net` (fallback when Jina is unavailable).
+- No usage data, no crash reports, no telemetry of any kind.
 
 ---
 
 ## Known Limitations
 
 - **Threads only** — specifically designed for Threads posts; other URLs may not extract properly
-- **Extraction depends on Jina** — if `r.jina.ai` is down or rate-limited, extraction fails gracefully
-- **Threads videos** — videos are not played inline nor stored locally. Threads protects videos using signed, temporary CDN URLs. If a post contains video, the text, images, and a “View on Threads” button are saved, which opens the post directly in the system browser.
-- **No bulk operations** — deleting or recategorizing multiple posts at once: v1.1+
+- **Extraction uses Jina as primary source** — if `r.jina.ai` is rate-limited or unavailable, the extractor falls back to Threads' embedded React state to recover images and text directly from the HTML.
 - **macOS not supported** — requires an Apple Developer account ($99/year) for notarization; not planned for v1.x (likely not for 2.x either).
 
 ---
