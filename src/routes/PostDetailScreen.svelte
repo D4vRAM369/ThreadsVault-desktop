@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { get } from 'svelte/store'
+  import { t, tn, locale } from '../lib/i18n'
   import { invoke } from '@tauri-apps/api/core'
   import { categories, deletePost, loadVault, posts, savePost } from '../lib/stores/vault'
   import { getStorage } from '../lib/storage/index'
@@ -10,6 +11,7 @@
   import { downloadDesktopVideo, isTauriEnvironment, resolveDesktopVideo } from '../lib/utils/desktop-video'
   import { cachePostMediaLocally } from '../lib/utils/media-cache'
   import type { Post, PostMedia } from '../lib/types'
+  $locale // reactive subscription
 
   let { postId }: { postId: string } = $props()
 
@@ -755,7 +757,7 @@
       style="background: var(--vault-surface); border: 1px solid var(--vault-border)"
       onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--vault-surface-hover)'}
       onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--vault-surface)'}
-      aria-label="Volver"
+      aria-label={t('common.back')}
     >
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color: var(--vault-on-bg)">
         <path d="M19 12H5M12 19l-7-7 7-7"/>
@@ -766,7 +768,7 @@
       color: var(--vault-on-bg-muted);
       font-family: var(--font-display);
       letter-spacing: 0.12em;
-    ">Post guardado</span>
+    ">{t('detail.saved_post')}</span>
 
     <!-- Botón eliminar / confirmación inline -->
     {#if !confirmDelete}
@@ -776,7 +778,7 @@
         style="background: rgba(239,68,68,0.07); border: 1px solid rgba(239,68,68,0.18)"
         onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.14)'}
         onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.07)'}
-        aria-label="Eliminar"
+        aria-label={t('common.delete')}
       >
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2">
           <polyline points="3 6 5 6 21 6"/>
@@ -787,17 +789,17 @@
       </button>
     {:else}
       <div class="flex items-center gap-1.5">
-        <span class="text-xs" style="color: var(--vault-on-bg-muted)">¿Eliminar?</span>
+        <span class="text-xs" style="color: var(--vault-on-bg-muted)">{t('common.delete_confirm')}</span>
         <button
           onclick={handleDelete}
           class="px-2.5 py-1 rounded-lg text-xs font-semibold text-white"
           style="background: rgba(239,68,68,0.75); font-family: var(--font-display)"
-        >Sí</button>
+        >{t('common.yes')}</button>
         <button
           onclick={() => confirmDelete = false}
           class="px-2.5 py-1 rounded-lg text-xs font-semibold"
           style="background: rgba(255,255,255,0.08); color: var(--vault-on-bg); font-family: var(--font-display)"
-        >No</button>
+        >{t('common.no')}</button>
       </div>
     {/if}
   </div>

@@ -1,6 +1,8 @@
 <script lang="ts">
   import { categories, saveCategoryAction, deleteCategoryAction, reorderCategories } from '../lib/stores/vault'
+  import { t, locale } from '../lib/i18n'
   import type { Category } from '../lib/types'
+  $locale // reactive subscription
 
   let {
     compact = false,
@@ -143,7 +145,7 @@
   color: var(--vault-on-bg-muted);
   font-family: var(--font-display);
   letter-spacing: 0.12em;
-">Categorías</p>
+">{t('cat.title')}</p>
 
 <div class="rounded-2xl sm:rounded-3xl p-4 sm:p-5 pt-5 sm:pt-6 mb-4 sm:mb-5 relative overflow-hidden" style="
   background: var(--vault-section-bg-alt);
@@ -165,13 +167,13 @@
         border: 1px solid var(--vault-border);
         line-height: 1;
       "
-      aria-label="Emoji de categoría"
+      aria-label={t('cat.emoji_label')}
     />
 
     <input
       type="text"
       bind:value={newName}
-      placeholder="Nueva categoría"
+      placeholder={t('cat.name_placeholder')}
       class="h-10 sm:h-11 px-3 rounded-xl text-sm outline-none transition-all"
       style="
         background: var(--vault-surface);
@@ -187,7 +189,7 @@
     <label class="relative w-10 sm:w-[42px] h-10 sm:h-11 rounded-xl overflow-hidden cursor-pointer shrink-0" style="
       border: 2px solid var(--vault-thumb-border);
       background: {newColor};
-    " title="Elegir color">
+    " title={t('cat.choose_color')}>
       <input
         type="color"
         bind:value={newColor}
@@ -273,7 +275,7 @@
       const el = e.currentTarget as HTMLElement
       el.style.transform = 'translateY(0) scale(1)'
     }}
-  >{saving ? 'Guardando...' : '+ Agregar categoría'}</button>
+  >{saving ? t('common.saving') : t('cat.add_btn')}</button>
 </div>
 
 {#if $categories.length > 0}
@@ -361,17 +363,17 @@
 
             {#if confirmDeleteId === cat.id}
               <div class="flex items-center gap-1.5">
-                <span class="text-xs" style="color: var(--vault-on-bg-muted)">¿Borrar?</span>
+                <span class="text-xs" style="color: var(--vault-on-bg-muted)">{t('common.delete_confirm_short')}</span>
                 <button
                   onclick={() => handleDelete(cat.id)}
                   class="px-2 py-0.5 rounded-lg text-xs font-semibold text-white"
                   style="background: rgba(239,68,68,0.75)"
-                >Sí</button>
+                >{t('common.yes')}</button>
                 <button
                   onclick={() => confirmDeleteId = null}
                   class="px-2 py-0.5 rounded-lg text-xs"
                   style="background: var(--vault-card-hover-bg); color: var(--vault-on-bg-muted)"
-                >No</button>
+                >{t('common.no')}</button>
               </div>
             {:else}
               <div class="flex items-center gap-1">
@@ -381,7 +383,7 @@
                   style="color: var(--vault-on-bg-muted)"
                   onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--vault-card-hover-bg)'}
                   onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'transparent'}
-                  aria-label="Editar"
+                  aria-label={t('common.edit')}
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -394,7 +396,7 @@
                   style="color: rgba(239,68,68,0.6)"
                   onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(239,68,68,0.1)'}
                   onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'transparent'}
-                  aria-label="Eliminar"
+                  aria-label={t('common.delete')}
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <polyline points="3 6 5 6 21 6"/>
@@ -411,7 +413,7 @@
   </div>
 {:else}
   <div class="flex flex-col items-center justify-center py-8 gap-2" style="opacity: 0.45">
-    <p class="text-sm" style="font-family: var(--font-display); color: var(--vault-on-bg-muted)">Sin categorías todavía</p>
+    <p class="text-sm" style="font-family: var(--font-display); color: var(--vault-on-bg-muted)">{t('cat.no_categories')}</p>
   </div>
 {/if}
 

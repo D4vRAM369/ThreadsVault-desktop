@@ -1,3 +1,7 @@
+<script lang="ts">
+  import { t, locale } from '../lib/i18n'
+  $locale // reactive subscription
+</script>
 <!--
   PBL: El SVG custom comunica "craftsmanship".
   El candado abierto con destellos refuerza la metáfora de la app.
@@ -53,11 +57,10 @@
 
   <!-- Texto -->
   <h2 class="text-xl font-bold mb-2 text-center" style="font-family: var(--font-display); color: var(--vault-on-bg)">
-    Tu bóveda está vacía
+    {t('empty.title')}
   </h2>
   <p class="text-sm text-center max-w-xs leading-relaxed" style="color: var(--vault-on-bg-muted)">
-    Pulsa <strong style="color: var(--vault-primary)">+ Añadir</strong> para guardar
-    tu primer post de Threads de forma privada y local
+    Pulsa <strong style="color: var(--vault-primary)">{t('empty.add')}</strong> {t('empty.subtitle')}
   </p>
 
   <!-- Indicador decorativo -->

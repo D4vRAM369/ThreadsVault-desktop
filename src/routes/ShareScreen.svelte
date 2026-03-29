@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte'
+  import { t, locale } from '../lib/i18n'
   import { categories, savePost } from '../lib/stores/vault'
   import { getStorage } from '../lib/storage/index'
   import { parseThreadsAuthor, isValidThreadsUrl, cleanThreadsUrl } from '../lib/utils/url-parser'
@@ -49,11 +50,11 @@
 
   async function handleSave(skipDuplicateCheck = false) {
     if (!isValidThreadsUrl(url)) {
-      error = 'Introduce una URL válida de Threads (threads.net o threads.com)'
+      error = t('share.error_invalid_url')
       return
     }
     if (!selectedCatId) {
-      error = 'Selecciona una categoría'
+      error = t('share.error_no_category')
       return
     }
 
@@ -176,7 +177,7 @@
       style="background: var(--vault-surface); border: 1px solid var(--vault-border)"
       onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--vault-surface-hover)'}
       onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--vault-surface)'}
-      aria-label="Volver"
+      aria-label={t('common.back')}
     >
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color: var(--vault-on-bg)">
         <path d="M19 12H5M12 19l-7-7 7-7"/>
@@ -184,9 +185,9 @@
     </button>
     <div>
       <h1 style="font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; color: var(--vault-on-bg)">
-        Guardar post
+        {t('share.title')}
       </h1>
-      <p class="text-xs" style="color: var(--vault-on-bg-muted)">Local · Sin cloud · Sin tracking</p>
+      <p class="text-xs" style="color: var(--vault-on-bg-muted)">{t('share.subtitle')}</p>
     </div>
   </div>
 
@@ -200,7 +201,7 @@
     <div>
       <label class="block text-xs font-semibold mb-1.5 uppercase tracking-widest"
              style="color: var(--vault-on-bg-muted); font-family: var(--font-display)"
-             for="url-input">URL de Threads</label>
+             for="url-input">{t('share.url_label')}</label>
       <input
         id="url-input"
         type="url"
@@ -249,10 +250,10 @@
         />
         <span>
           <span class="text-sm font-medium" style="color: var(--vault-on-bg)">
-            Este post tiene más de 1 publicación adjunta
+            {t('share.multipost_label')}
           </span>
           <span class="block text-xs mt-0.5" style="color: var(--vault-on-bg-muted)">
-            Pega la URL de cada publicación adicional del hilo
+            {t('share.multipost_hint')}
           </span>
         </span>
       </label>
@@ -286,7 +287,7 @@
                   onclick={() => { extraUrls = extraUrls.filter((_, idx) => idx !== i) }}
                   class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-200"
                   style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); color: #fca5a5; font-size: 1.1rem; line-height:1"
-                  aria-label="Eliminar URL"
+                  aria-label={t('share.remove_url')}
                 >×</button>
               {/if}
             </div>
@@ -295,7 +296,7 @@
             onclick={() => { extraUrls = [...extraUrls, ''] }}
             class="self-start px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200"
             style="background: rgba(124,77,255,0.12); border: 1px solid rgba(124,77,255,0.25); color: var(--vault-primary)"
-          >+ Añadir otra URL</button>
+          >{t('share.add_url')}</button>
         </div>
       {/if}
     </div>
@@ -305,13 +306,13 @@
       <label class="block text-xs font-semibold mb-1.5 uppercase tracking-widest"
              style="color: var(--vault-on-bg-muted); font-family: var(--font-display)"
              for="note-input">
-        Nota personal <span style="font-weight:400; text-transform:none; letter-spacing:0; color: var(--vault-on-bg-muted)">(opcional)</span>
+        {t('share.note_label')} <span style="font-weight:400; text-transform:none; letter-spacing:0; color: var(--vault-on-bg-muted)">{t('share.note_optional')}</span>
       </label>
       <textarea
         id="note-input"
         bind:value={note}
         rows="3"
-        placeholder="¿Por qué guardas este post? ¿Qué te aportó?"
+        placeholder={t('share.note_placeholder')}
         class="w-full px-4 py-3 rounded-xl text-sm outline-none resize-none transition-all duration-200"
         style="
           background: rgba(255,255,255,0.04);
@@ -328,7 +329,7 @@
     <!-- Categoría -->
     <div>
       <p class="text-xs font-semibold mb-2 uppercase tracking-widest"
-         style="color: var(--vault-on-bg-muted); font-family: var(--font-display)">Categoría</p>
+         style="color: var(--vault-on-bg-muted); font-family: var(--font-display)">{t('share.category_label')}</p>
       <div class="flex flex-wrap gap-2">
         {#each $categories as cat}
           <button
@@ -349,22 +350,22 @@
     {#if duplicatePost}
       <div class="flex flex-col gap-2 px-3 py-3 rounded-xl text-sm"
            style="background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.25)">
-        <p style="color: #fde68a; font-weight: 600">⚠ Ya tienes este post guardado</p>
+        <p style="color: #fde68a; font-weight: 600">{t('share.duplicate_title')}</p>
         <p style="color: var(--vault-on-bg-muted)">
-          Guardado por <strong style="color: var(--vault-on-bg)">{duplicatePost.author}</strong>
-          el {new Date(duplicatePost.savedAt).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
+          {t('share.duplicate_saved_by')} <strong style="color: var(--vault-on-bg)">{duplicatePost.author}</strong>
+          — {new Date(duplicatePost.savedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })}
         </p>
         <div class="flex gap-2 mt-1">
           <button
             onclick={() => handleSave(true)}
             class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200"
             style="background: rgba(251,191,36,0.15); color: #fde68a; border: 1px solid rgba(251,191,36,0.3)"
-          >Guardar igualmente</button>
+          >{t('share.save_anyway')}</button>
           <button
             onclick={() => { const id = duplicatePost!.id; duplicatePost = null; window.location.hash = `#/post/${id}` }}
             class="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200"
             style="background: var(--vault-surface); color: var(--vault-on-bg-muted); border: 1px solid var(--vault-border)"
-          >Ver post existente</button>
+          >{t('share.view_existing')}</button>
         </div>
       </div>
     {/if}
@@ -410,9 +411,9 @@
     >
       {saving
         ? (extracting
-            ? (isMultiPost ? '🔍 Extrayendo publicaciones...' : '🔍 Extrayendo texto y media...')
-            : '💾 Guardando...')
-        : '🔒 Guardar en bóveda'}
+            ? (isMultiPost ? t('share.extracting_multi') : t('share.extracting'))
+            : t('share.saving'))
+        : t('share.save_btn')}
     </button>
   </div>
 </div>

@@ -1,10 +1,12 @@
 <script lang="ts">
   import { onMount } from 'svelte'
+  import { t, locale } from '../lib/i18n'
   import { posts, categories, appState, filteredPosts, hashtagStats,
            searchQuery, activeCategory, activeHashtag, deletePost, refreshStalePostMedia, loadVault, reorderCategories,
            mediaRefreshState, mediaRefreshResult,
            mergePostsIntoThread, movePostsToCategory, bulkDeletePosts } from '../lib/stores/vault'
   import type { Category } from '../lib/types'
+  $locale // reactive subscription
   import PostCard from '../components/PostCard.svelte'
   import EmptyState from '../components/EmptyState.svelte'
   import LoadingSpinner from '../components/LoadingSpinner.svelte'
@@ -15,7 +17,7 @@
 
   function getCategoryLabel(name: string): string {
     const value = name?.trim()
-    return value ? value : 'Sin nombre'
+    return value ? value : t('vault.no_category_name')
   }
 
   function getCategoryPostCount(categoryId: string): number {
@@ -394,7 +396,7 @@
           onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--vault-surface-hover)'}
           onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--vault-surface)'}
           onclick={() => window.location.hash = '#/settings'}
-          aria-label="Ajustes"
+          aria-label={t('vault.settings')}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--vault-on-bg-muted)">
             <circle cx="12" cy="12" r="3"/>
@@ -409,7 +411,7 @@
           onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'var(--vault-surface)'}
           onclick={() => void refreshStalePostMedia()}
           disabled={$mediaRefreshState === 'refreshing'}
-          aria-label="Refrescar medios"
+          aria-label={t('vault.refresh_media')}
         >
           <svg
             width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -432,8 +434,8 @@
           onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = selectionMode ? 'rgba(124,77,255,0.3)' : 'var(--vault-surface-hover)'}
           onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = selectionMode ? 'rgba(124,77,255,0.22)' : 'var(--vault-surface)'}
           onclick={toggleSelectionMode}
-          aria-label="Seleccionar posts"
-          title={selectionMode ? 'Cancelar selección' : 'Seleccionar posts'}
+          aria-label={t('vault.select_posts')}
+          title={selectionMode ? t('vault.cancel_selection') : t('vault.select_posts')}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                style="color: {selectionMode ? '#c8b4ff' : 'var(--vault-on-bg-muted)'}">
@@ -460,7 +462,7 @@
           onclick={() => window.location.hash = '#/share'}
         >
           <span style="font-size:1.1rem; line-height:1; margin-top:-1px">+</span>
-          <span>Añadir</span>
+          <span>{t('vault.add')}</span>
         </button>
       </div>
     </div>
@@ -492,7 +494,7 @@
             color: var(--vault-hashtag-label);
             font-family: var(--font-display);
             letter-spacing: 0.03em;
-          "># Hashtags guardados</p>
+">{t('vault.hashtags_title')}</p>
           <span class="text-xs px-2 py-0.5 rounded-full" style="
             background: var(--vault-hashtag-count-bg);
             border: 1px solid var(--vault-hashtag-count-border);
@@ -503,7 +505,7 @@
 
         {#if $hashtagStats.length === 0}
           <p class="text-xs" style="color: var(--vault-on-bg-muted)">
-            Aún no hay hashtags. Añade `#tags` en tus notas o guarda posts con texto extraído.
+            {t('vault.no_hashtags')}
           </p>
         {:else}
           <div
@@ -556,7 +558,7 @@
                 </div>
 
                 <p class="mt-1.5 text-[10px]" style="color: var(--vault-on-bg-muted)">
-                  {$activeHashtag === item.tag ? 'Filtro activo · click para limpiar' : 'Click para abrir feed filtrado'}
+                  {$activeHashtag === item.tag ? t('vault.hashtag_filter_active') : t('vault.hashtag_filter_inactive')}
                 </p>
               </button>
             {/each}
@@ -575,7 +577,7 @@
       </svg>
       <input
         type="search"
-        placeholder="Buscar posts, autores, notas…"
+        placeholder={t('vault.search_placeholder')}
         bind:value={$searchQuery}
         bind:this={searchInput}
         class="w-full rounded-2xl text-sm outline-none transition-all duration-200"
@@ -596,7 +598,7 @@
         color: var(--vault-filter-label);
         font-family: var(--font-display);
         letter-spacing: 0.04em;
-      ">Filtros rápidos</p>
+      ">{t('vault.quick_filters')}</p>
       <span class="text-xs px-2 py-0.5 rounded-full" style="
         background: var(--vault-filter-count-bg);
         border: 1px solid var(--vault-filter-count-border);
@@ -618,7 +620,7 @@
               : 'background: var(--vault-surface); color: var(--vault-on-bg-muted); border: 1px solid var(--vault-border);'}
           "
           onclick={() => toggleCategory(null)}
-        >Todos</button>
+        >{t('vault.all')}</button>
 
         {#each chipOrder as cat}
           <button
@@ -654,7 +656,7 @@
     {:else if $appState === 'error'}
       <div class="flex flex-col items-center justify-center py-20 gap-3 animate-fade-up">
         <div class="text-4xl">⚠️</div>
-        <p style="color: var(--vault-on-bg-muted)">Error cargando la bóveda</p>
+        <p style="color: var(--vault-on-bg-muted)">{t('vault.error_loading')}</p>
       </div>
 
     {:else if $filteredPosts.length === 0}
@@ -671,10 +673,10 @@
           <div style="font-size: 2.2rem; opacity: 0.3; filter: grayscale(1)">🔍</div>
           <div class="text-center">
             <p class="font-semibold mb-1" style="font-family: var(--font-display); color: var(--vault-on-bg)">
-              Sin resultados
+              {t('vault.no_results')}
             </p>
             <p class="text-sm" style="color: var(--vault-on-bg-muted)">
-              Prueba con otros términos o categoría
+              {t('vault.no_results_hint')}
             </p>
           </div>
           <button
@@ -683,7 +685,7 @@
             onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(124,77,255,0.08)'}
             onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'transparent'}
             onclick={() => { searchQuery.set(''); activeCategory.set(null); activeHashtag.set(null) }}
-          >Limpiar filtros</button>
+          >{t('vault.clear_filters')}</button>
         </div>
       {/if}
 

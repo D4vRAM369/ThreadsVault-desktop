@@ -1,0 +1,316 @@
+import { writable, get } from 'svelte/store'
+
+const translations = {
+  es: {
+    // Comunes
+    'common.back': 'Volver',
+    'common.yes': 'Sí',
+    'common.no': 'No',
+    'common.cancel': 'Cancelar',
+    'common.retry': 'Reintentar',
+    'common.close': 'Cerrar',
+    'common.save': 'Guardar',
+    'common.delete': 'Eliminar',
+    'common.edit': 'Editar',
+    'common.download': 'Descargar',
+    'common.copy_url': 'Copiar URL',
+    'common.loading': 'Cargando…',
+    'common.saved_check': '✓ Guardado',
+    'common.saving': 'Guardando…',
+    'common.delete_confirm': '¿Eliminar?',
+    'common.delete_confirm_short': '¿Borrar?',
+
+    // VaultScreen
+    'vault.settings': 'Ajustes',
+    'vault.refresh_media': 'Refrescar medios',
+    'vault.select_posts': 'Seleccionar posts',
+    'vault.cancel_selection': 'Cancelar selección',
+    'vault.add': 'Añadir',
+    'vault.hashtags_title': '# Hashtags guardados',
+    'vault.search_placeholder': 'Buscar posts, autores, notas…',
+    'vault.quick_filters': 'Filtros rápidos',
+    'vault.all': 'Todos',
+    'vault.clear_filters': 'Limpiar filtros',
+    'vault.no_results': 'Sin resultados',
+    'vault.no_results_hint': 'Prueba con otros términos o categoría',
+    'vault.error_loading': 'Error cargando la bóveda',
+    'vault.no_hashtags': 'Aún no hay hashtags. Añade `#tags` en tus notas o guarda posts con texto extraído.',
+    'vault.hashtag_filter_active': 'Filtro activo · click para limpiar',
+    'vault.hashtag_filter_inactive': 'Click para abrir feed filtrado',
+    'vault.no_category_name': 'Sin nombre',
+
+    // EmptyState
+    'empty.title': 'Tu bóveda está vacía',
+    'empty.add': '+ Añadir',
+    'empty.subtitle': 'para guardar tu primer post de Threads de forma privada y local',
+
+    // ShareScreen
+    'share.title': 'Guardar post',
+    'share.subtitle': 'Local · Sin cloud · Sin tracking',
+    'share.url_label': 'URL de Threads',
+    'share.note_label': 'Nota personal',
+    'share.note_optional': '(opcional)',
+    'share.note_placeholder': '¿Por qué guardas este post? ¿Qué te aportó?',
+    'share.category_label': 'Categoría',
+    'share.duplicate_title': '⚠ Ya tienes este post guardado',
+    'share.duplicate_saved_by': 'Guardado por',
+    'share.save_anyway': 'Guardar igualmente',
+    'share.view_existing': 'Ver post existente',
+    'share.multipost_label': 'Este post tiene más de 1 publicación adjunta',
+    'share.multipost_hint': 'Pega la URL de cada publicación adicional del hilo',
+    'share.add_url': '+ Añadir otra URL',
+    'share.remove_url': 'Eliminar URL',
+    'share.extracting_multi': '🔍 Extrayendo publicaciones...',
+    'share.extracting': '🔍 Extrayendo texto y media...',
+    'share.saving': '💾 Guardando...',
+    'share.save_btn': '🔒 Guardar en bóveda',
+    'share.error_invalid_url': 'Introduce una URL válida de Threads (threads.net o threads.com)',
+    'share.error_no_category': 'Selecciona una categoría',
+
+    // PostDetailScreen
+    'detail.saved_post': 'Post guardado',
+    'detail.delete': 'Eliminar',
+    'detail.prev_post': 'Sub-post anterior',
+    'detail.next_post': 'Sub-post siguiente',
+    'detail.note_placeholder': 'Escribe tu nota…',
+    'detail.delete_note': 'Eliminar nota',
+    'detail.edit_note': 'Editar nota',
+    'detail.add_note': '+ Añadir nota personal…',
+    'detail.extracted_text': 'Texto extraído',
+    'detail.post_media': 'Media del post',
+    'detail.prev_image': 'Imagen anterior',
+    'detail.next_image': 'Imagen siguiente',
+    'detail.go_to_image': 'Ir a imagen {n}',
+    'detail.embedded_video': 'Vídeo embebido de Threads',
+    'detail.view_on_threads': 'Ver en Threads ↗',
+    'detail.close': 'Cerrar',
+    'detail.post_not_found': 'Post no encontrado',
+    'detail.refreshing': 'Extrayendo...',
+    'detail.refresh': 'Refrescar',
+    'detail.no_text': 'No se extrajo texto. Pulsa Refrescar para intentar de nuevo.',
+    'detail.updating_media': 'Actualizando...',
+    'detail.update_media': 'Actualizar media',
+    'detail.personal_note': 'NOTA PERSONAL',
+    'detail.unknown_author': 'Autor desconocido',
+
+    // PostCard
+    'card.open': 'Abrir detalle del post',
+    'card.open_link': 'Abrir enlace externo',
+    'card.edit_note': 'Editar nota personal',
+    'card.delete_post': 'Eliminar post',
+    'card.note_placeholder': 'Escribe tu nota…',
+    'card.delete_note': 'Eliminar nota',
+    'card.unknown_author': 'Autor desconocido',
+
+    // CategoryManager / CategoryScreen
+    'cat.title': 'Categorías',
+    'cat.emoji_label': 'Emoji de categoría',
+    'cat.name_placeholder': 'Nueva categoría',
+    'cat.choose_color': 'Elegir color',
+    'cat.add_btn': '+ Agregar categoría',
+    'cat.drag_hint': 'Arrastra para reordenar · {n} categorías',
+    'cat.no_categories': 'Sin categorías todavía',
+
+    // SettingsScreen
+    'settings.saved': '✓ Guardado',
+    'settings.title': 'Ajustes',
+    'settings.subtitle': 'Categorías · Backup · Privacidad',
+    'settings.data': 'Datos',
+    'settings.export_backup': 'Exportar backup',
+    'settings.export_desc': 'Guarda tus posts en JSON',
+    'settings.import_backup': 'Importar backup',
+    'settings.import_desc': 'Compatible con ThreadsVault Android',
+    'settings.privacy': 'Privacidad',
+    'settings.all_local': 'Todo local',
+    'settings.all_local_desc': 'Los datos nunca salen de tu dispositivo',
+    'settings.no_cloud': 'Sin cloud',
+    'settings.no_cloud_desc': 'No hay sincronización ni servidores',
+    'settings.no_tracking': 'Sin tracking',
+    'settings.no_tracking_desc': 'Cero analíticas, cero publicidad',
+    'settings.about': 'Acerca de',
+    'settings.about_dev': 'About Dev',
+    'settings.github': 'GitHub — ThreadsVault',
+    'settings.delete_warning': 'borrará todos tus posts y categorías actuales',
+    'settings.import_replace': 'Importar y reemplazar',
+    'settings.view_vault': 'Ver mi vault →',
+    'settings.import_question': '¿Importar este backup?',
+    'settings.importing': 'Importando backup…',
+    'settings.processing': 'Procesando…',
+    'settings.processing_detail': 'Posts, categorías y media',
+    'settings.shortcuts': 'Atajos de teclado',
+    'settings.dev_title': 'Desarrollador de ThreadsVault',
+    'settings.close': 'CERRAR',
+  },
+  en: {
+    // Common
+    'common.back': 'Back',
+    'common.yes': 'Yes',
+    'common.no': 'No',
+    'common.cancel': 'Cancel',
+    'common.retry': 'Retry',
+    'common.close': 'Close',
+    'common.save': 'Save',
+    'common.delete': 'Delete',
+    'common.edit': 'Edit',
+    'common.download': 'Download',
+    'common.copy_url': 'Copy URL',
+    'common.loading': 'Loading…',
+    'common.saved_check': '✓ Saved',
+    'common.saving': 'Saving…',
+    'common.delete_confirm': 'Delete?',
+    'common.delete_confirm_short': 'Delete?',
+
+    // VaultScreen
+    'vault.settings': 'Settings',
+    'vault.refresh_media': 'Refresh media',
+    'vault.select_posts': 'Select posts',
+    'vault.cancel_selection': 'Cancel selection',
+    'vault.add': 'Add',
+    'vault.hashtags_title': '# Saved hashtags',
+    'vault.search_placeholder': 'Search posts, authors, notes…',
+    'vault.quick_filters': 'Quick filters',
+    'vault.all': 'All',
+    'vault.clear_filters': 'Clear filters',
+    'vault.no_results': 'No results',
+    'vault.no_results_hint': 'Try other terms or category',
+    'vault.error_loading': 'Error loading vault',
+    'vault.no_hashtags': 'No hashtags yet. Add `#tags` in your notes or save posts with extracted text.',
+    'vault.hashtag_filter_active': 'Filter active · click to clear',
+    'vault.hashtag_filter_inactive': 'Click to open filtered feed',
+    'vault.no_category_name': 'Unnamed',
+
+    // EmptyState
+    'empty.title': 'Your vault is empty',
+    'empty.add': '+ Add',
+    'empty.subtitle': 'to save your first Threads post privately and locally',
+
+    // ShareScreen
+    'share.title': 'Save post',
+    'share.subtitle': 'Local · No cloud · No tracking',
+    'share.url_label': 'Threads URL',
+    'share.note_label': 'Personal note',
+    'share.note_optional': '(optional)',
+    'share.note_placeholder': 'Why are you saving this post? What did you get from it?',
+    'share.category_label': 'Category',
+    'share.duplicate_title': '⚠ You already have this post saved',
+    'share.duplicate_saved_by': 'Saved by',
+    'share.save_anyway': 'Save anyway',
+    'share.view_existing': 'View existing post',
+    'share.multipost_label': 'This post has more than 1 attached publication',
+    'share.multipost_hint': 'Paste the URL of each additional thread publication',
+    'share.add_url': '+ Add another URL',
+    'share.remove_url': 'Remove URL',
+    'share.extracting_multi': '🔍 Extracting publications...',
+    'share.extracting': '🔍 Extracting text and media...',
+    'share.saving': '💾 Saving...',
+    'share.save_btn': '🔒 Save to vault',
+    'share.error_invalid_url': 'Enter a valid Threads URL (threads.net or threads.com)',
+    'share.error_no_category': 'Select a category',
+
+    // PostDetailScreen
+    'detail.saved_post': 'Saved post',
+    'detail.delete': 'Delete',
+    'detail.prev_post': 'Previous post',
+    'detail.next_post': 'Next post',
+    'detail.note_placeholder': 'Write your note…',
+    'detail.delete_note': 'Delete note',
+    'detail.edit_note': 'Edit note',
+    'detail.add_note': '+ Add personal note…',
+    'detail.extracted_text': 'Extracted text',
+    'detail.post_media': 'Post media',
+    'detail.prev_image': 'Previous image',
+    'detail.next_image': 'Next image',
+    'detail.go_to_image': 'Go to image {n}',
+    'detail.embedded_video': 'Embedded Threads video',
+    'detail.view_on_threads': 'View on Threads ↗',
+    'detail.close': 'Close',
+    'detail.post_not_found': 'Post not found',
+    'detail.refreshing': 'Extracting...',
+    'detail.refresh': 'Refresh',
+    'detail.no_text': 'No text extracted. Press Refresh to try again.',
+    'detail.updating_media': 'Updating...',
+    'detail.update_media': 'Update media',
+    'detail.personal_note': 'PERSONAL NOTE',
+    'detail.unknown_author': 'Unknown author',
+
+    // PostCard
+    'card.open': 'Open post detail',
+    'card.open_link': 'Open external link',
+    'card.edit_note': 'Edit personal note',
+    'card.delete_post': 'Delete post',
+    'card.note_placeholder': 'Write your note…',
+    'card.delete_note': 'Delete note',
+    'card.unknown_author': 'Unknown author',
+
+    // CategoryManager / CategoryScreen
+    'cat.title': 'Categories',
+    'cat.emoji_label': 'Category emoji',
+    'cat.name_placeholder': 'New category',
+    'cat.choose_color': 'Choose color',
+    'cat.add_btn': '+ Add category',
+    'cat.drag_hint': 'Drag to reorder · {n} categories',
+    'cat.no_categories': 'No categories yet',
+
+    // SettingsScreen
+    'settings.saved': '✓ Saved',
+    'settings.title': 'Settings',
+    'settings.subtitle': 'Categories · Backup · Privacy',
+    'settings.data': 'Data',
+    'settings.export_backup': 'Export backup',
+    'settings.export_desc': 'Save your posts as JSON',
+    'settings.import_backup': 'Import backup',
+    'settings.import_desc': 'Compatible with ThreadsVault Android',
+    'settings.privacy': 'Privacy',
+    'settings.all_local': 'All local',
+    'settings.all_local_desc': 'Data never leaves your device',
+    'settings.no_cloud': 'No cloud',
+    'settings.no_cloud_desc': 'No sync, no servers',
+    'settings.no_tracking': 'No tracking',
+    'settings.no_tracking_desc': 'Zero analytics, zero ads',
+    'settings.about': 'About',
+    'settings.about_dev': 'About Dev',
+    'settings.github': 'GitHub — ThreadsVault',
+    'settings.delete_warning': 'will delete all your current posts and categories',
+    'settings.import_replace': 'Import and replace',
+    'settings.view_vault': 'View my vault →',
+    'settings.import_question': 'Import this backup?',
+    'settings.importing': 'Importing backup…',
+    'settings.processing': 'Processing…',
+    'settings.processing_detail': 'Posts, categories and media',
+    'settings.shortcuts': 'Keyboard shortcuts',
+    'settings.dev_title': 'ThreadsVault Developer',
+    'settings.close': 'CLOSE',
+  }
+} as const
+
+type TranslationKey = keyof typeof translations.es
+
+const _locale = writable<'es' | 'en'>(
+  (localStorage.getItem('tv_locale') as 'es' | 'en' | null)
+  ?? (navigator.language.startsWith('es') ? 'es' : 'en')
+)
+
+export const locale = _locale
+
+/** Traducción simple */
+export function t(key: TranslationKey): string {
+  const loc = get(_locale)
+  return (translations[loc] as Record<string, string>)[key]
+    ?? (translations['en'] as Record<string, string>)[key]
+    ?? key
+}
+
+/** Traducción con interpolación: tn('cat.drag_hint', {n: 5}) */
+export function tn(key: TranslationKey, vars: Record<string, string | number>): string {
+  let text = t(key)
+  for (const [k, v] of Object.entries(vars)) {
+    text = text.replace(`{${k}}`, String(v))
+  }
+  return text
+}
+
+/** Cambiar idioma manualmente */
+export function setLocale(lang: 'es' | 'en') {
+  _locale.set(lang)
+  localStorage.setItem('tv_locale', lang)
+}
