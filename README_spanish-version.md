@@ -74,6 +74,7 @@ Puedes clasificar los posts en distintas categorías, el programa indexa los has
 ## Características principales
 
 - **Guardar posts por URL** — pega un enlace de Threads y pulsa guardar. Título, autor, texto e imágenes se extraen automáticamente.
+-  **Modo oscuro/claro**: cambia entre el tema oscuro predeterminado y el modo claro desde cualquier pantalla.
 - **Almacenamiento local** — SQLite en escritorio (vía Tauri), IndexedDB en navegador. Nada sale de tu dispositivo.
 - **Categorías** — organiza tus posts en categorías personalizadas. Los no categorizados van a una bandeja por defecto.
 - **Backup y restauración** — exporta toda tu bóveda como JSON e impórtala cuando quieras. Al importar, la app muestra el progreso y confirma cuántos posts y categorías se restauraron. Los backups de ThreadsVault para Android se pueden importar aquí sin problemas *(Android → Desktop ✅)*. La dirección inversa *(Desktop → Android)* no está soportada aún y se resolverá en una versión futura.
@@ -114,7 +115,7 @@ Flatpak planificado para futuras versiones.
 1. Copia la URL de un post de Threads (ej. `https://www.threads.net/@usuario/post/abc123`)
 2. Abre la app → pulsa el botón **+Añadir** en la esquina superior derecha.
 3. Pega la URL y pulsa **Guardar**, y añade notas adicionales de forma opcional.
-4. La app usa Jina Reader para extraer el contenido — un servicio que actúa como navegador real para poder leer posts de Threads, ya que el acceso directo devuelve la página vacía.
+4. La aplicación recupera el contenido en paralelo: Jina Reader actúa como fuente principal (un proxy que muestra la página como lo haría un navegador real), mientras que el código HTML de la propia aplicación Threads sirve como alternativa para las imágenes y el texto.
 5. El post se guarda localmente. Listo.
 
 ---
@@ -122,7 +123,7 @@ Flatpak planificado para futuras versiones.
 ## Privacidad
 
 - Todos los datos se almacenan en una base de datos SQLite local (`%AppData%\threadsvault-desktop` en Windows, `~/.local/share/threadsvault-desktop` en Linux)
-- Las únicas peticiones externas van a `r.jina.ai`: al guardar un post explícitamente, y en segundo plano si la app detecta imágenes desactualizadas al cargar
+- Las solicitudes externas se limitan a `r.jina.ai` (extracción principal) y `threads.net` (alternativa cuando Jina no está disponible).
 - Sin datos de uso, sin informes de errores, sin telemetría de ningún tipo
 
 ---
@@ -130,7 +131,7 @@ Flatpak planificado para futuras versiones.
 ## Limitaciones conocidas
 
 - **Solo Threads** — diseñado específicamente para posts de Threads; otras URLs pueden no extraerse correctamente
-- **La extracción depende de Jina** — si `r.jina.ai` está caído o aplica rate-limit, la extracción falla de forma controlada
+- **La extracción utiliza Jina como fuente principal**: si `r.jina.ai` tiene una limitación de velocidad o no está disponible, el extractor recurre al estado React integrado de Threads para recuperar imágenes y texto directamente del código HTML.
 - **macOS no soportado** — requiere cuenta Apple Developer ($99/año) para notarización; no planificado para v1.x (probablemente tampoco para una 2.x).
 
 ---
