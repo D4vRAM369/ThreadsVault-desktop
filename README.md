@@ -2,6 +2,8 @@
 
 <img width="400" height="400" alt="threadsvault-desktop-icon" src="https://github.com/user-attachments/assets/e336810d-5130-4b7a-a275-fac97b15acec" />
 
+
+
 <!-- badges -->
 ![Platform](https://img.shields.io/badge/plataforma-Windows%20%7C%20Linux-blue)
 ![Cross Platform](https://img.shields.io/badge/Cross--Platform-Desktop%20%7C%20Web-blueviolet)
@@ -16,6 +18,10 @@
 [![Claude Code](https://img.shields.io/badge/Assistant-Claude%20Code-D97706)](https://www.anthropic.com/claude-code)
 [![Codex](https://img.shields.io/badge/Assistant-Codex-111827)](https://openai.com/)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/D4vRAM369/ThreadsVault-desktop)
+
+<p align="left">
+  <a href="./README_spanish-version.md">Leer en español</a>
+</p>
 
 > A local vault for your Threads posts. No cloud. No tracking. No account required.
 
