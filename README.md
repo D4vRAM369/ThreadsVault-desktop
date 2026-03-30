@@ -3,7 +3,7 @@
 <img width="400" height="400" alt="threadsvault-desktop-icon" src="https://github.com/user-attachments/assets/e336810d-5130-4b7a-a275-fac97b15acec" />
 
 <!-- badges -->
-![Plataforma](https://img.shields.io/badge/plataforma-Windows%20%7C%20Linux-blue)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-blue)
 ![Cross Platform](https://img.shields.io/badge/Cross--Platform-Desktop%20%7C%20Web-blueviolet)
 ![Tauri](https://img.shields.io/badge/Tauri-v2-orange)
 ![Svelte](https://img.shields.io/badge/Svelte-5-red)
@@ -11,115 +11,139 @@
 ![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-v4-38B2AC?logo=tailwindcss&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-Local_DB-003B57?logo=sqlite&logoColor=white)
 ![IndexedDB](https://img.shields.io/badge/IndexedDB-Dexie-yellow)
-![Licencia](https://img.shields.io/badge/licencia-GPL--3.0-green)
-![PBL](https://img.shields.io/badge/método-PBL-blueviolet)
+![License](https://img.shields.io/badge/license-GPL--3.0-green)
+![PBL](https://img.shields.io/badge/method-PBL-blueviolet)
 [![Claude Code](https://img.shields.io/badge/Assistant-Claude%20Code-D97706)](https://www.anthropic.com/claude-code)
 [![Codex](https://img.shields.io/badge/Assistant-Codex-111827)](https://openai.com/)
 
-> Una bóveda local para tus posts de Threads. Sin nube. Sin rastreo. Sin cuenta necesaria.
+<p align="left">
+  <a href="./README_spanish-version.md">Leer en español</a>
+</p>
 
-ThreadsVault Desktop es la versión de escritorio de [ThreadsVault para Android](https://github.com/D4vRAM369/ThreadsVault). Su funcionamiento es sencillo: pega la URL de un post de Threads, ésta se extrae, se guarda localmente, y es tuyo. Cierra la app y ábrela en el tiempo que quiera: el texto y las imágenes de tus posts guardados van a seguir ahí (el programa los guarda localmente en segundo plano tras cada guardado).
+> A local vault for your Threads posts. No cloud. No tracking. No account needed.
 
-Puedes clasificar los posts en distintas categorías, el programa indexa los hashtags de las publicaciones y tú puedes usarlos en notas personales al guardar un post, para una mayor facilidad de búsqueda en tu pequeña bóveda personal de hilos que te resulten interesantes o relevantes para guardarlos de forma local, sin depender únicamente del sencillo Guardados de Threads 🗄🧵
+ThreadsVault Desktop is the desktop version of [ThreadsVault for Android](https://github.com/D4vRAM369/ThreadsVault). The idea is simple: paste a Threads post URL, it gets extracted and saved locally — and it's yours. Close the app and reopen it whenever you want: the text and images of your saved posts will still be there.
+
+You can organize posts into categories, the app indexes post hashtags, and you can attach personal notes when saving — making your vault easy to search without depending solely on Threads' built-in Saved feature 🗄🧵
 
 ---
 
-## Capturas
+## Screenshots
 
 <table align="center">
   <tr>
     <td align="center" width="33%">
-      <img src="assets/screenshots/vault_empty.png" alt="Bóveda vacía" /><br/>
-      <b>Bóveda vacía</b><br/>
-      <sub>Pantalla principal al primer arranque</sub>
+      <img src="assets/screenshots/vault_empty.png" alt="Empty vault" /><br/>
+      <b>Empty vault</b><br/>
+      <sub>Main screen on first launch</sub>
     </td>
     <td align="center" width="33%">
-      <img src="assets/screenshots/settings_categories.png" alt="Categorías" /><br/>
-      <b>Categorías</b><br/>
-      <sub>Crea y organiza con color e icono</sub>
+      <img src="assets/screenshots/settings_categories.png" alt="Categories" /><br/>
+      <b>Categories</b><br/>
+      <sub>Create and organize with color and icon</sub>
     </td>
     <td align="center" width="33%">
-      <img src="assets/screenshots/settings_privacy.png" alt="Ajustes" /><br/>
-      <b>Privacidad y ajustes</b><br/>
-      <sub>Backup, privacidad, atajos de teclado</sub>
+      <img src="assets/screenshots/settings_privacy.png" alt="Settings" /><br/>
+      <b>Privacy & settings</b><br/>
+      <sub>Backup, privacy, keyboard shortcuts</sub>
+    </td>
+  </tr>
+   <tr>
+    <td align="center" width="33%">
+      <img src="https://github.com/user-attachments/assets/c1b6d4e5-96eb-4736-8d11-67a78626a307" alt="Bóveda con posts en modo claro" /><br/>
+      <b>Vault with posts (new light mode since v2.1.0)</b><br/>
+      <sub>Home screen with light mode and saved posts</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="https://github.com/user-attachments/assets/57389305-7c3c-4ad5-b5a5-876a5a8c4c37" alt="Categorías - Modo claro" /><br/>
+      <b>Categories</b><br/>
+      <sub>Category view in light mode</sub>
+    </td>
+    <td align="center" width="33%">
+      <img src="https://github.com/user-attachments/assets/8b901aa7-4d31-4687-b3f2-7c525cce76a0" alt="Ajustes" /><br/>
+      <b>Privacy and Settings</b><br/>
+      <sub>Light mode</sub>
     </td>
   </tr>
 </table>
 
 ---
 
-## Características principales
+## Key features
 
-- **Guardar posts por URL** — pega un enlace de Threads y pulsa guardar. Título, autor, texto e imágenes se extraen automáticamente.
-- **Almacenamiento local** — SQLite en escritorio (vía Tauri), IndexedDB en navegador. Nada sale de tu dispositivo.
-- **Categorías** — organiza tus posts en categorías personalizadas. Los no categorizados van a una bandeja por defecto.
-- **Backup y restauración** — exporta toda tu bóveda como JSON e impórtala cuando quieras. Al importar, la app muestra el progreso y confirma cuántos posts y categorías se restauraron. Los backups de ThreadsVault para Android se pueden importar aquí sin problemas *(Android → Desktop ✅)*. La dirección inversa *(Desktop → Android)* no está soportada aún y se resolverá en una versión futura.
-- **Caché de medios** — las imágenes se cachean localmente como data URLs para que los posts sobrevivan la expiración de los enlaces CDN.
-- **Notas personales** — añade, edita o elimina notas en cualquier post guardado directamente desde su pantalla de detalle.
-- **Atajos de teclado** — navega y busca sin ratón: `Esc` volver, `Ctrl+N` añadir, `/` o `Ctrl+F` buscar, `←` `→` navegar entre posts.
-- **Sin telemetría** — sin analíticas, sin informes de errores, sin peticiones externas más allá de la extracción del post. Todo funciona 100% en local (client-side): ni el desarrollador tiene acceso a tus datos.
+- **Save posts by URL** — paste a Threads link and hit save. Title, author, text and images are extracted automatically.
+- **Local storage** — SQLite on desktop (via Tauri), IndexedDB in browser. Nothing leaves your device.
+- **Categories** — organize your posts into custom categories. Uncategorized posts go to a default inbox.
+- **Backup & restore** — export your entire vault as JSON and import it whenever you want. On import, the app shows progress and confirms how many posts and categories were restored. Backups from ThreadsVault for Android can be imported here without issues *(Android → Desktop ✅)*. The reverse direction *(Desktop → Android)* is not yet supported and will be addressed in a future version.
+- **Media cache & built-in player** — images are cached locally as data URLs; videos are downloaded and stored offline, playable directly inside the app with an option to download them.
+- **Personal notes** — add, edit or delete notes on any saved post directly from its detail screen.
+- **Keyboard shortcuts** — navigate and search without a mouse: `Esc` go back, `Ctrl+N` add, `/` or `Ctrl+F` search, `←` `→` navigate between posts.
+- **ES/EN internationalization** — the UI language is resolved automatically at startup from your OS locale. No configuration needed. Spanish and English fully supported across all screens.
+- **No telemetry** — no analytics, no error reporting, no external requests beyond post extraction. Everything runs 100% locally: not even the developer has access to your data.
 
 ---
 
-## Instalación
+## Installation
 
 ### Windows
 
-Descarga el instalador `.exe` desde [Releases](../../releases) y ejecútalo.
-Se instala en `%LocalAppData%\threadsvault-desktop` y crea un acceso directo en el Menú Inicio.
+Download the installer from [Releases](../../releases) and run it:
+
+| Format | Description |
+|---|---|
+| `.exe` | Standard installer — recommended |
+| `.msi` | MSI package for managed/enterprise environments |
+
+Installs to `%LocalAppData%\threadsvault-desktop` and creates a Start Menu shortcut.
 
 ### Linux
 
-Dos opciones disponibles en [Releases](../../releases):
+Multiple formats available in [Releases](../../releases):
 
-| Formato | Cómo usarlo |
+| Format | How to use |
 |---|---|
 | `.AppImage` | `chmod +x ThreadsVault_*.AppImage && ./ThreadsVault_*.AppImage` |
 | `.deb` | `sudo dpkg -i threadsvault-desktop_*.deb` |
+| `.rpm` | `sudo rpm -i threadsvault-desktop_*.rpm` |
+| `.flatpak` | `flatpak install ThreadsVault-desktop-*.flatpak` |
 
-
-> *Nota: Si el AppImage no arranca en Ubuntu 22.04+, ejecuta `sudo apt install libfuse2`.*
-
-
-Flatpak planificado para futuras versiones.
+> *Note: If the AppImage doesn't launch on Ubuntu 22.04+, run `sudo apt install libfuse2`.*
 
 ---
 
-## Cómo funciona
+## How it works
 
-1. Copia la URL de un post de Threads (ej. `https://www.threads.net/@usuario/post/abc123`)
-2. Abre la app → pulsa el botón **+Añadir** en la esquina superior derecha.
-3. Pega la URL y pulsa **Guardar**, y añade notas adicionales de forma opcional.
-4. La app usa Jina Reader para extraer el contenido — un servicio que actúa como navegador real para poder leer posts de Threads, ya que el acceso directo devuelve la página vacía.
-5. El post se guarda localmente. Listo.
-
----
-
-## Privacidad
-
-- Todos los datos se almacenan en una base de datos SQLite local (`%AppData%\threadsvault-desktop` en Windows, `~/.local/share/threadsvault-desktop` en Linux)
-- Las únicas peticiones externas van a `r.jina.ai`: al guardar un post explícitamente, y en segundo plano si la app detecta imágenes desactualizadas al cargar
-- Sin datos de uso, sin informes de errores, sin telemetría de ningún tipo
+1. Copy the URL of a Threads post (e.g. `https://www.threads.net/@user/post/abc123`)
+2. Open the app → click the **+Add** button in the top right corner.
+3. Paste the URL and click **Save**, optionally adding notes.
+4. The app extracts the post content using a two-step system: Jina Reader is the primary method, with a direct fallback to Threads' embedded React state when Jina is unavailable or rate-limited.
+5. If the URL is part of a thread, the app automatically detects and extracts all posts in the sequence — no need to save them one by one _(v2.2.0 update feature)_
+6. The post (or thread) is saved locally. Done.
 
 ---
 
-## Limitaciones conocidas
+## Privacy
 
-- **Solo Threads** — diseñado específicamente para posts de Threads; otras URLs pueden no extraerse correctamente
-- **La extracción depende de Jina** — si `r.jina.ai` está caído o aplica rate-limit, la extracción falla de forma controlada
-- **Vídeos de Threads** — los vídeos no se reproducen inline ni se almacenan localmente. Threads protege sus vídeos mediante URLs CDN firmadas y temporales. Si un post contiene vídeo, se guarda el texto, las imágenes y un botón «Ver en Threads» que lo abre directamente en el navegador del sistema.
-- **Sin operaciones en bulk** — borrar o recategorizar múltiples posts a la vez: v1.1+
-- **macOS no soportado** — requiere cuenta Apple Developer ($99/año) para notarización; no planificado para v1.x (probablemente tampoco para una 2.x).
+- All data is stored in a local SQLite database (`%AppData%\threadsvault-desktop` on Windows, `~/.local/share/threadsvault-desktop` on Linux)
+- The only external requests go to `r.jina.ai`: when explicitly saving a post, and in the background if the app detects outdated images on load
+- No usage data, no error reporting, no telemetry of any kind
 
 ---
 
-## Compilar desde el código fuente
+## Known limitations
 
-**Requisitos previos:**
+- **Threads only** — designed specifically for Threads posts; other URLs may not extract correctly
+- **Extraction reliability** — occasionally a post may not extract perfectly on the first attempt. If text formatting or images look off, use the Refresh button to re-extract.
+- **macOS not supported** — requires an Apple Developer account ($99/year) for notarization; not planned for v2.x
+- **Backup compatibility** — importing backups from [ThreadsVault for Android](https://github.com/D4vRAM369/ThreadsVault/) into ThreadsVault-desktop works seamlessly *(Android → Desktop ✅)*. The reverse direction *(Desktop → Android)* is not yet supported and will be addressed in a future version.
+---
+
+## Build from source
+
+**Prerequisites:**
 - [Node.js](https://nodejs.org/) 20+
-- [Rust](https://rustup.rs/) (toolchain stable)
-- En Linux: `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `librsvg2-dev`, `libayatana-appindicator3-dev`, `patchelf` (`sudo apt install ...`)
-
+- [Rust](https://rustup.rs/) (stable toolchain)
+- On Linux: `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `librsvg2-dev`, `libayatana-appindicator3-dev`, `patchelf` (`sudo apt install ...`)
 ```bash
 git clone https://github.com/D4vRAM369/threadsvault-desktop
 cd threadsvault-desktop
@@ -127,41 +151,42 @@ npm install
 npm run tauri build
 ```
 
-El binario compilado estará en `src-tauri/target/release/bundle/`.
+The compiled binary will be in `src-tauri/target/release/bundle/`.
 
-Para desarrollo con hot-reload:
+For development with hot-reload:
 ```bash
 npm run tauri dev
 ```
 
-O solo en navegador (sin Tauri, usa IndexedDB en lugar de SQLite):
+Browser-only mode (no Tauri, uses IndexedDB instead of SQLite):
 ```bash
 npm run dev
 ```
 
 ---
 
-## Stack técnico
+## Tech stack
 
-| Capa | Tecnología |
+| Layer | Technology |
 |---|---|
 | Shell | Tauri v2 |
 | Frontend | Svelte 5 (runes) + TypeScript |
-| Estilos | Tailwind CSS v4 |
-| Almacenamiento (escritorio) | SQLite vía `@tauri-apps/plugin-sql` |
-| Almacenamiento (navegador) | Dexie (IndexedDB) |
-| Extracción de posts | Jina Reader (`r.jina.ai`) |
+| Styles | Tailwind CSS v4 |
+| Storage (desktop) | SQLite via `@tauri-apps/plugin-sql` |
+| Storage (browser) | Dexie (IndexedDB) |
+| Post extraction | Jina Reader (`r.jina.ai`) + direct HTML fallback |
+| i18n | Custom `i18n.ts` (~130 keys, ES/EN) |
 
 ---
 
-## Método de desarrollo
+## Development approach
 
-Construido mediante **PBL (Project-Based Learning)** — y documentado con artefactos de aprendizaje no incluidos en el repositorio para uso personal y sesiones de estudio teóricas con el programa abierto.
+Built through **PBL (Project-Based Learning)** — documented with learning artifacts for personal use and study sessions.
 
-Desarrollado principalmente con asistencia de **Claude Code** y en menor medida con **ChatGPT-5.3-Codex**.
+Developed primarily with assistance from **Claude Code** and to a lesser extent **ChatGPT-5.3-Codex**.
 
 ---
 
-## Licencia
+## License
 
-[GPL-3.0](LICENSE) — igual que[ ThreadsVault para Android](https://github.com/D4vRAM369/ThreadsVault).
+[GPL-3.0](LICENSE) — same as [ThreadsVault for Android](https://github.com/D4vRAM369/ThreadsVault).
