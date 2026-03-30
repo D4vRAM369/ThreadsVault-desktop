@@ -24,7 +24,7 @@
 
 > Una bóveda local para tus posts de Threads. Sin nube. Sin rastreo. Sin cuenta necesaria.
 
-ThreadsVault Desktop es la versión de escritorio de [ThreadsVault para Android](https://github.com/D4vRAM369/ThreadsVault). Su funcionamiento es sencillo: pega la URL de un post de Threads, ésta se extrae, se guarda localmente, y es tuyo. Cierra la app y ábrela en el tiempo que quiera: el texto y las imágenes de tus posts guardados van a seguir ahí (el programa los guarda localmente en segundo plano tras cada guardado).
+ThreadsVault Desktop es la versión de escritorio de [ThreadsVault para Android](https://github.com/D4vRAM369/ThreadsVault). Su funcionamiento es sencillo: pega la URL de un post de Threads, ésta se extrae, se guarda localmente, y es tuyo. Cierra la app y ábrela cuando quieras: el texto y las imágenes de tus posts guardados van a seguir ahí (el programa los guarda localmente en segundo plano tras cada guardado).
 
 Puedes clasificar los posts en distintas categorías, el programa indexa los hashtags de las publicaciones y tú puedes usarlos en notas personales al guardar un post, para una mayor facilidad de búsqueda en tu pequeña bóveda personal de hilos que te resulten interesantes o relevantes para guardarlos de forma local, sin depender únicamente del sencillo Guardados de Threads 🗄🧵
 
@@ -77,11 +77,12 @@ Puedes clasificar los posts en distintas categorías, el programa indexa los has
 -  **Modo oscuro/claro**: cambia entre el tema oscuro predeterminado y el modo claro desde cualquier pantalla.
 - **Almacenamiento local** — SQLite en escritorio (vía Tauri), IndexedDB en navegador. Nada sale de tu dispositivo.
 - **Categorías** — organiza tus posts en categorías personalizadas. Los no categorizados van a una bandeja por defecto.
-- **Backup y restauración** — exporta toda tu bóveda como JSON e impórtala cuando quieras. Al importar, la app muestra el progreso y confirma cuántos posts y categorías se restauraron. Los backups de ThreadsVault para Android se pueden importar aquí sin problemas *(Android → Desktop ✅)*. La dirección inversa *(Desktop → Android)* no está soportada aún y se resolverá en una versión futura.
+- **Backup y restauración** — exporta toda tu bóveda como JSON e impórtala cuando quieras. Al importar, la app muestra el progreso y confirma cuántos posts y categorías se restauraron.
 - **Caché de medios** —  las imágenes y vídeos se almacenan localmente para que los posts sobrevivan la expiración de los enlaces CDN. Las imágenes se guardan como data URLs; los vídeos se descargan y quedan disponibles offline.
 - **Reproductor integrado** —  reproduce los vídeos guardados en tu bóveda directamente desde la app, con posibilidad de descarga. Integrado en la versión 2.0 mediante yt-dlp y ffmpeg.
 - **Notas personales** — añade, edita o elimina notas en cualquier post guardado directamente desde su pantalla de detalle.
 - **Atajos de teclado** — navega y busca sin ratón: `Esc` volver, `Ctrl+N` añadir, `/` o `Ctrl+F` buscar, `←` `→` navegar entre posts. `Ctrl+` y `Ctrl-` para zoom-in y zoom-out respectivamente, y `Ctrl+0` regresa al zoom por defecto (la preferencia del zoom se queda guardada de forma persistente tras cerrar el programa).
+- **Internacionalización ES/EN** — el idioma de la interfaz de usuario se determina automáticamente al iniciar la aplicación en función de la configuración regional del sistema operativo. No es necesario realizar ninguna configuración. El español y el inglés están totalmente disponibles en todas las pantallas.
 - **Sin telemetría** — sin analíticas, sin informes de errores, sin peticiones externas más allá de la extracción del post. Todo funciona 100% en local (client-side): ni el desarrollador tiene acceso a tus datos.
 
 ---
@@ -91,22 +92,28 @@ Puedes clasificar los posts en distintas categorías, el programa indexa los has
 ### Windows
 
 Descarga el instalador `.exe` desde [Releases](../../releases) y ejecútalo.
+
+| Formato | Descripción |
+|---|---|
+| `.exe` | Instalador estándar — recomendado |
+| `.msi` | Paquete MSI para entornos gestionados/empresariales |
+
 Se instala en `%LocalAppData%\threadsvault-desktop` y crea un acceso directo en el Menú Inicio.
 
 ### Linux
 
-Dos opciones disponibles en [Releases](../../releases):
+Multiples formatos disponibles en [Releases](../../releases):
 
-| Formato | Cómo usarlo |
+| Formato | Cómo utilizarlo |
 |---|---|
 | `.AppImage` | `chmod +x ThreadsVault_*.AppImage && ./ThreadsVault_*.AppImage` |
 | `.deb` | `sudo dpkg -i threadsvault-desktop_*.deb` |
+| `.rpm` | `sudo rpm -i threadsvault-desktop_*.rpm` |
+| `.flatpak` | `flatpak install ThreadsVault-desktop-*.flatpak` |
 
 
 > *Nota: Si el AppImage no arranca en Ubuntu 22.04+, ejecuta `sudo apt install libfuse2`.*
 
-
-Flatpak planificado para futuras versiones.
 
 ---
 
