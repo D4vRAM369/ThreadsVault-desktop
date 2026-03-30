@@ -125,7 +125,7 @@ Multiple formats available in [Releases](../../releases):
 ## Privacy
 
 - All data is stored in a local SQLite database (`%AppData%\threadsvault-desktop` on Windows, `~/.local/share/threadsvault-desktop` on Linux)
-- The only external requests go to `r.jina.ai`: when explicitly saving a post, and in the background if the app detects outdated images on load
+- External requests are limited to `r.jina.ai` (primary source) and `threads.net` (alternative when Jina is unavailable).
 - No usage data, no error reporting, no telemetry of any kind
 
 ---
