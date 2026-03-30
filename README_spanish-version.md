@@ -119,11 +119,12 @@ Multiples formatos disponibles en [Releases](../../releases):
 
 ## Cómo funciona
 
-1. Copia la URL de un post de Threads (ej. `https://www.threads.net/@usuario/post/abc123`)
-2. Abre la app → pulsa el botón **+Añadir** en la esquina superior derecha.
-3. Pega la URL y pulsa **Guardar**, y añade notas adicionales de forma opcional.
-4. La aplicación recupera el contenido en paralelo: Jina Reader actúa como fuente principal (un proxy que muestra la página como lo haría un navegador real), mientras que el código HTML de la propia aplicación Threads sirve como alternativa para las imágenes y el texto.
-5. El post se guarda localmente. Listo.
+1. Copia la URL de una publicación de Threads (por ejemplo, `https://www.threads.net/@user/post/abc123`)
+2. Abre la aplicación → haz clic en el botón **+Añadir** situado en la esquina superior derecha.
+3. Pega la URL y haz clic en **Guardar**; si lo deseas, puedes añadir notas.
+4. La aplicación extrae el contenido de la publicación mediante un sistema de dos pasos: Jina Reader es el método principal, con un recurso directo al estado React integrado de Threads cuando Jina no está disponible o tiene una limitación de velocidad.
+5. Si la URL forma parte de un hilo, la aplicación detecta y extrae automáticamente todas las publicaciones de la secuencia; no es necesario guardarlas una por una _(función de la actualización v2.2.0)_
+6. La publicación (o el hilo) se guarda localmente. Listo.
 
 ---
 
@@ -138,8 +139,9 @@ Multiples formatos disponibles en [Releases](../../releases):
 ## Limitaciones conocidas
 
 - **Solo Threads** — diseñado específicamente para posts de Threads; otras URLs pueden no extraerse correctamente
-- **La extracción utiliza Jina como fuente principal**: si `r.jina.ai` tiene una limitación de velocidad o no está disponible, el extractor recurre al estado React integrado de Threads para recuperar imágenes y texto directamente del código HTML.
+- **Fiabilidad de la extracción**: en ocasiones, puede que una publicación no se extraiga correctamente al primer intento. Si el formato del texto o las imágenes no se ven bien, utiliza el botón «Refrescar» para volver a extraerla.
 - **macOS no soportado** — requiere cuenta Apple Developer ($99/año) para notarización; no planificado para v1.x (probablemente tampoco para una 2.x).
+- **Compatibilidad con copias de seguridad**: la importación de copias de seguridad desde [ThreadsVault para Android](https://github.com/D4vRAM369/ThreadsVault/) a ThreadsVault-desktop funciona a la perfección *(Android → PC ✅)*. La dirección inversa *(PC → Android)* aún no es compatible y se abordará en una versión futura.
 
 ---
 
