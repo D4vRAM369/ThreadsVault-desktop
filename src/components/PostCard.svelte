@@ -4,6 +4,8 @@
   import { getPostDisplayPath } from "../lib/utils/url-parser";
   import { savePost, loadVault } from "../lib/stores/vault";
   import { invoke } from "@tauri-apps/api/core";
+  import { t, locale } from "../lib/i18n";
+  $locale; // reactive subscription
 
   let {
     post,
@@ -161,7 +163,7 @@
 <!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
 <article
   role="button"
-  aria-label="Abrir detalle del post"
+  aria-label={t('card.open')}
   class="rounded-2xl p-4 mb-3 cursor-pointer group relative overflow-hidden"
   style="
     background: {selected ? 'rgba(124,77,255,0.12)' : 'var(--vault-card-bg)'};
@@ -238,7 +240,7 @@
         letter-spacing: 0.015em;
       "
       >
-        {post.author || "Autor desconocido"}
+        {post.author || t('card.unknown_author')}
       </p>
 
       <!--
@@ -329,7 +331,7 @@
                 el.style.background = "rgba(124,77,255,0.14)";
                 el.style.borderColor = "rgba(124,77,255,0.30)";
               }}
-              aria-label="Abrir enlace externo"
+              aria-label={t('card.open_link')}
             >
               <svg
                 width="9"
@@ -394,7 +396,7 @@
             el.style.borderRightColor = "transparent";
             el.style.borderBottomColor = "transparent";
           }}
-          aria-label="Editar nota personal"
+          aria-label={t('card.edit_note')}
         >
           <!-- Pencil icon with glow dot -->
           <span
@@ -599,7 +601,7 @@
             onclick={(e) => {
               e.stopPropagation();
               onDelete(post.id);
-            }}>Sí</button
+            }}>{t('common.yes')}</button
           >
           <button
             class="px-2.5 py-1 rounded-lg text-xs font-semibold"
@@ -607,7 +609,7 @@
             onclick={(e) => {
               e.stopPropagation();
               confirmingDelete = false;
-            }}>No</button
+            }}>{t('common.no')}</button
           >
         </div>
       {:else}
@@ -624,7 +626,7 @@
             e.stopPropagation();
             confirmingDelete = true;
           }}
-          aria-label="Eliminar post"
+          aria-label={t('card.delete_post')}
         >
           <svg
             width="9"
@@ -720,7 +722,7 @@
         <textarea
           bind:value={noteValue}
           rows="3"
-          placeholder="Escribe tu nota…"
+          placeholder={t('card.note_placeholder')}
           class="w-full bg-transparent resize-none text-sm leading-relaxed outline-none px-3 py-2"
           style="
             color: var(--vault-on-bg);
@@ -751,7 +753,7 @@
             border: 1px solid rgba(0,188,212,0.45);
             font-family: var(--font-display);
             opacity: {savingNote ? '0.6' : '1'};
-          ">{savingNote ? "Guardando…" : "Guardar"}</button
+          ">{savingNote ? t('common.saving') : t('common.save')}</button
         >
 
         <button
@@ -766,7 +768,7 @@
             border: 1px solid var(--vault-ghost-btn-border);
             color: var(--vault-on-bg-muted);
             font-family: var(--font-display);
-          ">Cancelar</button
+          ">{t('common.cancel')}</button
         >
 
         {#if post.note}
@@ -781,7 +783,7 @@
               border: 1px solid var(--vault-danger-border);
               color: var(--vault-danger-color);
               font-family: var(--font-display);
-            ">Eliminar nota</button
+            ">{t('card.delete_note')}</button
           >
         {/if}
       </div>

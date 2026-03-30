@@ -131,7 +131,7 @@
 
   function getCategoryLabel(cat: Category): string {
     const label = cat.name?.trim()
-    return label ? label : 'Sin nombre'
+    return label ? label : t('vault.no_category_name')
   }
 </script>
 

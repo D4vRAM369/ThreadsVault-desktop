@@ -244,7 +244,7 @@
     try {
       return JSON.stringify(error)
     } catch {
-      return 'No se pudo descargar el video.'
+      return t('detail.error_download')
     }
   }
 
@@ -343,7 +343,7 @@
         const current = post.threadPosts?.[currentThreadIndex - 1]
         const next = (updated as Post).threadPosts?.[currentThreadIndex - 1]
         if (current?.text === next?.text && current?.media?.length === next?.media?.length) {
-          refreshContentError = 'No se encontró texto nuevo. Abre el post en Threads e intenta de nuevo.'
+          refreshContentError = t('detail.error_no_new_text')
           return
         }
       }
@@ -353,7 +353,7 @@
       post = updated
       await loadVault()
     } catch {
-      refreshContentError = 'Error al extraer. Comprueba la conexión e inténtalo de nuevo.'
+      refreshContentError = t('detail.error_extract')
     } finally {
       refreshingContent = false
     }
@@ -435,7 +435,7 @@
         ...inlineVideoState,
         [media.id]: {
           status: 'error',
-          reason: desktopResolution?.reason ?? 'No se pudo resolver el stream del vídeo.',
+          reason: desktopResolution?.reason ?? t('detail.error_stream'),
           source: desktopResolution ? 'desktop' : undefined,
         },
       }
@@ -444,7 +444,7 @@
         ...inlineVideoState,
         [media.id]: {
           status: 'error',
-          reason: 'Fallo la resolución del vídeo en la app.',
+          reason: t('detail.error_stream_app'),
         },
       }
     }
@@ -484,7 +484,7 @@
         [media.id]: {
           status: 'downloading',
           progress: fakeProgress,
-          detail: 'Preparando descarga...',
+          detail: t('detail.preparing_download'),
         },
       }
 
@@ -492,7 +492,7 @@
         const result = await Promise.race([
           downloadDesktopVideo(post.canonicalUrl ?? post.url),
           new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('La descarga tardo demasiado. Reintenta o abre en Threads.')), 180_000)
+            setTimeout(() => reject(new Error(t('detail.error_timeout'))), 180_000)
           ),
         ])
 
@@ -519,7 +519,7 @@
             status: 'error',
             error: message,
             progress: 0,
-            detail: 'La descarga fallo.',
+            detail: t('detail.error_download_failed'),
           },
         }
       }
@@ -680,7 +680,7 @@
       const extractionIsEmpty = !extracted.media?.length && !extracted.previewImage && !extracted.text
       if (extractionIsEmpty) {
         if (mode === 'manual') {
-          mediaRefreshError = 'No se encontró contenido nuevo. Abre el post en Threads e intenta de nuevo.'
+          mediaRefreshError = t('detail.error_no_new_media')
         }
         return
       }
@@ -737,7 +737,7 @@
       refreshedMediaOnce = true
     } catch (error) {
       mediaRefreshError = mode === 'manual'
-        ? 'No se pudo actualizar media ahora. Abre el post en Threads y vuelve a intentar.'
+        ? t('detail.error_update_media')
         : ''
       console.warn('Error refrescando media', error)
     } finally {
@@ -815,7 +815,7 @@
 
   {:else if !post}
     <div class="flex flex-col items-center justify-center h-48 gap-3" style="opacity:0.45">
-      <p style="color: var(--vault-on-bg-muted); font-family: var(--font-display)">Post no encontrado</p>
+      <p style="color: var(--vault-on-bg-muted); font-family: var(--font-display)">{t('detail.post_not_found')}</p>
     </div>
 
   {:else}
@@ -840,7 +840,7 @@
         background-clip: text;
         font-family: var(--font-display);
         letter-spacing: 0.01em;
-      ">{post.author || 'Autor desconocido'}</p>
+      ">{post.author || t('detail.unknown_author')}</p>
 
       {#if post.previewTitle}
         <p class="text-sm mb-2.5" style="color: var(--vault-on-bg); opacity: 0.9">{post.previewTitle}</p>
@@ -898,7 +898,7 @@
             disabled={currentThreadIndex === 0}
             class="w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-150 disabled:opacity-30"
             style="background: var(--vault-secondary-nav-btn-bg); border: 1px solid var(--vault-secondary-nav-btn-border); color: var(--vault-secondary-btn-text)"
-            aria-label="Sub-post anterior"
+            aria-label={t('detail.prev_post')}
           >←</button>
           <span class="text-xs font-semibold" style="
             color: var(--vault-secondary-label);
@@ -910,7 +910,7 @@
             disabled={currentThreadIndex >= threadTotal - 1}
             class="w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-150 disabled:opacity-30"
             style="background: var(--vault-secondary-nav-btn-bg); border: 1px solid var(--vault-secondary-nav-btn-border); color: var(--vault-secondary-btn-text)"
-            aria-label="Sub-post siguiente"
+            aria-label={t('detail.next_post')}
           >→</button>
         </div>
       {/if}
@@ -926,7 +926,7 @@
             <textarea
               bind:value={noteValue}
               rows="3"
-              placeholder="Escribe tu nota…"
+              placeholder={t('detail.note_placeholder')}
               class="w-full bg-transparent resize-none text-sm leading-relaxed outline-none"
               style="
                 color: var(--vault-on-bg);
@@ -948,7 +948,7 @@
                   color: var(--vault-primary-btn-text);
                   font-family: var(--font-display);
                 "
-              >{savingNote ? 'Guardando…' : 'Guardar'}</button>
+              >{savingNote ? t('common.saving') : t('common.save')}</button>
               <button
                 onclick={() => { editingNote = false; noteValue = post?.note ?? '' }}
                 class="px-3 py-1 rounded-lg text-xs font-semibold transition-all duration-200"
@@ -958,7 +958,7 @@
                   color: var(--vault-on-bg-muted);
                   font-family: var(--font-display);
                 "
-              >Cancelar</button>
+              >{t('common.cancel')}</button>
               {#if post.note}
                 <button
                   onclick={handleDeleteNote}
@@ -969,7 +969,7 @@
                     color: #fca5a5;
                     font-family: var(--font-display);
                   "
-                >Eliminar nota</button>
+                >{t('detail.delete_note')}</button>
               {/if}
             </div>
           </div>
@@ -1002,7 +1002,7 @@
               "
               onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(124,77,255,0.28)'}
               onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background = 'rgba(124,77,255,0.15)'}
-              aria-label="Editar nota"
+              aria-label={t('detail.edit_note')}
             >
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#c8b4ff" stroke-width="2.5">
                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -1034,7 +1034,7 @@
               el.style.borderColor = 'rgba(124,77,255,0.20)'
               el.style.color = 'var(--vault-note-placeholder)'
             }}
-          >+ Añadir nota personal…</button>
+          >{t('detail.add_note')}</button>
         {/if}
       </div>
 
@@ -1047,7 +1047,7 @@
             color: var(--vault-secondary-label);
             font-family: var(--font-display);
             letter-spacing: 0.08em;
-          ">Texto extraído</p>
+          ">{t('detail.extracted_text')}</p>
           <button
             onclick={refreshContent}
             disabled={refreshingContent}
@@ -1058,7 +1058,7 @@
               color: var(--vault-secondary-btn-text);
               font-family: var(--font-display);
             "
-          >{refreshingContent ? 'Extrayendo...' : 'Refrescar'}</button>
+          >{refreshingContent ? t('detail.refreshing') : t('detail.refresh')}</button>
         </div>
         {#if refreshContentError}
           <p class="text-xs mb-2" style="color: #fbbf24">{refreshContentError}</p>
@@ -1069,7 +1069,7 @@
           </p>
         {:else}
           <p class="text-xs" style="color: var(--vault-on-bg-muted); font-style: italic">
-            No se extrajo texto. Pulsa Refrescar para intentar de nuevo.
+            {t('detail.no_text')}
           </p>
         {/if}
       </div>
@@ -1081,7 +1081,7 @@
               color: var(--vault-on-bg-muted);
               font-family: var(--font-display);
               letter-spacing: 0.08em;
-            ">Media del post</p>
+            ">{t('detail.post_media')}</p>
             <button
               onclick={() => refreshMedia('manual')}
               class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all duration-200"
@@ -1091,7 +1091,7 @@
                 color: var(--vault-secondary-btn-text);
                 font-family: var(--font-display);
               "
-            >{refreshingMedia ? 'Actualizando...' : 'Actualizar media'}</button>
+            >{refreshingMedia ? t('detail.updating_media') : t('detail.update_media')}</button>
           </div>
 
           {#if mediaRefreshError}
@@ -1115,7 +1115,7 @@
                   color: var(--vault-on-bg);
                   font-family: var(--font-display);
                 "
-              >{showFailedMedia ? 'Ocultar fallidos' : 'Mostrar fallidos'}</button>
+              >{showFailedMedia ? t('detail.hide_failed') : t('detail.show_failed')}</button>
             </div>
           {/if}
 
@@ -1131,7 +1131,7 @@
                   {#each imgs as media, i (media.id)}
                     <img
                       src={getMediaSource(media)}
-                      alt="Imagen {i + 1} de {imgs.length}"
+                      alt={tn('detail.image_of', { i: i + 1, total: imgs.length })}
                       loading="lazy"
                       referrerPolicy="no-referrer"
                       crossorigin="anonymous"
@@ -1155,7 +1155,7 @@
                     onclick={() => carouselImageIndex--}
                     class="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center"
                     style="background: rgba(0,0,0,0.65); border: 1px solid rgba(255,255,255,0.18); color: #fff; font-size: 22px; line-height: 1;"
-                    aria-label="Imagen anterior"
+                    aria-label={t('detail.prev_image')}
                   >‹</button>
                 {/if}
 
@@ -1165,7 +1165,7 @@
                     onclick={() => carouselImageIndex++}
                     class="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center"
                     style="background: rgba(0,0,0,0.65); border: 1px solid rgba(255,255,255,0.18); color: #fff; font-size: 22px; line-height: 1;"
-                    aria-label="Imagen siguiente"
+                    aria-label={t('detail.next_image')}
                   >›</button>
                 {/if}
               </div>
@@ -1182,7 +1182,7 @@
                         height: 6px;
                         background: {i === carouselImageIndex ? 'var(--vault-primary)' : 'rgba(255,255,255,0.28)'};
                       "
-                      aria-label="Ir a imagen {i + 1}"
+                      aria-label={tn('detail.go_to_image', { n: i + 1 })}
                     ></button>
                   {/each}
                 </div>
@@ -1194,12 +1194,12 @@
                       style="background: rgba(124,77,255,0.16); border: 1px solid rgba(124,77,255,0.35); color: var(--vault-primary-btn-text); font-family: var(--font-display);"
                       onmouseenter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(124,77,255,0.30)'; (e.currentTarget as HTMLElement).style.transform = 'scale(1.04)' }}
                       onmouseleave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(124,77,255,0.16)'; (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}
-                    >Descargar</button>
+                    >{t('common.download')}</button>
                     <button
                       onclick={() => copyMediaUrl(imgs[carouselImageIndex].id, imgs[carouselImageIndex].url)}
                       class="flex items-center gap-1 text-xs transition-all duration-150"
                       style="color: var(--vault-on-bg-muted)"
-                      title="Copiar URL"
+                      title={t('common.copy_url')}
                     >
                       <span class="truncate" style="max-width: 140px">{imgs[carouselImageIndex].url}</span>
                       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" class="flex-shrink-0" style="opacity: 0.6">
@@ -1225,7 +1225,7 @@
                     border: 1px solid rgba(239,68,68,0.22);
                     color: #fca5a5;
                   ">
-                    Recurso no visible en app. Puedes abrir o descargar desde la URL.
+                    {t('detail.resource_unavailable')}
                   </div>
                 {:else if media.type === 'video'}
                   <!-- svelte-ignore a11y_media_has_caption -->
@@ -1269,7 +1269,7 @@
                         sandbox="allow-scripts allow-same-origin allow-popups"
                         class="w-full rounded-xl mb-3"
                         style="height: 520px; border: none; background: #0a0a14; border-radius: 12px; display: block;"
-                        title="Vídeo embebido de Threads"
+                        title={t('detail.embedded_video')}
                       ></iframe>
                     {:else}
                       <div class="flex items-center gap-3 mb-3">
@@ -1291,12 +1291,12 @@
                         <div class="flex-1 min-w-0">
                           <p class="text-sm font-semibold"
                              style="color: var(--vault-primary-btn-text); font-family: var(--font-display)">
-                            {state.status === 'loading' ? 'Cargando vídeo…' : 'Vídeo en Threads'}
+                            {state.status === 'loading' ? t('detail.video_loading') : t('detail.video_on_threads')}
                           </p>
                           <p class="text-xs" style="color: var(--vault-on-bg-muted)">
                             {state.status === 'loading'
-                              ? 'Buscando fuente reproducible…'
-                              : 'Threads protege sus vídeos. Ábrelo directamente para reproducirlo.'}
+                              ? t('detail.video_searching')
+                              : t('detail.video_protected')}
                           </p>
                         </div>
                       </div>
@@ -1310,7 +1310,7 @@
                                 border: 1px solid rgba(124,77,255,0.22);
                                 color: rgba(228,214,255,0.5);
                                 font-family: var(--font-display);
-                              ">Cargando…</span>
+                              ">{t('common.loading')}</span>
                       {:else if state.status === 'error'}
                         <button
                           onclick={() => loadInlineVideo(media)}
@@ -1321,7 +1321,7 @@
                             color: #c8b4ff;
                             font-family: var(--font-display);
                           "
-                        >Reintentar</button>
+                        >{t('common.retry')}</button>
                       {/if}
 
                       {#if state.status !== 'loading'}
@@ -1335,7 +1335,7 @@
                             font-family: var(--font-display);
                           "
                         >
-                          {getInlineVideoDownloadState(media).status === 'downloading' ? 'Descargando...' : 'Descargar video'}
+                          {getInlineVideoDownloadState(media).status === 'downloading' ? t('detail.video_downloading') : t('detail.download_video')}
                         </button>
                       {/if}
 
@@ -1364,7 +1364,7 @@
                           ></div>
                         </div>
                         <p class="text-xs mt-1.5" style="color: var(--vault-on-bg-muted)">
-                          {getInlineVideoDownloadState(media).detail ?? 'Procesando descarga...'}
+                          {getInlineVideoDownloadState(media).detail ?? t('detail.downloading')}
                         </p>
                       </div>
                     {:else if getInlineVideoDownloadState(media).status === 'done'}
@@ -1388,7 +1388,7 @@
                 {:else}
                   <img
                     src={getMediaSource(media)}
-                    alt="Media del post"
+                    alt={t('detail.post_media')}
                     loading="lazy"
                     referrerPolicy="no-referrer"
                     crossorigin="anonymous"
@@ -1412,12 +1412,12 @@
                       "
                       onmouseenter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(124,77,255,0.30)'; (e.currentTarget as HTMLElement).style.transform = 'scale(1.04)' }}
                       onmouseleave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(124,77,255,0.16)'; (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}
-                    >Descargar</button>
+                    >{t('common.download')}</button>
                     <button
                       onclick={() => copyMediaUrl(media.id, media.url)}
                       class="flex items-center gap-1 text-xs truncate text-left transition-all duration-150"
                       style="color: var(--vault-on-bg-muted); max-width: 180px;"
-                      title="Copiar URL"
+                      title={t('common.copy_url')}
                     >
                       <span class="truncate">{media.url}</span>
                       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" class="flex-shrink-0" style="opacity: 0.6">
@@ -1512,7 +1512,7 @@
   >
     <img
       src={lightboxSrc}
-      alt="Vista ampliada"
+      alt={t('detail.lightbox_alt')}
       referrerPolicy="no-referrer"
       crossorigin="anonymous"
       style="
@@ -1529,7 +1529,7 @@
       onclick={() => lightboxSrc = null}
       class="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center"
       style="background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); color: #fff;"
-      aria-label="Cerrar"
+      aria-label={t('detail.close')}
     >✕</button>
   </div>
 {/if}

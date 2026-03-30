@@ -6,6 +6,8 @@
 
   import { invoke } from "@tauri-apps/api/core";
   import { DEV_AVATAR } from "../lib/devAvatar";
+  import { t, locale } from "../lib/i18n";
+  $locale; // reactive subscription — forces re-render on locale change
 
   let exportStatus = $state<"idle" | "success" | "error">("idle");
   let exportSavedPath = $state("");
@@ -96,7 +98,7 @@
     try {
       json = await pendingFile.text();
     } catch {
-      importError = "No se pudo leer el archivo seleccionado.";
+      importError = t('settings.error_read_file');
       modalPhase = "error";
       return;
     }
@@ -110,7 +112,7 @@
     } catch (err) {
       importError =
         err instanceof Error
-          ? err.message || "Error desconocido al importar"
+          ? err.message || t('settings.error_import_unknown')
           : String(err);
       modalPhase = "error";
     }
@@ -135,7 +137,7 @@
       onmouseleave={(e) =>
         ((e.currentTarget as HTMLElement).style.background =
           "var(--vault-surface)")}
-      aria-label="Volver"
+      aria-label={t('common.back')}
     >
       <svg
         width="14"
@@ -153,10 +155,10 @@
       <h1
         style="font-family: var(--font-display); font-size: 1.1rem; font-weight: 700; color: var(--vault-on-bg)"
       >
-        Ajustes
+        {t('settings.title')}
       </h1>
       <p class="text-xs" style="color: var(--vault-on-bg-muted)">
-        Categorías · Backup · Privacidad
+        {t('settings.subtitle')}
       </p>
     </div>
   </div>
@@ -174,7 +176,7 @@
     letter-spacing: 0.12em;
   "
   >
-    Datos
+    {t('settings.data')}
   </p>
 
   <div
@@ -221,17 +223,17 @@
           class="text-sm font-semibold"
           style="font-family: var(--font-display); color: var(--vault-on-bg)"
         >
-          Exportar backup
+          {t('settings.export_backup')}
         </p>
         <p class="text-xs" style="color: var(--vault-on-bg-muted)">
-          Guarda tus posts en JSON
+          {t('settings.export_desc')}
         </p>
       </div>
       {#if exportStatus === "success"}
         <span
           class="text-xs font-semibold"
           style="color: var(--vault-success); font-family: var(--font-display)"
-          >✓ Guardado</span
+          >{t('settings.saved')}</span
         >
       {:else if exportStatus === "error"}
         <span
@@ -309,10 +311,10 @@
           class="text-sm font-semibold"
           style="font-family: var(--font-display); color: var(--vault-on-bg)"
         >
-          Importar backup
+          {t('settings.import_backup')}
         </p>
         <p class="text-xs" style="color: var(--vault-on-bg-muted)">
-          Compatible con ThreadsVault Android
+          {t('settings.import_desc')}
         </p>
       </div>
       <svg
@@ -343,7 +345,7 @@
     letter-spacing: 0.12em;
   "
   >
-    Privacidad
+    {t('settings.privacy')}
   </p>
 
   <div
@@ -353,7 +355,7 @@
     box-shadow: 0 4px 24px rgba(0,0,0,0.18);
   "
   >
-    {#each [{ icon: "🔒", label: "Todo local", desc: "Los datos nunca salen de tu dispositivo" }, { icon: "☁️", label: "Sin cloud", desc: "No hay sincronización ni servidores" }, { icon: "🚫", label: "Sin tracking", desc: "Cero analíticas, cero publicidad" }] as item, i}
+    {#each [{ icon: "🔒", label: t('settings.all_local'), desc: t('settings.all_local_desc') }, { icon: "☁️", label: t('settings.no_cloud'), desc: t('settings.no_cloud_desc') }, { icon: "🚫", label: t('settings.no_tracking'), desc: t('settings.no_tracking_desc') }] as item, i}
       {#if i > 0}
         <div
           style="height: 1px; background: var(--vault-divider); margin: 0 16px"
@@ -388,7 +390,7 @@
     letter-spacing: 0.12em;
   "
   >
-    Acerca de
+    {t('settings.about')}
   </p>
 
   <div
@@ -420,7 +422,7 @@
           ThreadsVault
         </p>
         <p class="text-xs" style="color: var(--vault-on-bg-muted)">
-          Desktop v2.1.0 · Privacy-first
+          Desktop v2.2.0 · ES/EN
         </p>
       </div>
       <span
@@ -433,7 +435,7 @@
         font-size: 10px;
         font-weight: 700;
         letter-spacing: 0.05em;
-      ">v2.1</span
+      ">v2.2</span
       >
     </div>
 
@@ -540,7 +542,7 @@
         />
         <line x1="10" y1="14" x2="14" y2="14" />
       </svg>
-      <span style="font-family: var(--font-body)">Atajos de teclado</span>
+      <span style="font-family: var(--font-body)">{t('settings.shortcuts')}</span>
       <svg
         width="11"
         height="11"
@@ -569,7 +571,7 @@
           ? 1
           : 0}; transition: opacity 0.2s ease 0.05s"
       >
-        {#each [{ keys: ["Esc"], desc: "Volver atrás", ctx: "Global" }, { keys: ["Ctrl", "N"], desc: "Añadir post", ctx: "Global" }, { keys: ["/"], desc: "Buscar posts", ctx: "En vault" }, { keys: ["Ctrl", "F"], desc: "Buscar en la app", ctx: "Global" }, { keys: ["←", "→"], desc: "Navegar entre posts", ctx: "En post" }, { keys: ["Ctrl", "="], desc: "Acercar (zoom in)", ctx: "Global" }, { keys: ["Ctrl", "-"], desc: "Alejar (zoom out)", ctx: "Global" }, { keys: ["Ctrl", "0"], desc: "Zoom normal", ctx: "Global" }] as shortcut}
+        {#each [{ keys: ["Esc"], desc: t('shortcut.back'), ctx: t('shortcut.ctx_global') }, { keys: ["Ctrl", "N"], desc: t('shortcut.add_post'), ctx: t('shortcut.ctx_global') }, { keys: ["/"], desc: t('shortcut.search_posts'), ctx: t('shortcut.ctx_vault') }, { keys: ["Ctrl", "F"], desc: t('shortcut.search_app'), ctx: t('shortcut.ctx_global') }, { keys: ["←", "→"], desc: t('shortcut.navigate'), ctx: t('shortcut.ctx_post') }, { keys: ["Ctrl", "="], desc: t('shortcut.zoom_in'), ctx: t('shortcut.ctx_global') }, { keys: ["Ctrl", "-"], desc: t('shortcut.zoom_out'), ctx: t('shortcut.ctx_global') }, { keys: ["Ctrl", "0"], desc: t('shortcut.zoom_reset'), ctx: t('shortcut.ctx_global') }] as shortcut}
           <div class="flex items-center gap-3 py-1">
             <div
               class="flex items-center gap-1 shrink-0"
@@ -674,7 +676,7 @@
             class="text-xs mt-0.5"
             style="color: rgba(160,175,255,0.65); font-family: var(--font-body)"
           >
-            Desarrollador de ThreadsVault
+            {t('settings.dev_title')}
           </p>
         </div>
       </div>
@@ -836,7 +838,7 @@
     }}
     role="dialog"
     aria-modal="true"
-    aria-label="Importar backup"
+    aria-label={t('settings.import_backup')}
     tabindex="-1"
   >
     <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -872,7 +874,7 @@
               class="font-bold text-sm"
               style="font-family: var(--font-display); color: var(--vault-on-bg)"
             >
-              ¿Importar este backup?
+              {t('settings.import_question')}
             </p>
             <p class="text-xs mt-0.5" style="color: var(--vault-on-bg-muted)">
               {pendingFile.name}
@@ -885,10 +887,9 @@
           style="color: var(--vault-on-bg-muted); line-height: 1.6"
         >
           Esto <strong style="color: #f87171"
-            >borrará todos tus posts y categorías actuales</strong
+            >{t('settings.delete_warning')}</strong
           >
-          y los reemplazará con los del archivo seleccionado. Esta acción no se puede
-          deshacer.
+          {t('settings.import_warning_suffix')}
         </p>
 
         <div class="flex gap-2">
@@ -901,7 +902,7 @@
                 "rgba(239,68,68,0.25)")}
             onmouseleave={(e) =>
               ((e.currentTarget as HTMLElement).style.background =
-                "rgba(239,68,68,0.15)")}>Importar y reemplazar</button
+                "rgba(239,68,68,0.15)")}>{t('settings.import_replace')}</button
           >
           <button
             onclick={closeModal}
@@ -912,7 +913,7 @@
                 "var(--vault-surface-hover)")}
             onmouseleave={(e) =>
               ((e.currentTarget as HTMLElement).style.background =
-                "var(--vault-surface)")}>Cancelar</button
+                "var(--vault-surface)")}>{t('common.cancel')}</button
           >
         </div>
       {:else if modalPhase === "importing"}
@@ -940,7 +941,7 @@
               class="font-bold text-sm"
               style="font-family: var(--font-display); color: var(--vault-on-bg)"
             >
-              Importando backup…
+              {t('settings.importing')}
             </p>
             <p class="text-xs mt-0.5" style="color: var(--vault-on-bg-muted)">
               {pendingFile.name}
@@ -962,10 +963,10 @@
               class="text-sm font-semibold"
               style="color: var(--vault-on-bg); font-family: var(--font-display)"
             >
-              Procesando…
+              {t('settings.processing')}
             </p>
             <p class="text-xs mt-0.5" style="color: var(--vault-on-bg-muted)">
-              Posts, categorías y media
+              {t('settings.processing_detail')}
             </p>
           </div>
         </div>
@@ -992,7 +993,7 @@
               class="font-bold text-sm"
               style="font-family: var(--font-display); color: var(--vault-on-bg)"
             >
-              Importación completada
+              {t('settings.import_completed')}
             </p>
             <p class="text-xs mt-0.5" style="color: var(--vault-on-bg-muted)">
               {pendingFile.name}
@@ -1062,8 +1063,7 @@
             class="text-xs"
             style="color: var(--vault-on-bg-muted); line-height: 1.5"
           >
-            Los elementos omitidos tenían datos incompatibles. El resto se
-            importó correctamente.
+            {t('settings.import_skipped_note')}
           </p>
         {/if}
 
@@ -1080,7 +1080,7 @@
               "0 6px 22px rgba(124,77,255,0.55)")}
           onmouseleave={(e) =>
             ((e.currentTarget as HTMLElement).style.boxShadow =
-              "0 4px 16px rgba(124,77,255,0.35)")}>Ver mi vault →</button
+              "0 4px 16px rgba(124,77,255,0.35)")}>{t('settings.view_vault')}</button
         >
       {:else if modalPhase === "error"}
         <!-- ── Estado 4: Error — dentro del modal, no barra roja ── -->
@@ -1107,7 +1107,7 @@
               class="font-bold text-sm"
               style="font-family: var(--font-display); color: var(--vault-on-bg)"
             >
-              Error al importar
+              {t('settings.import_error_title')}
             </p>
             <p class="text-xs mt-0.5" style="color: var(--vault-on-bg-muted)">
               {pendingFile.name}
@@ -1126,8 +1126,7 @@
           word-break: break-word;
         "
         >
-          {importError ||
-            "No se pudo completar la importación. Verifica que el archivo sea un backup válido de ThreadsVault."}
+          {importError || t('settings.import_error_fallback')}
         </div>
 
         <div class="flex gap-2">
@@ -1143,7 +1142,7 @@
                 "rgba(239,68,68,0.22)")}
             onmouseleave={(e) =>
               ((e.currentTarget as HTMLElement).style.background =
-                "rgba(239,68,68,0.12)")}>Reintentar</button
+                "rgba(239,68,68,0.12)")}>{t('common.retry')}</button
           >
           <button
             onclick={closeModal}
@@ -1154,7 +1153,7 @@
                 "var(--vault-surface-hover)")}
             onmouseleave={(e) =>
               ((e.currentTarget as HTMLElement).style.background =
-                "var(--vault-surface)")}>Cerrar</button
+                "var(--vault-surface)")}>{t('common.close')}</button
           >
         </div>
       {/if}

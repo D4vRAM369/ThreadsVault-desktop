@@ -2,6 +2,8 @@
   import { onMount } from 'svelte'
   import { loadVault, posts } from './lib/stores/vault'
   import type { Post } from './lib/types'
+  import { t, locale } from './lib/i18n'
+  $locale; // reactive subscription — re-renders on locale change
 
   // ── Zoom global ──────────────────────────────────────────
   const ZOOM_STEP = 0.1
@@ -31,9 +33,9 @@
 
   function computeTitle(route: string, allPosts: Post[]): string {
     if (route === '#/' || route === '') return 'ThreadsVault'
-    if (route === '#/share')      return 'ThreadsVault — Añadir post'
-    if (route === '#/settings')   return 'ThreadsVault — Ajustes'
-    if (route === '#/categories') return 'ThreadsVault — Categorías'
+    if (route === '#/share')      return t('app.page_share')
+    if (route === '#/settings')   return t('app.page_settings')
+    if (route === '#/categories') return t('app.page_categories')
     if (route.startsWith('#/post/')) {
       const id   = route.replace('#/post/', '')
       const post = allPosts.find(p => p.id === id)
@@ -43,6 +45,7 @@
   }
 
   $effect(() => {
+    void $locale // track locale changes → re-run when language switches
     const title = computeTitle(currentRoute, $posts)
     document.title = title
     if ('__TAURI_INTERNALS__' in window) {
@@ -140,8 +143,8 @@
 <button
   class="theme-toggle"
   onclick={() => { theme = theme === 'dark' ? 'light' : 'dark' }}
-  title={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
-  aria-label="Alternar tema"
+  title={theme === 'dark' ? t('app.theme_to_light') : t('app.theme_to_dark')}
+  aria-label={t('app.theme_toggle')}
 >
   {#if theme === 'dark'}
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

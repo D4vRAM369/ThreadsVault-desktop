@@ -92,6 +92,7 @@ const translations = {
     'detail.update_media': 'Actualizar media',
     'detail.personal_note': 'NOTA PERSONAL',
     'detail.unknown_author': 'Autor desconocido',
+    'detail.downloading': 'Procesando descarga...',
 
     // PostCard
     'card.open': 'Abrir detalle del post',
@@ -140,6 +141,64 @@ const translations = {
     'settings.shortcuts': 'Atajos de teclado',
     'settings.dev_title': 'Desarrollador de ThreadsVault',
     'settings.close': 'CERRAR',
+    'settings.import_completed': 'Importación completada',
+    'settings.import_error_title': 'Error al importar',
+    'settings.import_error_fallback': 'No se pudo completar la importación. Verifica que el archivo sea un backup válido de ThreadsVault.',
+    'settings.import_skipped_note': 'Los elementos omitidos tenían datos incompatibles. El resto se importó correctamente.',
+    'settings.import_warning_suffix': 'y los reemplazará con los del archivo seleccionado. Esta acción no se puede deshacer.',
+    'settings.error_read_file': 'No se pudo leer el archivo seleccionado.',
+    'settings.error_import_unknown': 'Error desconocido al importar',
+
+    // App
+    'app.page_share': 'ThreadsVault — Añadir post',
+    'app.page_settings': 'ThreadsVault — Ajustes',
+    'app.page_categories': 'ThreadsVault — Categorías',
+    'app.theme_to_light': 'Cambiar a tema claro',
+    'app.theme_to_dark': 'Cambiar a tema oscuro',
+    'app.theme_toggle': 'Alternar tema',
+
+    // VaultScreen bulk
+    'vault.merging': 'Fusionando...',
+    'vault.merge_thread': 'Fusionar hilo',
+    'vault.deleting': 'Eliminando...',
+
+    // PostDetailScreen galería / vídeo
+    'detail.hide_failed': 'Ocultar fallidos',
+    'detail.show_failed': 'Mostrar fallidos',
+    'detail.image_of': 'Imagen {i} de {total}',
+    'detail.video_loading': 'Cargando vídeo…',
+    'detail.video_on_threads': 'Vídeo en Threads',
+    'detail.video_searching': 'Buscando fuente reproducible…',
+    'detail.video_protected': 'Threads protege sus vídeos. Ábrelo directamente para reproducirlo.',
+    'detail.video_downloading': 'Descargando...',
+    'detail.download_video': 'Descargar video',
+    'detail.resource_unavailable': 'Recurso no visible en app. Puedes abrir o descargar desde la URL.',
+    'detail.lightbox_alt': 'Vista ampliada',
+
+    // PostDetailScreen mensajes de error (script)
+    'detail.error_download': 'No se pudo descargar el video.',
+    'detail.error_no_new_text': 'No se encontró texto nuevo. Abre el post en Threads e intenta de nuevo.',
+    'detail.error_extract': 'Error al extraer. Comprueba la conexión e inténtalo de nuevo.',
+    'detail.error_stream': 'No se pudo resolver el stream del vídeo.',
+    'detail.error_stream_app': 'Falló la resolución del vídeo en la app.',
+    'detail.preparing_download': 'Preparando descarga...',
+    'detail.error_timeout': 'La descarga tardó demasiado. Reintenta o abre en Threads.',
+    'detail.error_download_failed': 'La descarga falló.',
+    'detail.error_no_new_media': 'No se encontró contenido nuevo. Abre el post en Threads e intenta de nuevo.',
+    'detail.error_update_media': 'No se pudo actualizar media ahora. Abre el post en Threads y vuelve a intentar.',
+
+    // Shortcuts
+    'shortcut.back': 'Volver atrás',
+    'shortcut.add_post': 'Añadir post',
+    'shortcut.search_posts': 'Buscar posts',
+    'shortcut.search_app': 'Buscar en la app',
+    'shortcut.navigate': 'Navegar entre posts',
+    'shortcut.zoom_in': 'Acercar (zoom in)',
+    'shortcut.zoom_out': 'Alejar (zoom out)',
+    'shortcut.zoom_reset': 'Zoom normal',
+    'shortcut.ctx_global': 'Global',
+    'shortcut.ctx_vault': 'En vault',
+    'shortcut.ctx_post': 'En post',
   },
   en: {
     // Common
@@ -232,6 +291,7 @@ const translations = {
     'detail.update_media': 'Update media',
     'detail.personal_note': 'PERSONAL NOTE',
     'detail.unknown_author': 'Unknown author',
+    'detail.downloading': 'Processing download...',
 
     // PostCard
     'card.open': 'Open post detail',
@@ -280,6 +340,64 @@ const translations = {
     'settings.shortcuts': 'Keyboard shortcuts',
     'settings.dev_title': 'ThreadsVault Developer',
     'settings.close': 'CLOSE',
+    'settings.import_completed': 'Import completed',
+    'settings.import_error_title': 'Import error',
+    'settings.import_error_fallback': 'Could not complete import. Check that the file is a valid ThreadsVault backup.',
+    'settings.import_skipped_note': 'Skipped items had incompatible data. The rest was imported correctly.',
+    'settings.import_warning_suffix': 'and replace them with those from the selected file. This action cannot be undone.',
+    'settings.error_read_file': 'Could not read the selected file.',
+    'settings.error_import_unknown': 'Unknown import error',
+
+    // App
+    'app.page_share': 'ThreadsVault — Add post',
+    'app.page_settings': 'ThreadsVault — Settings',
+    'app.page_categories': 'ThreadsVault — Categories',
+    'app.theme_to_light': 'Switch to light theme',
+    'app.theme_to_dark': 'Switch to dark theme',
+    'app.theme_toggle': 'Toggle theme',
+
+    // VaultScreen bulk
+    'vault.merging': 'Merging...',
+    'vault.merge_thread': 'Merge thread',
+    'vault.deleting': 'Deleting...',
+
+    // PostDetailScreen gallery / video
+    'detail.hide_failed': 'Hide failed',
+    'detail.show_failed': 'Show failed',
+    'detail.image_of': 'Image {i} of {total}',
+    'detail.video_loading': 'Loading video…',
+    'detail.video_on_threads': 'Video on Threads',
+    'detail.video_searching': 'Looking for playable source…',
+    'detail.video_protected': 'Threads protects its videos. Open it directly to play it.',
+    'detail.video_downloading': 'Downloading...',
+    'detail.download_video': 'Download video',
+    'detail.resource_unavailable': 'Resource not visible in app. You can open or download from the URL.',
+    'detail.lightbox_alt': 'Enlarged view',
+
+    // PostDetailScreen error messages (script)
+    'detail.error_download': 'Could not download the video.',
+    'detail.error_no_new_text': 'No new text found. Open the post on Threads and try again.',
+    'detail.error_extract': 'Extraction error. Check your connection and try again.',
+    'detail.error_stream': 'Could not resolve the video stream.',
+    'detail.error_stream_app': 'Video stream resolution failed in app.',
+    'detail.preparing_download': 'Preparing download...',
+    'detail.error_timeout': 'Download took too long. Retry or open in Threads.',
+    'detail.error_download_failed': 'Download failed.',
+    'detail.error_no_new_media': 'No new content found. Open the post on Threads and try again.',
+    'detail.error_update_media': 'Could not update media now. Open the post on Threads and try again.',
+
+    // Shortcuts
+    'shortcut.back': 'Go back',
+    'shortcut.add_post': 'Add post',
+    'shortcut.search_posts': 'Search posts',
+    'shortcut.search_app': 'Search in app',
+    'shortcut.navigate': 'Navigate between posts',
+    'shortcut.zoom_in': 'Zoom in',
+    'shortcut.zoom_out': 'Zoom out',
+    'shortcut.zoom_reset': 'Normal zoom',
+    'shortcut.ctx_global': 'Global',
+    'shortcut.ctx_vault': 'In vault',
+    'shortcut.ctx_post': 'In post',
   }
 } as const
 

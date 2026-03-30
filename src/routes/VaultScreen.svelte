@@ -792,7 +792,7 @@
             style="background: rgba(0,188,212,0.14); border: 1px solid rgba(0,188,212,0.30); color: #baf5ff; font-family: var(--font-display)"
           >
             <span>🧵</span>
-            {bulkActionState === 'working' ? 'Fusionando...' : 'Fusionar hilo'}
+            {bulkActionState === 'working' ? t('vault.merging') : t('vault.merge_thread')}
           </button>
         {/if}
 
@@ -807,7 +807,7 @@
             <polyline points="3 6 5 6 21 6"/>
             <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
           </svg>
-          {bulkActionState === 'working' ? 'Eliminando...' : 'Eliminar'}
+          {bulkActionState === 'working' ? t('vault.deleting') : t('common.delete')}
         </button>
       </div>
     </div>
