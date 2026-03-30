@@ -64,7 +64,7 @@ Puedes clasificar los posts en distintas categorías, el programa indexa los has
     <td align="center" width="33%">
       <img src="https://github.com/user-attachments/assets/8b901aa7-4d31-4687-b3f2-7c525cce76a0" alt="Ajustes" /><br/>
       <b>Privacidad y ajustes</b><br/>
-      <sub>Backup, privacidad, atajos de teclado</sub>
+      <sub>Modo claro</sub>
     </td>
   </tr>
 </table>
