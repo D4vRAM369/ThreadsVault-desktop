@@ -43,7 +43,8 @@ SKILLS.md
 # Temporales y binarios locales
 .tmp/
 .tmp-sealplus/
-src-tauri/bin/
+src-tauri/bin/*
+!src-tauri/bin/README.md
 *.backup
 
 # Letta AI local sessions
@@ -55,3 +56,4 @@ fixing-extractor-jina/
 *.json
 !package.json
 !tsconfig*.json
+.omx/

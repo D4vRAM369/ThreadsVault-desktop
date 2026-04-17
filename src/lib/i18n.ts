@@ -38,6 +38,9 @@ const translations = {
     'vault.hashtag_filter_active': 'Filtro activo · click para limpiar',
     'vault.hashtag_filter_inactive': 'Click para abrir feed filtrado',
     'vault.no_category_name': 'Sin nombre',
+    'vault.active_db': 'Base activa',
+    'vault.db_pc': 'Base PC',
+    'vault.db_android': 'Base Android',
 
     // EmptyState
     'empty.title': 'Tu bóveda está vacía',
@@ -121,6 +124,11 @@ const translations = {
     'settings.export_desc': 'Guarda tus posts en JSON',
     'settings.import_backup': 'Importar backup',
     'settings.import_desc': 'Compatible con ThreadsVault Android',
+    'settings.import_target_question': '¿Quieres guardarla como Base PC o Base Android?',
+    'settings.import_target_default': 'Guardar como Base PC',
+    'settings.import_target_android': 'Guardar como Base Android',
+    'settings.import_target_replace_warning': 'Sobrescribirá la base predeterminada actual del PC.',
+    'settings.import_target_android_safe': 'La opción Android mantiene intacta tu base del PC y crea una capa separada para alternar desde el dashboard.',
     'settings.privacy': 'Privacidad',
     'settings.all_local': 'Todo local',
     'settings.all_local_desc': 'Los datos nunca salen de tu dispositivo',
@@ -237,6 +245,9 @@ const translations = {
     'vault.hashtag_filter_active': 'Filter active · click to clear',
     'vault.hashtag_filter_inactive': 'Click to open filtered feed',
     'vault.no_category_name': 'Unnamed',
+    'vault.active_db': 'Active database',
+    'vault.db_pc': 'PC database',
+    'vault.db_android': 'Android database',
 
     // EmptyState
     'empty.title': 'Your vault is empty',
@@ -320,6 +331,11 @@ const translations = {
     'settings.export_desc': 'Save your posts as JSON',
     'settings.import_backup': 'Import backup',
     'settings.import_desc': 'Compatible with ThreadsVault Android',
+    'settings.import_target_question': 'Do you want to save it as PC database or Android database?',
+    'settings.import_target_default': 'Save as PC database',
+    'settings.import_target_android': 'Save as Android database',
+    'settings.import_target_replace_warning': 'It will overwrite the current default PC database.',
+    'settings.import_target_android_safe': 'Android mode keeps your PC database intact and creates a separate layer you can switch to from the dashboard.',
     'settings.privacy': 'Privacy',
     'settings.all_local': 'All local',
     'settings.all_local_desc': 'Data never leaves your device',

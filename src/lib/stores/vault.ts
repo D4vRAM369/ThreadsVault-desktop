@@ -1,6 +1,6 @@
 import { writable, derived } from 'svelte/store'
 import type { Post, Category, AppState } from '../types'
-import { getStorage } from '../storage/index'
+import { getStorage, getActiveSpace, setActiveSpace, type DataSpace } from '../storage/index'
 import { extractPostData } from '../utils/post-extractor'
 import { cachePostMediaLocally } from '../utils/media-cache'
 
@@ -70,6 +70,7 @@ export const appState       = writable<AppState>('loading')
 export const searchQuery    = writable<string>('')
 export const activeCategory = writable<string | null>(null)
 export const activeHashtag  = writable<string | null>(null)
+export const activeDataSpace = writable<DataSpace>(getActiveSpace())
 
 let refreshingStaleMedia = false
 
@@ -137,6 +138,7 @@ export const filteredPosts = derived(
 // ── Acciones: Vault ──────────────────────────────────────
 export async function loadVault() {
   appState.set('loading')
+  activeDataSpace.set(getActiveSpace())
   try {
     const storage = await getStorage()
     const [loadedPosts, loadedCats] = await Promise.all([
@@ -150,6 +152,15 @@ export async function loadVault() {
     console.error(e)
     appState.set('error')
   }
+}
+
+export async function setActiveDataSpaceAction(space: DataSpace) {
+  if (getActiveSpace() === space) return
+  await setActiveSpace(space)
+  activeDataSpace.set(space)
+  activeCategory.set(null)
+  activeHashtag.set(null)
+  await loadVault()
 }
 
 function needsMediaRefresh(post: Post): boolean {

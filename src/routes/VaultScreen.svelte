@@ -4,7 +4,8 @@
   import { posts, categories, appState, filteredPosts, hashtagStats,
            searchQuery, activeCategory, activeHashtag, deletePost, refreshStalePostMedia, loadVault, reorderCategories,
            mediaRefreshState, mediaRefreshResult,
-           mergePostsIntoThread, movePostsToCategory, bulkDeletePosts } from '../lib/stores/vault'
+           mergePostsIntoThread, movePostsToCategory, bulkDeletePosts, activeDataSpace, setActiveDataSpaceAction } from '../lib/stores/vault'
+  import type { DataSpace } from '../lib/storage/index'
   import type { Category } from '../lib/types'
   $locale // reactive subscription
   import PostCard from '../components/PostCard.svelte'
@@ -13,6 +14,15 @@
 
   function getCategoryById(id: string) {
     return $categories.find(c => c.id === id)
+  }
+
+  function getDataSpaceLabel(space: DataSpace): string {
+    return space === 'android' ? t('vault.db_android') : t('vault.db_pc')
+  }
+
+  async function switchDataSpace(space: DataSpace) {
+    if ($activeDataSpace === space) return
+    await setActiveDataSpaceAction(space)
   }
 
   function getCategoryLabel(name: string): string {
@@ -467,6 +477,40 @@
       </div>
     </div>
 
+    <!-- Selector de espacio de datos (PC / Android importada) -->
+    <div class="flex items-center justify-between gap-3 mb-3 flex-wrap">
+      <p class="text-xs px-2.5 py-1 rounded-full" style="
+        background: var(--vault-filter-count-bg);
+        border: 1px solid var(--vault-filter-count-border);
+        color: var(--vault-filter-count-color);
+        font-family: var(--font-display);
+      ">
+        {t('vault.active_db')}: {getDataSpaceLabel($activeDataSpace)}
+      </p>
+      <div class="flex items-center gap-2">
+        <button
+          class="px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-200"
+          style="
+            font-family: var(--font-display);
+            {$activeDataSpace === 'pc'
+              ? 'background: linear-gradient(135deg, #00BCD4, #31c6dc); color: #052c34; box-shadow: 0 0 12px rgba(0,188,212,0.35);'
+              : 'background: var(--vault-surface); color: var(--vault-on-bg-muted); border: 1px solid var(--vault-border);'}
+          "
+          onclick={() => void switchDataSpace('pc')}
+        >{t('vault.db_pc')}</button>
+        <button
+          class="px-3 py-1.5 rounded-full text-xs font-semibold transition-all duration-200"
+          style="
+            font-family: var(--font-display);
+            {$activeDataSpace === 'android'
+              ? 'background: linear-gradient(135deg, #2ccf8f, #50dda7); color: #063825; box-shadow: 0 0 12px rgba(44,207,143,0.32);'
+              : 'background: var(--vault-surface); color: var(--vault-on-bg-muted); border: 1px solid var(--vault-border);'}
+          "
+          onclick={() => void switchDataSpace('android')}
+        >{t('vault.db_android')}</button>
+      </div>
+    </div>
+
     <!--
       PBL: Dashboard de hashtags colapsable.
       overflow-anchor:none → este div no actúa como ancla del scroll anchoring
@@ -813,4 +857,3 @@
     </div>
   {/if}
 </div>
-

@@ -36,9 +36,10 @@ interface SqliteCategoryRow {
 
 export class SqliteStorage implements StorageAdapter {
   private db!: Database
+  constructor(private readonly dbName: string = 'threadsvault.db') {}
 
   async init(): Promise<void> {
-    this.db = await Database.load('sqlite:threadsvault.db')
+    this.db = await Database.load(`sqlite:${this.dbName}`)
     await this._createTables()
     await this._runMigrations()
     await this._seedDefaultCategories()

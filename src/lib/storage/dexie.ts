@@ -14,8 +14,8 @@ class VaultDatabase extends Dexie {
   posts!: Table<Post>
   categories!: Table<Category>
 
-  constructor() {
-    super('threadsvault')
+  constructor(dbName: string) {
+    super(dbName)
     this.version(1).stores({
       posts:      'id, categoryId, savedAt, author',
       categories: 'id, name',
@@ -27,8 +27,8 @@ export class DexieStorage implements StorageAdapter {
   private db: VaultDatabase
   private _ready: Promise<void>
 
-  constructor() {
-    this.db = new VaultDatabase()
+  constructor(dbName: string = 'threadsvault') {
+    this.db = new VaultDatabase(dbName)
     // Guardamos la promesa — getStorage() la awaita antes de devolver el adapter
     this._ready = this._seedDefaultCategories()
   }

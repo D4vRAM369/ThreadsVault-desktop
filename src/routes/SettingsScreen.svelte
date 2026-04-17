@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { getStorage } from "../lib/storage/index";
+  import { getStorage, getStorageForSpace, type DataSpace } from "../lib/storage/index";
   import { loadVault } from "../lib/stores/vault";
   import CategoryManager from "../components/CategoryManager.svelte";
   import type { ImportResult } from "../lib/storage/adapter";
@@ -19,6 +19,9 @@
   );
   let importResult = $state<ImportResult | null>(null);
   let importError = $state("");
+  let importTarget = $state<DataSpace>("android");
+  let showImportTargetPicker = $state(false);
+  let importFileInput = $state<HTMLInputElement | null>(null);
   let showAboutDev = $state(false);
   let showShortcuts = $state(false);
 
@@ -69,14 +72,30 @@
     }
   }
 
-  // Paso 1: el usuario selecciona un archivo → mostrar modal de confirmación.
+  function openImportTargetPicker() {
+    showImportTargetPicker = true;
+    importError = "";
+  }
+
+  function closeImportTargetPicker() {
+    showImportTargetPicker = false;
+  }
+
+  function chooseImportTarget(target: DataSpace) {
+    importTarget = target;
+    showImportTargetPicker = false;
+    // Abrir selector de archivo después de decidir destino.
+    requestAnimationFrame(() => importFileInput?.click());
+  }
+
+  // Paso 1: el usuario selecciona un archivo tras elegir destino.
   function handleImport(e: Event) {
     const file = (e.target as HTMLInputElement).files?.[0];
     if (!file) return;
     pendingFile = file;
-    modalPhase = "confirm";
     importResult = null;
     importError = "";
+    void doImport(importTarget);
     (e.target as HTMLInputElement).value = "";
   }
 
@@ -87,10 +106,11 @@
     importError = "";
   }
 
-  // Paso 2: el usuario confirmó → ejecutar importación.
-  async function doImport() {
+  // Paso 2: ejecutar importación en el destino elegido.
+  async function doImport(target: DataSpace = importTarget) {
     if (!pendingFile) return;
 
+    importTarget = target;
     modalPhase = "importing";
     importError = "";
 
@@ -104,7 +124,7 @@
     }
 
     try {
-      const storage = await getStorage();
+      const storage = await getStorageForSpace(importTarget);
       const result = await storage.importBackup(json);
       await loadVault();
       importResult = result;
@@ -116,6 +136,12 @@
           : String(err);
       modalPhase = "error";
     }
+  }
+
+  function getImportTargetLabel(target: DataSpace): string {
+    return target === "android"
+      ? t("settings.import_target_android")
+      : t("settings.import_target_default");
   }
 
   function goToVault() {
@@ -276,8 +302,9 @@
     ></div>
 
     <!-- Fila: Importar -->
-    <label
-      class="w-full flex items-center gap-3.5 px-4 sm:px-5 py-3.5 sm:py-4 transition-all duration-200 cursor-pointer"
+    <button
+      onclick={openImportTargetPicker}
+      class="w-full flex items-center gap-3.5 px-4 sm:px-5 py-3.5 sm:py-4 transition-all duration-200 cursor-pointer text-left"
       style="background: var(--vault-section-bg-alt); display:flex"
       onmouseenter={(e) =>
         ((e.currentTarget as HTMLElement).style.background =
@@ -327,13 +354,14 @@
       >
         <polyline points="9 18 15 12 9 6" />
       </svg>
-      <input
-        type="file"
-        accept=".json"
-        class="hidden"
-        onchange={handleImport}
-      />
-    </label>
+    </button>
+    <input
+      bind:this={importFileInput}
+      type="file"
+      accept=".json"
+      class="hidden"
+      onchange={handleImport}
+    />
   </div>
 
   <!-- ── Sección: Privacidad ──────────────────────────── -->
@@ -422,7 +450,7 @@
           ThreadsVault
         </p>
         <p class="text-xs" style="color: var(--vault-on-bg-muted)">
-          Desktop v2.2.0 · ES/EN
+          Desktop v2.3.0 · ES/EN
         </p>
       </div>
       <span
@@ -435,7 +463,7 @@
         font-size: 10px;
         font-weight: 700;
         letter-spacing: 0.05em;
-      ">v2.2</span
+      ">v2.3</span
       >
     </div>
 
@@ -827,6 +855,86 @@
     error    → mensaje de error + "Reintentar" / "Cerrar"
   El overlay solo permite cerrar en estado confirm (no durante importación ni éxito).
 -->
+{#if showImportTargetPicker}
+  <!-- svelte-ignore a11y_click_events_have_key_events -->
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center p-4"
+    style="background: rgba(0,0,0,0.75); backdrop-filter: blur(10px)"
+    onclick={closeImportTargetPicker}
+    role="dialog"
+    aria-modal="true"
+    aria-label={t('settings.import_backup')}
+    tabindex="-1"
+  >
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="glass rounded-2xl p-6 max-w-sm w-full flex flex-col gap-4 animate-fade-up"
+      onclick={(e) => e.stopPropagation()}
+    >
+      <p
+        class="font-bold text-sm"
+        style="font-family: var(--font-display); color: var(--vault-on-bg)"
+      >
+        {t('settings.import_target_question')}
+      </p>
+
+      <p
+        class="text-sm"
+        style="color: var(--vault-on-bg-muted); line-height: 1.6"
+      >
+        {t('settings.import_target_android_safe')}
+      </p>
+
+      <div class="flex flex-col gap-2">
+        <button
+          onclick={() => chooseImportTarget("android")}
+          class="w-full py-2.5 rounded-xl text-sm font-bold transition-all duration-200 text-left px-3"
+          style="background: rgba(44,207,143,0.15); color: #34d399; border: 1px solid rgba(44,207,143,0.3)"
+          onmouseenter={(e) =>
+            ((e.currentTarget as HTMLElement).style.background =
+              "rgba(44,207,143,0.25)")}
+          onmouseleave={(e) =>
+            ((e.currentTarget as HTMLElement).style.background =
+              "rgba(44,207,143,0.15)")}
+        >
+          {t('settings.import_target_android')}
+        </button>
+
+        <button
+          onclick={() => chooseImportTarget("pc")}
+          class="w-full py-2.5 rounded-xl text-sm font-bold transition-all duration-200 text-left px-3"
+          style="background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3)"
+          onmouseenter={(e) =>
+            ((e.currentTarget as HTMLElement).style.background =
+              "rgba(239,68,68,0.25)")}
+          onmouseleave={(e) =>
+            ((e.currentTarget as HTMLElement).style.background =
+              "rgba(239,68,68,0.15)")}
+        >
+          {t('settings.import_target_default')}
+          <span class="block text-xs mt-0.5" style="color: rgba(252,165,165,0.9); font-weight: 500">
+            {t('settings.import_target_replace_warning')}
+          </span>
+        </button>
+
+        <button
+          onclick={closeImportTargetPicker}
+          class="w-full py-2.5 rounded-xl text-sm font-semibold transition-all duration-200"
+          style="background: var(--vault-surface); color: var(--vault-on-bg-muted); border: 1px solid var(--vault-border)"
+          onmouseenter={(e) =>
+            ((e.currentTarget as HTMLElement).style.background =
+              "var(--vault-surface-hover)")}
+          onmouseleave={(e) =>
+            ((e.currentTarget as HTMLElement).style.background =
+              "var(--vault-surface)")}>{t('common.cancel')}</button
+        >
+      </div>
+    </div>
+  </div>
+{/if}
+
 {#if pendingFile}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -834,7 +942,7 @@
     class="fixed inset-0 z-50 flex items-center justify-center p-4"
     style="background: rgba(0,0,0,0.75); backdrop-filter: blur(10px)"
     onclick={() => {
-      if (modalPhase === "confirm") closeModal();
+      if (modalPhase !== "importing") closeModal();
     }}
     role="dialog"
     aria-modal="true"
@@ -874,7 +982,7 @@
               class="font-bold text-sm"
               style="font-family: var(--font-display); color: var(--vault-on-bg)"
             >
-              {t('settings.import_question')}
+              {t('settings.import_target_question')}
             </p>
             <p class="text-xs mt-0.5" style="color: var(--vault-on-bg-muted)">
               {pendingFile.name}
@@ -886,27 +994,44 @@
           class="text-sm"
           style="color: var(--vault-on-bg-muted); line-height: 1.6"
         >
-          Esto <strong style="color: #f87171"
-            >{t('settings.delete_warning')}</strong
-          >
-          {t('settings.import_warning_suffix')}
+          {t('settings.import_target_android_safe')}
         </p>
 
-        <div class="flex gap-2">
+        <div class="flex flex-col gap-2">
           <button
-            onclick={doImport}
-            class="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all duration-200"
+            onclick={() => doImport("android")}
+            class="w-full py-2.5 rounded-xl text-sm font-bold transition-all duration-200 text-left px-3"
+            style="background: rgba(44,207,143,0.15); color: #34d399; border: 1px solid rgba(44,207,143,0.3)"
+            onmouseenter={(e) =>
+              ((e.currentTarget as HTMLElement).style.background =
+                "rgba(44,207,143,0.25)")}
+            onmouseleave={(e) =>
+              ((e.currentTarget as HTMLElement).style.background =
+                "rgba(44,207,143,0.15)")}
+          >
+            {t('settings.import_target_android')}
+          </button>
+
+          <button
+            onclick={() => doImport("pc")}
+            class="w-full py-2.5 rounded-xl text-sm font-bold transition-all duration-200 text-left px-3"
             style="background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3)"
             onmouseenter={(e) =>
               ((e.currentTarget as HTMLElement).style.background =
                 "rgba(239,68,68,0.25)")}
             onmouseleave={(e) =>
               ((e.currentTarget as HTMLElement).style.background =
-                "rgba(239,68,68,0.15)")}>{t('settings.import_replace')}</button
+                "rgba(239,68,68,0.15)")}
           >
+            {t('settings.import_target_default')}
+            <span class="block text-xs mt-0.5" style="color: rgba(252,165,165,0.9); font-weight: 500">
+              {t('settings.import_target_replace_warning')}
+            </span>
+          </button>
+
           <button
             onclick={closeModal}
-            class="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200"
+            class="w-full py-2.5 rounded-xl text-sm font-semibold transition-all duration-200"
             style="background: var(--vault-surface); color: var(--vault-on-bg-muted); border: 1px solid var(--vault-border)"
             onmouseenter={(e) =>
               ((e.currentTarget as HTMLElement).style.background =
@@ -944,7 +1069,7 @@
               {t('settings.importing')}
             </p>
             <p class="text-xs mt-0.5" style="color: var(--vault-on-bg-muted)">
-              {pendingFile.name}
+              {pendingFile.name} · {getImportTargetLabel(importTarget)}
             </p>
           </div>
         </div>
@@ -1132,7 +1257,7 @@
         <div class="flex gap-2">
           <button
             onclick={() => {
-              modalPhase = "confirm";
+              void doImport(importTarget);
               importError = "";
             }}
             class="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all duration-200"
